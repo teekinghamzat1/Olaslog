@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Olaslog — Product Design (Light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#F5F3EC;
+    --panel:#FFFFFF;
+    --panel-2:#F2EFE6;
+    --edge:rgba(20,24,31,0.09);
+    --edge-strong:rgba(20,24,31,0.16);
+    --text:#14181F;
+    --text-dim:#5B6172;
+    --text-faint:#93980A00;
+    --gold:#B9832E;
+    --gold-soft:rgba(185,131,46,0.13);
+    --gold-text:#7A5420;
+    --teal:#128C7C;
+    --teal-soft:rgba(18,140,124,0.12);
+    --danger:#C0453B;
+    --danger-soft:rgba(192,69,59,0.11);
+    --danger-text:#8A2F28;
+    --r-lg:26px; --r-md:16px; --r-sm:9px;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --display:'Space Grotesk',var(--sans);
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    color-scheme: light;
+  }
+  :root{ --text-faint:#8A90A2; }
+  :root:not([data-theme="dark"]), :root[data-theme="light"]{ --bg:var(--ink); }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--ink);}
+  body{
+    font-family:var(--sans);
+    color:var(--text);
+    background:
+      radial-gradient(900px 480px at 82% -6%, rgba(185,131,46,0.10), transparent 60%),
+      radial-gradient(700px 420px at -6% 30%, rgba(18,140,124,0.08), transparent 55%),
+      var(--ink);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;}
+  button{font-family:inherit; cursor:pointer;}
+
+  .wrap{max-width:1180px; margin:0 auto; padding:48px 24px 96px;}
+  .masthead{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:24px; flex-wrap:wrap;
+    padding-bottom:40px; margin-bottom:40px;
+    border-bottom:1px solid var(--edge);
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:40px; height:40px; border-radius:11px;
+    background:linear-gradient(155deg, var(--gold), #8a651f);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--display); font-weight:700; font-size:18px; color:#fdf6ea;
+    flex-shrink:0;
+  }
+  .brand-name{font-family:var(--display); font-weight:600; font-size:22px; letter-spacing:-0.01em;}
+  .brand-tag{color:var(--text-dim); font-size:14px; margin-top:2px;}
+  .masthead-note{
+    max-width:360px; color:var(--text-dim); font-size:14.5px; line-height:1.55;
+    text-align:right;
+  }
+  @media (max-width:720px){ .masthead-note{text-align:left; max-width:100%;} }
+
+  h1.headline{
+    font-family:var(--display); font-weight:600; font-size:clamp(28px,4vw,42px);
+    line-height:1.12; letter-spacing:-0.015em; max-width:820px; margin-bottom:14px;
+  }
+  .headline .accent{color:var(--gold-text);}
+  p.sub{color:var(--text-dim); font-size:16px; line-height:1.6; max-width:600px; margin-bottom:44px;}
+
+  .studio{
+    display:grid;
+    grid-template-columns:220px 1fr 300px;
+    gap:36px;
+    align-items:start;
+  }
+  @media (max-width:980px){ .studio{grid-template-columns:1fr; } }
+
+  .screen-list{ display:flex; flex-direction:column; gap:4px; position:sticky; top:24px; }
+  @media (max-width:980px){
+    .screen-list{ position:static; flex-direction:row; overflow-x:auto; padding-bottom:8px; gap:8px; }
+  }
+  .screen-tab{
+    text-align:left;
+    background:transparent; border:none; color:var(--text-faint);
+    font-size:14.5px; font-weight:500; padding:11px 14px; border-radius:10px;
+    border-left:2px solid transparent;
+    white-space:nowrap;
+    transition:color .15s ease, background .15s ease;
+  }
+  @media (max-width:980px){ .screen-tab{border-left:none; border-bottom:2px solid transparent; flex-shrink:0;} }
+  .screen-tab .num{ font-family:var(--mono); font-size:12px; color:var(--text-faint); margin-right:8px; }
+  .screen-tab:hover{color:var(--text);}
+  .screen-tab.active{ color:var(--text); background:var(--panel-2); border-left-color:var(--gold); }
+  .screen-tab.active .num{color:var(--gold-text);}
+  @media (max-width:980px){ .screen-tab.active{border-left-color:transparent; border-bottom-color:var(--gold); background:transparent;} }
+
+  .stage{display:flex; justify-content:center;}
+  .desc-panel{padding-top:6px;}
+  .desc-eyebrow{ font-family:var(--mono); font-size:12px; color:var(--teal); margin-bottom:10px; }
+  .desc-title{ font-family:var(--display); font-weight:600; font-size:20px; margin-bottom:10px; }
+  .desc-body{color:var(--text-dim); font-size:14.5px; line-height:1.65;}
+  @media (max-width:980px){ .desc-panel{margin-top:28px;} }
+
+  .phone{
+    width:336px; height:702px;
+    background:linear-gradient(160deg,#232c3f,#12172a);
+    border-radius:46px; padding:12px;
+    box-shadow: 0 60px 90px -40px rgba(20,24,31,0.28), 0 1px 0 rgba(255,255,255,0.08) inset, 0 0 0 1px rgba(0,0,0,0.15);
+    position:relative;
+  }
+  @media (max-width:400px){ .phone{width:100%; height:640px;} }
+  .screen{
+    position:relative; width:100%; height:100%;
+    background:var(--panel); border-radius:34px; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .notch{
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:120px; height:26px; background:#12172a;
+    border-bottom-left-radius:16px; border-bottom-right-radius:16px; z-index:20;
+  }
+  .statusbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px 4px; font-size:13px; font-weight:600; color:var(--text);
+    flex-shrink:0;
+  }
+  .status-icons{display:flex; align-items:center; gap:5px;}
+  .screen-body{flex:1; overflow-y:auto; padding:6px 20px 18px;}
+  .screen-body::-webkit-scrollbar{width:0;}
+
+  .appbar{display:flex; align-items:center; justify-content:space-between; padding:6px 0 16px;}
+  .appbar-title{font-family:var(--display); font-weight:600; font-size:19px;}
+  .icon-btn{
+    width:34px; height:34px; border-radius:10px; background:var(--panel-2);
+    border:1px solid var(--edge); display:flex; align-items:center; justify-content:center;
+    color:var(--text-dim); flex-shrink:0;
+  }
+
+  .bottomnav{
+    flex-shrink:0; display:flex; justify-content:space-around; align-items:center;
+    padding:12px 10px calc(14px + env(safe-area-inset-bottom,0px));
+    border-top:1px solid var(--edge); background:rgba(255,255,255,0.7);
+  }
+  .navitem{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); width:52px;}
+  .navitem.active{color:var(--gold-text);}
+  .navitem span{font-size:10.5px; font-weight:500;}
+
+  .card{ background:var(--panel-2); border:1px solid var(--edge); border-radius:var(--r-md); padding:16px; }
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:5px 10px; border-radius:99px; }
+  .pill .dot{width:6px; height:6px; border-radius:50%;}
+  .pill-teal{background:var(--teal-soft); color:var(--teal);} .pill-teal .dot{background:var(--teal);}
+  .pill-gold{background:var(--gold-soft); color:var(--gold-text);} .pill-gold .dot{background:var(--gold);}
+  .pill-danger{background:var(--danger-soft); color:var(--danger-text);} .pill-danger .dot{background:var(--danger);}
+
+  .btn{ border-radius:13px; border:none; font-weight:600; font-size:14.5px; padding:13px 18px; width:100%; text-align:center; }
+  .btn-primary{background:linear-gradient(155deg,#d6a75c,var(--gold)); color:#2b1e08;}
+  .btn-outline{background:transparent; border:1px solid var(--edge-strong); color:var(--text);}
+  .btn-disabled{background:var(--danger-soft); color:var(--danger-text); border:1px solid rgba(192,69,59,0.22);}
+  .btn-row{display:flex; gap:10px;}
+
+  .section-label{ font-size:13px; font-weight:600; color:var(--text-dim); margin:22px 0 10px; }
+  .section-label:first-child{margin-top:0;}
+
+  .balance-hero{
+    background:
+      radial-gradient(120px 90px at 85% 0%, rgba(185,131,46,0.16), transparent 70%),
+      linear-gradient(160deg,#FBF6EA,#F3EEE1);
+    border:1px solid var(--edge); border-radius:22px; padding:20px;
+  }
+  .balance-label{font-size:13px; color:var(--text-dim); margin-bottom:8px;}
+  .balance-amount{font-family:var(--display); font-size:30px; font-weight:600; letter-spacing:-0.01em;}
+  .balance-amount .kobo{font-size:16px; color:var(--text-dim); font-weight:500;}
+  .balance-hero .btn-row{margin-top:18px;}
+
+  .notice{
+    margin-top:14px; padding:12px 14px; border-radius:12px;
+    background:var(--gold-soft); border-left:3px solid var(--gold);
+    font-size:13px; color:var(--gold-text); line-height:1.5;
+  }
+
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0;}
+  .row + .row{border-top:1px solid var(--edge);}
+  .row-left{display:flex; align-items:center; gap:11px; min-width:0;}
+  .row-icon{
+    width:36px; height:36px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel); border:1px solid var(--edge); color:var(--teal);
+  }
+  .row-title{font-size:14px; font-weight:600;}
+  .row-sub{font-size:12px; color:var(--text-faint); margin-top:2px;}
+  .row-amt{font-size:13.5px; font-weight:600; white-space:nowrap;}
+  .row-amt.pos{color:var(--teal);}
+  .row-amt.neg{color:var(--text);}
+
+  .search{
+    display:flex; align-items:center; gap:10px;
+    background:var(--panel-2); border:1px solid var(--edge); border-radius:13px;
+    padding:11px 14px; color:var(--text-faint); font-size:13.5px; margin-bottom:14px;
+  }
+  .chips{display:flex; gap:8px; overflow-x:auto; padding-bottom:14px;}
+  .chip{
+    flex-shrink:0; padding:8px 14px; border-radius:99px; font-size:13px; font-weight:500;
+    border:1px solid var(--edge); color:var(--text-dim); white-space:nowrap;
+  }
+  .chip.active{background:var(--text); color:#fff; border-color:var(--text);}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .pcard{ border-radius:18px; overflow:hidden; background:var(--panel-2); border:1px solid var(--edge); }
+  .pcard-top{height:5px;}
+  .pcard-body{padding:13px;}
+  .pcard-icon{
+    width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    font-family:var(--display); font-weight:600; font-size:14px; margin-bottom:12px;
+  }
+  .pcard-name{font-size:13.5px; font-weight:600; margin-bottom:3px;}
+  .pcard-price{font-family:var(--display); font-size:15px; font-weight:600; margin-bottom:9px;}
+
+  .pd-hero{
+    height:150px; border-radius:20px;
+    background:linear-gradient(155deg,#F3EEE1,#FBF6EA);
+    border:1px solid var(--edge);
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:16px; position:relative; overflow:hidden;
+  }
+  .pd-hero-mark{font-family:var(--display); font-weight:700; font-size:40px; color:var(--teal); opacity:0.85;}
+  .pd-title{font-family:var(--display); font-weight:600; font-size:21px; margin-bottom:4px;}
+  .pd-price-row{display:flex; align-items:baseline; gap:8px; margin:6px 0 14px;}
+  .pd-price{font-family:var(--display); font-weight:600; font-size:20px;}
+  .pd-unit{color:var(--text-faint); font-size:12.5px;}
+  .stepper{display:flex; align-items:center; gap:14px; margin:16px 0;}
+  .stepper button{
+    width:32px; height:32px; border-radius:9px; border:1px solid var(--edge-strong);
+    background:var(--panel-2); color:var(--text); font-size:16px;
+  }
+  .stepper .qty{font-weight:600; font-size:15px; width:20px; text-align:center;}
+  .rules{ border:1px solid var(--edge); border-radius:14px; padding:14px 16px; margin:16px 0; background:var(--panel-2); }
+  .rules-title{font-size:13.5px; font-weight:600; margin-bottom:8px; color:var(--text);}
+  .rules ul{list-style:none;}
+  .rules li{ font-size:12.5px; color:var(--text-dim); line-height:1.55; padding-left:16px; position:relative; margin-bottom:6px; }
+  .rules li::before{ content:''; position:absolute; left:0; top:7px; width:4px; height:4px; border-radius:50%; background:var(--teal); }
+  .pd-desc{font-size:13.5px; color:var(--text-dim); line-height:1.6;}
+  .sticky-buy{
+    position:sticky; bottom:0; background:linear-gradient(0deg,var(--panel) 60%,transparent);
+    padding:16px 0 4px; margin-top:8px;
+  }
+  .sticky-buy-total{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--text-dim); margin-bottom:10px;}
+  .sticky-buy-total b{color:var(--text); font-size:15px; font-family:var(--display);}
+
+  .cart-item{display:flex; align-items:center; gap:12px; padding:12px 0;}
+  .cart-item + .cart-item{border-top:1px solid var(--edge);}
+  .cart-thumb{
+    width:44px; height:44px; border-radius:11px; background:var(--panel-2); border:1px solid var(--edge);
+    display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:600; font-size:14px; flex-shrink:0;
+  }
+  .cart-name{font-size:13.5px; font-weight:600;}
+  .cart-price{font-size:12px; color:var(--text-faint); margin-top:2px;}
+  .mini-stepper{display:flex; align-items:center; gap:9px; margin-left:auto;}
+  .mini-stepper button{
+    width:24px; height:24px; border-radius:7px; border:1px solid var(--edge-strong); background:var(--panel-2); color:var(--text); font-size:13px;
+  }
+  .mini-stepper .qty{font-size:13px; font-weight:600; width:14px; text-align:center;}
+  .summary-row{display:flex; justify-content:space-between; font-size:13.5px; color:var(--text-dim); padding:6px 0;}
+  .summary-row.total{color:var(--text); font-weight:600; font-size:15px; padding-top:12px; border-top:1px solid var(--edge); margin-top:6px;}
+  .funds-banner{
+    display:flex; gap:11px; align-items:flex-start;
+    background:var(--danger-soft); border:1px solid rgba(192,69,59,0.2); border-radius:14px;
+    padding:13px 14px; margin:16px 0;
+  }
+  .funds-banner b{color:var(--danger-text); font-size:13.5px; display:block; margin-bottom:3px;}
+  .funds-banner p{color:var(--danger-text); opacity:0.85; font-size:12.5px; line-height:1.5;}
+
+  .amount-display{text-align:center; padding:26px 0 18px;}
+  .amount-display .cur{font-size:20px; color:var(--text-faint); vertical-align:top; margin-right:2px;}
+  .amount-display .num{font-family:var(--display); font-size:44px; font-weight:600; letter-spacing:-0.02em;}
+  .amount-hint{text-align:center; font-size:12px; color:var(--text-faint); margin-bottom:20px;}
+  .quick-amounts{display:flex; gap:8px; margin-bottom:24px;}
+  .qa{
+    flex:1; text-align:center; padding:10px 0; border-radius:11px; border:1px solid var(--edge);
+    font-size:12.5px; font-weight:600; color:var(--text-dim);
+  }
+  .qa.active{border-color:var(--gold); color:var(--gold-text); background:var(--gold-soft);}
+  .method{
+    display:flex; align-items:center; gap:12px; padding:13px 14px; border:1px solid var(--edge);
+    border-radius:13px; margin-bottom:9px;
+  }
+  .method.active{border-color:var(--teal); background:var(--teal-soft);}
+  .method-icon{width:32px; height:32px; border-radius:9px; background:var(--panel-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--text-dim);}
+  .method.active .method-icon{color:var(--teal);}
+  .method-name{font-size:13.5px; font-weight:600;}
+  .method-sub{font-size:11.5px; color:var(--text-faint); margin-top:1px;}
+  .radio{width:17px; height:17px; border-radius:50%; border:1.5px solid var(--edge-strong); margin-left:auto; flex-shrink:0; position:relative;}
+  .method.active .radio{border-color:var(--teal);}
+  .method.active .radio::after{content:''; position:absolute; inset:3px; border-radius:50%; background:var(--teal);}
+  .paystack-note{font-size:11.5px; color:var(--text-faint); line-height:1.5; text-align:center; margin-top:16px;}
+
+  .success-badge{display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 0 8px;}
+  .success-ring{
+    width:56px; height:56px; border-radius:50%; background:var(--teal-soft); border:1px solid rgba(18,140,124,0.25);
+    display:flex; align-items:center; justify-content:center; color:var(--teal);
+  }
+  .success-text{font-family:var(--display); font-weight:600; font-size:17px;}
+  .success-sub{font-size:12.5px; color:var(--text-faint);}
+
+  .ticket{
+    position:relative; margin-top:20px;
+    background:linear-gradient(160deg,#FBF6EA,#F3EEE1);
+    border:1px solid var(--edge-strong); border-radius:18px; padding:18px 18px 20px;
+  }
+  .ticket::before, .ticket::after{
+    content:''; position:absolute; width:18px; height:18px; border-radius:50%;
+    background:var(--panel); left:-9px; top:50%; transform:translateY(-50%);
+  }
+  .ticket::after{left:auto; right:-9px;}
+  .ticket-perf{ border-top:1.5px dashed var(--edge-strong); margin:14px 0; position:relative; }
+  .ticket-row{display:flex; justify-content:space-between; align-items:center; padding:6px 0;}
+  .ticket-label{font-size:11px; color:var(--text-faint);}
+  .ticket-value{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--text);}
+  .ticket-value.masked{letter-spacing:2px;}
+  .reveal{font-family:var(--sans); font-size:11px; color:var(--teal); font-weight:600; margin-left:8px;}
+  .ticket-id{font-family:var(--mono); font-size:11px; color:var(--text-faint); text-align:center; margin-top:12px;}
+  .delivery-footnote{font-size:11.5px; color:var(--text-faint); line-height:1.55; margin-top:18px; text-align:center;}
+
+  .screen-panel{display:none;} .screen-panel.active{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="brand">
+      <div class="brand-mark">O</div>
+      <div>
+        <div class="brand-name">Olaslog</div>
+        <div class="brand-tag">Digital goods, delivered instantly</div>
+      </div>
+    </div>
+    <div class="masthead-note">Light variant — same six screens, same tokens, swapped for a warm ivory surface. Gold and teal both moved a step darker to hold contrast off-white.</div>
+  </div>
+
+  <h1 class="headline">A vault for digital accounts, built for <span class="accent">₦2,500 decisions</span> made in seconds.</h1>
+  <p class="sub">The design leans on two ideas from the brief: money held in a wallet feels safer than money spent per-order, and a credential delivered instantly should look and feel like a receipt you can trust.</p>
+
+  <div class="studio">
+    <div class="screen-list" id="tabs">
+      <button class="screen-tab active" data-screen="dashboard"><span class="num">01</span>Dashboard</button>
+      <button class="screen-tab" data-screen="shop"><span class="num">02</span>Shop</button>
+      <button class="screen-tab" data-screen="product"><span class="num">03</span>Product</button>
+      <button class="screen-tab" data-screen="cart"><span class="num">04</span>Checkout</button>
+      <button class="screen-tab" data-screen="wallet"><span class="num">05</span>Fund wallet</button>
+      <button class="screen-tab" data-screen="delivery"><span class="num">06</span>Delivery</button>
+    </div>
+
+    <div class="stage">
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <div class="status-icons">
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="0.5" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="0.5" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="0.5" fill="currentColor"/><rect x="13.5" y="0" width="2.5" height="11" rx="0.5" fill="currentColor" opacity="0.35"/></svg>
+              <svg width="22" height="11" viewBox="0 0 22 11" fill="none"><rect x="0.5" y="0.5" width="19" height="10" rx="2.5" stroke="currentColor" opacity="0.5"/><rect x="2" y="2" width="14" height="7" rx="1.2" fill="currentColor"/><rect x="21" y="3.5" width="1.2" height="4" rx="0.5" fill="currentColor" opacity="0.5"/></svg>
+            </div>
+          </div>
+
+          <div class="screen-body screen-panel active" data-panel="dashboard">
+            <div class="appbar">
+              <div><div class="appbar-title">Good evening, Adaeze</div></div>
+              <div class="icon-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              </div>
+            </div>
+            <div class="balance-hero">
+              <div class="balance-label">Wallet balance</div>
+              <div class="balance-amount">₦24,500<span class="kobo">.00</span></div>
+              <div class="btn-row">
+                <button class="btn btn-primary">Fund wallet</button>
+                <button class="btn btn-outline">Browse shop</button>
+              </div>
+            </div>
+            <div class="notice">Your wallet balance is running low — top up before your next order to avoid a stalled checkout.</div>
+            <div class="section-label">Recent orders</div>
+            <div class="card">
+              <div class="row">
+                <div class="row-left">
+                  <div class="row-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 4v4M16 4v4"/></svg></div>
+                  <div><div class="row-title">TextPlus account</div><div class="row-sub">Sep 15 · Order OLG-88214</div></div>
+                </div>
+                <span class="pill pill-teal"><span class="dot"></span>Delivered</span>
+              </div>
+              <div class="row">
+                <div class="row-left">
+                  <div class="row-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 2v4M17 2v4"/></svg></div>
+                  <div><div class="row-title">VPN access, 30 days</div><div class="row-sub">Sep 12 · Order OLG-88107</div></div>
+                </div>
+                <span class="pill pill-teal"><span class="dot"></span>Delivered</span>
+              </div>
+            </div>
+            <div class="section-label">Recent transactions</div>
+            <div class="card">
+              <div class="row">
+                <div class="row-left">
+                  <div class="row-icon" style="color:var(--gold-text)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12l7-7 7 7"/></svg></div>
+                  <div><div class="row-title">Wallet funded</div><div class="row-sub">Paystack · card</div></div>
+                </div>
+                <span class="row-amt pos">+₦10,000</span>
+              </div>
+              <div class="row">
+                <div class="row-left">
+                  <div class="row-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5M5 12l7 7 7-7"/></svg></div>
+                  <div><div class="row-title">TextPlus purchase</div><div class="row-sub">1 item</div></div>
+                </div>
+                <span class="row-amt neg">–₦1,200</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-body screen-panel" data-panel="shop">
+            <div class="appbar">
+              <div class="appbar-title">Shop</div>
+              <div class="icon-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+            </div>
+            <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search products</div>
+            <div class="chips">
+              <div class="chip active">All</div><div class="chip">Messaging apps</div><div class="chip">Voice &amp; numbers</div><div class="chip">VPN</div>
+            </div>
+            <div class="grid2">
+              <div class="pcard">
+                <div class="pcard-top" style="background:var(--teal)"></div>
+                <div class="pcard-body">
+                  <div class="pcard-icon" style="background:var(--teal-soft); color:var(--teal)">TP</div>
+                  <div class="pcard-name">TextPlus</div><div class="pcard-price">₦1,200</div>
+                  <span class="pill pill-teal"><span class="dot"></span>42 in stock</span>
+                </div>
+              </div>
+              <div class="pcard">
+                <div class="pcard-top" style="background:var(--teal)"></div>
+                <div class="pcard-body">
+                  <div class="pcard-icon" style="background:var(--teal-soft); color:var(--teal)">TK</div>
+                  <div class="pcard-name">Talkatone</div><div class="pcard-price">₦1,000</div>
+                  <span class="pill pill-teal"><span class="dot"></span>15 in stock</span>
+                </div>
+              </div>
+              <div class="pcard">
+                <div class="pcard-top" style="background:var(--gold)"></div>
+                <div class="pcard-body">
+                  <div class="pcard-icon" style="background:var(--gold-soft); color:var(--gold-text)">GV</div>
+                  <div class="pcard-name">Google Voice</div><div class="pcard-price">₦2,500</div>
+                  <span class="pill pill-gold"><span class="dot"></span>Low — 3 left</span>
+                </div>
+              </div>
+              <div class="pcard">
+                <div class="pcard-top" style="background:var(--teal)"></div>
+                <div class="pcard-body">
+                  <div class="pcard-icon" style="background:var(--teal-soft); color:var(--teal)">VP</div>
+                  <div class="pcard-name">VPN, 30 days</div><div class="pcard-price">₦3,800</div>
+                  <span class="pill pill-teal"><span class="dot"></span>60 in stock</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-body screen-panel" data-panel="product">
+            <div class="appbar">
+              <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+              <div class="appbar-title" style="font-size:15px">Google Voice</div>
+              <div style="width:34px"></div>
+            </div>
+            <div class="pd-hero"><div class="pd-hero-mark">GV</div></div>
+            <div class="pd-title">Google Voice account</div>
+            <span class="pill pill-gold"><span class="dot"></span>Low stock — 3 left</span>
+            <div class="pd-price-row"><div class="pd-price">₦2,500</div><div class="pd-unit">per account</div></div>
+            <div class="stepper"><button>–</button><div class="qty">1</div><button>+</button></div>
+            <div class="rules">
+              <div class="rules-title">Before you buy</div>
+              <ul>
+                <li>Credentials carry no expiry date and no warranty from Olaslog.</li>
+                <li>Verify sign-in immediately after delivery — report issues within 24 hours.</li>
+                <li>One account per stock item; not shared with any other buyer.</li>
+              </ul>
+            </div>
+            <div class="pd-desc">A ready-to-use Google Voice number and login, issued from our stock pool the moment your payment clears. Delivered as text in this app and by email.</div>
+            <div class="sticky-buy">
+              <div class="sticky-buy-total"><span>Total</span><b>₦2,500</b></div>
+              <div class="btn-row"><button class="btn btn-outline">Add to cart</button><button class="btn btn-primary">Buy now</button></div>
+            </div>
+          </div>
+
+          <div class="screen-body screen-panel" data-panel="cart">
+            <div class="appbar">
+              <div class="appbar-title">Your cart</div>
+              <div class="icon-btn" style="color:var(--text-faint); font-size:12px; font-weight:600;">2</div>
+            </div>
+            <div class="cart-item">
+              <div class="cart-thumb" style="color:var(--gold-text)">GV</div>
+              <div><div class="cart-name">Google Voice</div><div class="cart-price">₦2,500 each</div></div>
+              <div class="mini-stepper"><button>–</button><span class="qty">4</span><button>+</button></div>
+            </div>
+            <div class="cart-item">
+              <div class="cart-thumb" style="color:var(--teal)">VP</div>
+              <div><div class="cart-name">VPN, 30 days</div><div class="cart-price">₦3,800 each</div></div>
+              <div class="mini-stepper"><button>–</button><span class="qty">3</span><button>+</button></div>
+            </div>
+            <div class="summary-row"><span>Subtotal</span><span>₦27,400</span></div>
+            <div class="summary-row total"><span>Total</span><span>₦27,400</span></div>
+            <div class="funds-banner">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger-text)" stroke-width="1.8" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              <div><b>Insufficient funds</b><p>Your wallet holds ₦24,500. Add ₦2,900 more to complete this order.</p></div>
+            </div>
+            <button class="btn btn-disabled">Fund wallet to continue</button>
+          </div>
+
+          <div class="screen-body screen-panel" data-panel="wallet">
+            <div class="appbar">
+              <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></div>
+              <div class="appbar-title" style="font-size:15px">Fund wallet</div>
+              <div style="width:34px"></div>
+            </div>
+            <div class="amount-display"><span class="cur">₦</span><span class="num">5,000</span></div>
+            <div class="amount-hint">Minimum ₦100 per transaction</div>
+            <div class="quick-amounts">
+              <div class="qa">₦1,000</div><div class="qa active">₦5,000</div><div class="qa">₦10,000</div><div class="qa">₦25,000</div>
+            </div>
+            <div class="section-label" style="margin-top:4px;">Pay with</div>
+            <div class="method active">
+              <div class="method-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
+              <div><div class="method-name">Debit card</div><div class="method-sub">Visa, Mastercard, Verve</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="method">
+              <div class="method-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10l9-6 9 6"/><path d="M5 10v9M19 10v9M9 10v9M15 10v9"/><path d="M3 19h18"/></svg></div>
+              <div><div class="method-name">Bank transfer</div><div class="method-sub">Instant confirmation</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="method">
+              <div class="method-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></svg></div>
+              <div><div class="method-name">USSD</div><div class="method-sub">No internet needed</div></div>
+              <div class="radio"></div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:16px;">Continue to Paystack</button>
+            <div class="paystack-note">Payments are processed securely by Paystack. Your balance updates once the transfer is verified.</div>
+          </div>
+
+          <div class="screen-body screen-panel" data-panel="delivery">
+            <div class="appbar">
+              <div class="appbar-title" style="font-size:15px">Order delivered</div>
+              <div style="width:34px"></div>
+            </div>
+            <div class="success-badge">
+              <div class="success-ring"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+              <div class="success-text">Delivered instantly</div>
+              <div class="success-sub">Google Voice · 1 account</div>
+            </div>
+            <div class="ticket">
+              <div class="ticket-row"><span class="ticket-label">Service</span><span class="ticket-value">Google Voice</span></div>
+              <div class="ticket-row"><span class="ticket-label">Number</span><span class="ticket-value">+1 415 555 0148</span></div>
+              <div class="ticket-perf"></div>
+              <div class="ticket-row"><span class="ticket-label">Username</span><span class="ticket-value">adaeze.gv0148</span></div>
+              <div class="ticket-row"><span class="ticket-label">Password</span><span class="ticket-value masked">••••••••<span class="reveal">Reveal</span></span></div>
+              <div class="ticket-id">ORDER OLG-88291</div>
+            </div>
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-outline">Copy details</button>
+              <button class="btn btn-primary">Purchase history</button>
+            </div>
+            <div class="delivery-footnote">No expiry or warranty applies to this credential — usage guidance is saved with this order in Purchase History.</div>
+          </div>
+
+          <div class="bottomnav">
+            <div class="navitem active"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></div>
+            <div class="navitem"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16l-1.5 11a2 2 0 0 1-2 2H7.5a2 2 0 0 1-2-2z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg><span>Shop</span></div>
+            <div class="navitem"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 6V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v1"/><circle cx="16" cy="12.5" r="1.3" fill="currentColor" stroke="none"/></svg><span>Wallet</span></div>
+            <div class="navitem"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 4v14H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg><span>Orders</span></div>
+            <div class="navitem"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg><span>Profile</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="desc-panel">
+      <div class="desc-eyebrow" id="desc-eyebrow">01 / Dashboard</div>
+      <div class="desc-title" id="desc-title">Balance first, always</div>
+      <div class="desc-body" id="desc-body">The wallet balance is the largest number on the screen, ahead of any product or promo — this is a prepaid platform, so the balance is the thing users check before anything else. Low-balance warnings sit right under it rather than as a separate alert, so funding is one tap away.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const descriptions = {
+    dashboard: { eyebrow: "01 / Dashboard", title: "Balance first, always", body: "The wallet balance is the largest number on the screen, ahead of any product or promo — this is a prepaid platform, so the balance is the thing users check before anything else. Low-balance warnings sit right under it rather than as a separate alert, so funding is one tap away." },
+    shop: { eyebrow: "02 / Shop", title: "Stock is part of the pitch", body: "Every card shows live stock, not just price, because these are one-time credential items that can sell out mid-session. The teal-to-gold pill shift from 'in stock' to 'low stock' does the urgency work instead of a banner or badge." },
+    product: { eyebrow: "03 / Product detail", title: "The rules block earns its place", body: "Because credentials carry no expiry or warranty, the Rules/Guide panel sits between the price and the buy button — not tucked into a footer — so it's read before purchase, not after a complaint." },
+    cart: { eyebrow: "04 / Checkout", title: "Insufficient funds is a first-class state", body: "Rather than a generic error toast, the shortfall is shown as a specific number with a specific next step. This is the exact moment the PRD calls out as needing to redirect to wallet funding, so the CTA replaces 'Checkout' entirely." },
+    wallet: { eyebrow: "05 / Fund wallet", title: "Paystack, made to feel native", body: "Amount entry leads with a large numeral rather than a form field, and payment channels are shown as a short, scannable list rather than an external redirect — the handoff to Paystack is named plainly so trust isn't broken by surprise." },
+    delivery: { eyebrow: "06 / Delivery", title: "A ticket, not a toast", body: "Instant delivery is the product's core promise, so it gets a dedicated moment: a perforated ticket that reads like a claim stub, holding exactly the fields — service, number, login, order ID — a user will come back to find in Purchase History." },
+  };
+  const tabs = document.querySelectorAll('.screen-tab');
+  const panels = document.querySelectorAll('.screen-panel');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const key = tab.dataset.screen;
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      panels.forEach(p => p.classList.toggle('active', p.dataset.panel === key));
+      const d = descriptions[key];
+      document.getElementById('desc-eyebrow').textContent = d.eyebrow;
+      document.getElementById('desc-title').textContent = d.title;
+      document.getElementById('desc-body').textContent = d.body;
+      document.querySelector('.screen-body.active') && (document.querySelector('.screen-body.active').scrollTop = 0);
+    });
+  });
+</script>
+</body>
+</html>

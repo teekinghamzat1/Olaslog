@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olaslog - Digital Products Marketplace | Instant Automated Delivery</title>
+    <meta name="description" content="Self-service marketplace for digital accounts, Google Voice, TextPlus, Talkatone, and VPN subscriptions. Pre-fund your wallet via Paystack and receive instant delivery.">
+    
+    <!-- Google Fonts: Space Grotesk, Inter, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <!-- Main Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button class="mobile-hamburger-btn" id="mobileHamburgerBtn" onclick="toggleMobileDrawer()" title="Open Navigation Menu">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="brand-logo" onclick="navigateTo('home')">
+                    <div class="brand-mark">O</div>
+                    <div>Olas<span class="brand-highlight">log</span></div>
+                </div>
+            </div>
+
+            <ul class="nav-links">
+                <li><a class="nav-link" id="nav-home" onclick="navigateTo('home')">Home</a></li>
+                <li><a class="nav-link" id="nav-shop" onclick="navigateTo('shop')">Shop Catalog</a></li>
+                <li class="auth-only"><a class="nav-link" id="nav-dashboard" onclick="navigateTo('dashboard')">Dashboard</a></li>
+                <li class="auth-only"><a class="nav-link" id="nav-orders" onclick="navigateTo('orders')">Orders & History</a></li>
+                <li class="auth-only"><a class="nav-link" id="nav-wallet" onclick="navigateTo('wallet')">Wallet</a></li>
+                <li class="admin-only" style="display: none;"><a class="nav-link" href="/admin" target="_blank" style="color: var(--gold);">🛡️ Admin Suite</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <!-- Live Wallet Balance Nav Badge -->
+                <div class="wallet-nav-badge auth-only" onclick="navigateTo('wallet')" title="Your Wallet Balance (Click to Fund)">
+                    <span>₦</span>
+                    <span id="navWalletBalance">0.00</span>
+                    <span style="font-size: 0.75rem; background: rgba(73, 216, 196, 0.2); color: var(--teal); padding: 2px 6px; border-radius: 6px;">+ Fund</span>
+                </div>
+
+                <!-- Theme Toggle Switch (Animated Sun/Moon) -->
+                <button class="theme-switch" onclick="toggleTheme()" id="themeToggleBtn" aria-label="Toggle light and dark mode" title="Toggle Light / Dark Mode">
+                    <div class="theme-switch-track">
+                        <div class="theme-switch-thumb">
+                            <span class="theme-switch-icon sun-icon">☀️</span>
+                            <span class="theme-switch-icon moon-icon">🌙</span>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Shopping Cart Icon -->
+                <div class="cart-nav-btn" onclick="toggleCartDrawer()" title="Shopping Cart">
+                    🛒
+                    <div class="cart-badge" id="cartCountBadge">0</div>
+                </div>
+
+                <!-- User Profile & Auth Buttons -->
+                <div id="authNavContainer">
+                    <button class="btn btn-primary btn-sm guest-only" onclick="openAuthModal('login')">Sign In</button>
+                    <button class="btn btn-secondary btn-sm guest-only" onclick="openAuthModal('register')">Register</button>
+                    
+                    <div class="auth-only" style="display: flex; align-items: center; gap: 0.6rem;">
+                        <span id="navUserName" style="font-size: 0.88rem; font-weight: 600; color: var(--text-secondary);"></span>
+                        <button class="btn btn-secondary btn-sm" onclick="logoutUser()">Log Out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Slide-Out Sidebar Drawer -->
+    <div class="mobile-drawer-overlay" id="mobileDrawerOverlay" onclick="toggleMobileDrawer(false)"></div>
+    <aside class="mobile-sidebar" id="mobileSidebar">
+        <div class="mobile-sidebar-head">
+            <div class="brand-logo" onclick="navigateTo('home'); toggleMobileDrawer(false);">
+                <div class="brand-mark">O</div>
+                <div>Olas<span class="brand-highlight">log</span></div>
+            </div>
+            <button class="drawer-close-btn" onclick="toggleMobileDrawer(false)">&times;</button>
+        </div>
+
+        <div class="mobile-sidebar-user auth-only" style="display: none;">
+            <div class="avatar" id="mobUserAvatar">U</div>
+            <div style="min-width: 0;">
+                <div id="mobUserName" style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Customer</div>
+                <div style="font-size: 11.5px; color: var(--teal); font-weight: 600;">₦<span id="mobUserBalance">0.00</span></div>
+            </div>
+        </div>
+
+        <div class="guest-only" style="padding: 16px; display: flex; gap: 8px;">
+            <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="openAuthModal('login'); toggleMobileDrawer(false);">Sign In</button>
+            <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="openAuthModal('register'); toggleMobileDrawer(false);">Register</button>
+        </div>
+
+        <nav class="mobile-nav-list">
+            <a class="mobile-nav-item" onclick="navigateTo('home'); toggleMobileDrawer(false);">
+                <span>🏠</span> Home
+            </a>
+            <a class="mobile-nav-item" onclick="navigateTo('shop'); toggleMobileDrawer(false);">
+                <span>🛍️</span> Shop Catalog
+            </a>
+            <a class="mobile-nav-item auth-only" onclick="navigateTo('dashboard'); toggleMobileDrawer(false);">
+                <span>📊</span> Dashboard
+            </a>
+            <a class="mobile-nav-item auth-only" onclick="navigateTo('orders'); toggleMobileDrawer(false);">
+                <span>📦</span> Orders &amp; History
+            </a>
+            <a class="mobile-nav-item auth-only" onclick="navigateTo('wallet'); toggleMobileDrawer(false);">
+                <span>💳</span> Wallet &amp; Top-up
+            </a>
+            <a class="mobile-nav-item admin-only" href="/admin" target="_blank" style="color: var(--gold); display: none;">
+                <span>🛡️</span> Admin Console
+            </a>
+        </nav>
+
+        <div class="mobile-sidebar-foot">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0 10px;">
+                <span style="font-size: 13.5px; font-weight: 500; color: var(--text-dim);">Theme Mode</span>
+                <button class="theme-switch" onclick="toggleTheme()" aria-label="Toggle light and dark mode" title="Toggle Light / Dark Mode">
+                    <div class="theme-switch-track">
+                        <div class="theme-switch-thumb">
+                            <span class="theme-switch-icon sun-icon">☀️</span>
+                            <span class="theme-switch-icon moon-icon">🌙</span>
+                        </div>
+                    </div>
+                </button>
+            </div>
+            <button class="btn btn-danger btn-sm auth-only" style="width: 100%; margin-top: 6px; display: none;" onclick="logoutUser(); toggleMobileDrawer(false);">
+                Log Out
+            </button>
+        </div>
+    </aside>
+
+    <!-- App Views Container -->
+    <main class="main-container">
+
+        <!-- ================================================================
+             VIEW: HOME (Public Landing Page)
+             ================================================================ -->
+        <section id="view-home" class="app-view">
+            <div class="hero-section">
+                <div class="hero-pill">⚡ Instant Digital Delivery Platform • Paystack Powered</div>
+                <h1 class="hero-title">
+                    Digital Accounts & Numbers <br>
+                    <span class="gradient-text">Delivered Instantly to Your Wallet</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Self-service verified accounts for Google Voice, TextPlus, Talkatone, and Premium VPNs. 
+                    Pre-fund in Nigerian Naira (₦), purchase atomically, and receive your credentials immediately.
+                </p>
+                <div class="hero-cta-group">
+                    <button class="btn btn-emerald btn-lg" onclick="navigateTo('shop')">Browse Available Stock 🛒</button>
+                    <button class="btn btn-secondary btn-lg" onclick="openFundModalShortcut()">Fund Wallet (from ₦100) 💳</button>
+                </div>
+            </div>
+
+            <!-- Live Platform Metrics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--teal);" id="homeStatLiveProducts">40+</div>
+                    <div class="stat-label">Active Catalog Products</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--gold);" id="homeStatLiveCategories">11</div>
+                    <div class="stat-label">Verified Categories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--teal);">&lt; 3s</div>
+                    <div class="stat-label">Instant Automated Delivery</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--gold);">₦100</div>
+                    <div class="stat-label">Minimum Paystack Deposit</div>
+                </div>
+            </div>
+
+            <!-- Featured Products Preview -->
+            <div style="margin-bottom: 4rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem;">
+                    <div>
+                        <h2 style="font-size: 1.6rem; font-weight: 800;">Popular Digital Products</h2>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Live inventory ready for instant delivery</p>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="navigateTo('shop')">View All Products →</button>
+                </div>
+                <div class="product-grid" id="homeFeaturedGrid">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- How It Works Section -->
+            <div class="card" style="margin-bottom: 4rem; text-align: center; padding: 3rem 2rem;">
+                <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem;">How Olaslog Works</h2>
+                <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto 2.5rem;">Zero manual fulfillment delays. Three seamless steps to receive your credentials.</p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
+                    <div style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
+                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">💳</div>
+                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">1. Fund Your Wallet</h3>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Top up your internal wallet in ₦ using Paystack card, bank transfer, or USSD starting from ₦100.</p>
+                    </div>
+                    <div style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
+                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">📦</div>
+                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">2. Pick Digital Accounts</h3>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Browse live stock for TextPlus, Talkatone, Google Voice, and VPNs. Review category usage guides.</p>
+                    </div>
+                    <div style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
+                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">⚡</div>
+                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">3. Instant Credential Delivery</h3>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Wallet is debited atomically and credentials appear immediately on screen and in your order history.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ Section -->
+            <div style="margin-bottom: 4rem;">
+                <h2 style="font-size: 1.8rem; font-weight: 800; text-align: center; margin-bottom: 0.5rem;">Frequently Asked Questions</h2>
+                <p style="color: var(--text-secondary); text-align: center; margin-bottom: 2rem;">Everything you need to know about purchasing digital goods on Olaslog</p>
+                <div class="faq-list">
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How fast is delivery after payment?</span>
+                            <span>▾</span>
+                        </div>
+                        <div class="faq-answer">
+                            Fulfillment is 100% automated and instant. As soon as you click checkout from your wallet, our system decrypts your assigned credentials and displays them on your screen in under 3 seconds.
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>How does wallet funding work?</span>
+                            <span>▾</span>
+                        </div>
+                        <div class="faq-answer">
+                            You can fund your wallet with any amount starting from ₦100 via Paystack. Your balance is updated automatically upon successful server-side payment confirmation.
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>What is your replacement or refund policy?</span>
+                            <span>▾</span>
+                        </div>
+                        <div class="faq-answer">
+                            Digital accounts do not carry perpetual warranties. However, if a credential is fundamentally defective upon delivery, you can use the "Report an Issue" link in your Orders tab with an attached screenshot proof. Our admin team will inspect it and credit your wallet.
+                        </div>
+                    </div>
+                    <div class="faq-item">
+                        <div class="faq-question" onclick="toggleFaq(this)">
+                            <span>Can I view my past credentials again?</span>
+                            <span>▾</span>
+                        </div>
+                        <div class="faq-answer">
+                            Yes! All your purchased credentials remain securely stored in your Orders & History section and can be revealed at any time.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer & Legal Disclaimers -->
+            <footer style="border-top: 1px solid var(--border-glass); padding-top: 2.5rem; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
+                <p style="margin-bottom: 0.8rem;">
+                    <strong>Disclaimer:</strong> Olaslog is an independent digital products marketplace and is not affiliated with, endorsed by, or sponsored by Google Voice, TextPlus, Talkatone, NordVPN, or ExpressVPN.
+                </p>
+                <p>© 2026 Olaslog Marketplace. All rights reserved. • Secured by Paystack • NGN Wallet-Based Delivery</p>
+            </footer>
+        </section>
+
+
+        <!-- ================================================================
+             VIEW: SHOP (Product Catalog & Category Rules)
+             ================================================================ -->
+        <section id="view-shop" class="app-view" style="display: none;">
+            <div class="shop-header">
+                <div>
+                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Digital Products Catalog</h1>
+                    <p style="color: var(--text-secondary);">Browse stock accounts and instant subscription codes</p>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="shopSearchInput" class="form-control" placeholder="Search Google Voice, VPN..." oninput="handleSearch(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Filter Tabs -->
+            <div class="category-tabs" id="categoryTabsContainer">
+                <button class="category-tab active" onclick="filterCategory('all', this)">All Categories</button>
+                <!-- Populated dynamically -->
+            </div>
+
+            <!-- Products Grid -->
+            <div class="product-grid" id="shopProductsGrid" style="margin-top: 1.5rem;">
+                <!-- Populated dynamically -->
+            </div>
+        </section>
+
+
+        <!-- ================================================================
+             VIEW: DASHBOARD (Customer Central Hub)
+             ================================================================ -->
+        <section id="view-dashboard" class="app-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Account Dashboard</h1>
+                    <p style="color: var(--text-secondary);">Welcome back, <span id="dashCustomerName" style="color: var(--text-primary); font-weight: 700;">Customer</span></p>
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn btn-emerald" onclick="openFundModalShortcut()">+ Fund Wallet</button>
+                    <button class="btn btn-secondary" onclick="navigateTo('shop')">Shop Products 🛒</button>
+                </div>
+            </div>
+
+            <!-- Wallet Highlight Card & Key Widgets -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div class="card" style="background: radial-gradient(140px 100px at 85% 0%, rgba(217,168,91,0.22), transparent 70%), linear-gradient(160deg, #182238, #101627); border: 1px solid var(--edge-strong); border-radius: var(--r-md); padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-dim);">Spendable Wallet Balance</span>
+                        <span class="pill" style="background: var(--gold-soft); color: var(--gold); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Active</span>
+                    </div>
+                    <div style="font-family: var(--display); font-size: 2.4rem; font-weight: 700; color: var(--text); margin-bottom: 1rem; letter-spacing: -0.01em;">
+                        <span style="color: var(--gold);">₦</span><span id="dashWalletBalance">0.00</span>
+                    </div>
+                    <div style="display: flex; gap: 0.6rem;">
+                        <button class="btn btn-primary btn-sm" onclick="navigateTo('wallet')">Fund Wallet</button>
+                        <button class="btn btn-secondary btn-sm" onclick="navigateTo('shop')">Browse Shop</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Total Orders Completed</span>
+                    <div style="font-size: 2.2rem; font-weight: 800; margin: 0.6rem 0;" id="dashTotalOrdersCount">0</div>
+                    <span style="font-size: 0.82rem; color: var(--accent-emerald);">100% instant automated delivery</span>
+                </div>
+
+                <div class="card">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Active Disputes</span>
+                    <div style="font-size: 2.2rem; font-weight: 800; margin: 0.6rem 0; color: var(--accent-amber);" id="dashActiveDisputesCount">0</div>
+                    <span style="font-size: 0.82rem; color: var(--text-muted);">Admin manual review queue</span>
+                </div>
+            </div>
+
+            <!-- Recent Orders Table Widget -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                    <h3 style="font-size: 1.15rem; font-weight: 700;">Recent Completed Orders</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="navigateTo('orders')">View All History →</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Date</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashRecentOrdersTable">
+                            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No orders found yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ================================================================
+             VIEW: ORDERS & PURCHASE HISTORY
+             ================================================================ -->
+        <section id="view-orders" class="app-view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Order & Delivery History</h1>
+                    <p style="color: var(--text-secondary);">Access all your purchased credentials anytime</p>
+                </div>
+                <button class="btn btn-secondary" onclick="navigateTo('shop')">+ Buy More Products</button>
+            </div>
+
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Order Number</th>
+                                <th>Date & Time</th>
+                                <th>Items</th>
+                                <th>Total Paid</th>
+                                <th>Order Status</th>
+                                <th>Dispute Status</th>
+                                <th>Credentials & Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fullOrdersTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ================================================================
+             VIEW: WALLET (Paystack Funding & Immutable Ledger)
+             ================================================================ -->
+        <section id="view-wallet" class="app-view" style="display: none;">
+            <div style="margin-bottom: 2rem;">
+                <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Wallet & Funding</h1>
+                <p style="color: var(--text-secondary);">Pre-fund your balance using Paystack and track every debit and credit</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 2rem; margin-bottom: 2.5rem;" class="wallet-grid">
+                <!-- Funding Box -->
+                <div class="card">
+                    <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Fund Wallet</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                        Minimum funding: <strong>₦100</strong>. Supported via Card, Bank Transfer, or USSD via Paystack.
+                    </p>
+
+                    <div class="form-group">
+                        <label class="form-label">Amount to Fund (NGN ₦)</label>
+                        <input type="number" id="walletFundAmountInput" class="form-control" placeholder="1000" min="100" value="2500" style="font-family: var(--display); font-size: 1.4rem; font-weight: 700; color: var(--gold);">
+                    </div>
+
+                    <!-- Preset Quick Amount Chips -->
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                        <button class="pill-btn" onclick="setFundAmount(1000)">+ ₦1,000</button>
+                        <button class="pill-btn" onclick="setFundAmount(2500)">+ ₦2,500</button>
+                        <button class="pill-btn" onclick="setFundAmount(5000)">+ ₦5,000</button>
+                        <button class="pill-btn" onclick="setFundAmount(10000)">+ ₦10,000</button>
+                    </div>
+
+                    <button class="btn btn-primary" style="width: 100%;" onclick="initiateWalletFunding()">
+                        Proceed to Paystack Checkout 💳
+                    </button>
+                </div>
+
+                <!-- Live Balance & Rules Overview -->
+                <div class="card" style="background: radial-gradient(180px 120px at 85% 0%, rgba(73,216,196,0.18), transparent 70%), linear-gradient(160deg, #182238, #0f1524); border: 1px solid var(--edge-strong);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim);">Current Wallet Balance</span>
+                        <span class="pill" style="background: var(--teal-soft); color: var(--teal); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Paystack Verified</span>
+                    </div>
+                    <div style="font-family: var(--display); font-size: 3rem; font-weight: 700; color: var(--text); margin: 0.5rem 0 1.2rem; letter-spacing: -0.01em;">
+                        <span style="color: var(--teal);">₦</span><span id="walletPageBalance">0.00</span>
+                    </div>
+
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--edge); padding: 1rem; border-radius: 10px; font-size: 0.85rem; color: var(--text-dim);">
+                        <div style="font-weight: 600; color: var(--text); margin-bottom: 0.4rem;">🛡️ Account & Buyer Guarantees:</div>
+                        <ul style="margin-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                            <li>Immutable financial ledger prevents unauthorized balance drifts.</li>
+                            <li>Atomic checkout ensures funds are only deducted when credentials are reserved.</li>
+                            <li>Idempotent Paystack webhooks eliminate double-crediting risks.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transaction Ledger Table -->
+            <div class="card">
+                <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 1.25rem;">Wallet Ledger & Transaction History</h3>
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Balance Before</th>
+                                <th>Balance After</th>
+                                <th>Reference</th>
+                                <th>Status</th>
+                                <th>Channel</th>
+                            </tr>
+                        </thead>
+                        <tbody id="walletTransactionsTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        
+
+    </main>
+
+
+    <!-- ====================================================================
+         SLIDE-OUT CART DRAWER
+         ==================================================================== -->
+    <div class="drawer-overlay" id="cartOverlay" onclick="toggleCartDrawer(false)"></div>
+    <aside class="cart-drawer" id="cartDrawer">
+        <div class="drawer-header">
+            <div class="drawer-title">
+                <span>🛒</span>
+                <span>Shopping Cart</span>
+            </div>
+            <button class="drawer-close-btn" onclick="toggleCartDrawer(false)">&times;</button>
+        </div>
+
+        <div class="cart-items-list" id="cartItemsContainer">
+            <!-- Dynamic cart line items -->
+        </div>
+
+        <div class="drawer-footer">
+            <div class="summary-row">
+                <span>Wallet Balance:</span>
+                <span id="cartDrawerWalletBalance" style="font-weight: 700; color: var(--accent-emerald);">₦0.00</span>
+            </div>
+            <div class="summary-row total">
+                <span>Total Cost:</span>
+                <span id="cartDrawerTotal" style="color: var(--accent-emerald);">₦0.00</span>
+            </div>
+
+            <!-- Insufficient Funds Warning Box -->
+            <div class="shortfall-alert" id="cartShortfallBox" style="display: none;">
+                <strong>⚠️ Insufficient Wallet Balance!</strong>
+                <p style="margin: 0.3rem 0;">You need <span id="cartShortfallAmount" style="font-weight: 800;">₦0.00</span> more to complete this purchase.</p>
+                <button class="btn btn-emerald btn-sm" style="width: 100%; margin-top: 0.5rem;" onclick="redirectToFundShortfall()">
+                    + Fund Shortfall with Paystack 💳
+                </button>
+            </div>
+
+            <button class="btn btn-emerald btn-lg" id="checkoutBtn" style="width: 100%;" onclick="executeCheckout()">
+                ⚡ Complete Instant Purchase
+            </button>
+        </div>
+    </aside>
+
+
+    <!-- ====================================================================
+         MODAL: INSTANT CREDENTIAL DELIVERY (Celebration)
+         ==================================================================== -->
+    <div class="modal-overlay" id="deliveryModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header" style="background: rgba(16, 185, 129, 0.1);">
+                <div class="modal-title" style="color: var(--accent-emerald);">🎉 Purchase Successful & Delivered!</div>
+                <button class="drawer-close-btn" onclick="closeModal('deliveryModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="success-badge">
+                    <div class="success-ring">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div class="success-text">Order Complete &amp; Delivered</div>
+                    <div class="success-sub">Order <strong id="deliveryOrderNumber" style="color: var(--text); font-family: var(--font-mono);">ORD-12345</strong> • Delivered from Stock</div>
+                </div>
+
+                <div id="deliveredCredentialsList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="navigateTo('orders'); closeModal('deliveryModal');">View in Orders Tab</button>
+                <button class="btn btn-emerald" onclick="closeModal('deliveryModal')">Done</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================
+         MODAL: PRODUCT RULES & DETAILS (Upfront Category Guide)
+         ==================================================================== -->
+    <div class="modal-overlay" id="productRulesModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title" id="rulesModalProductTitle">Product Usage Guide & Rules</div>
+                <button class="drawer-close-btn" onclick="closeModal('productRulesModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="rulesModalProductDetails" style="margin-bottom: 1rem;"></div>
+
+                <div class="rules-markdown-box" id="rulesModalMarkdownContent"></div>
+
+                <div class="form-group" style="margin-top: 1.25rem;">
+                    <label class="form-label">Select Purchase Quantity</label>
+                    <input type="number" id="rulesModalQtyInput" class="form-control" value="1" min="1" max="10">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('productRulesModal')">Cancel</button>
+                <button class="btn btn-primary" id="rulesModalAddToCartBtn">Add to Cart 🛒</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================
+         MODAL: ACCOUNT PREVIEW & SELECTION
+         ==================================================================== -->
+    <div class="modal-overlay" id="accountPreviewModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="previewModalProductTitle">🔍 Product Preview</div>
+                    <div style="font-size: 0.82rem; color: var(--text-dim); margin-top: 0.2rem;" id="previewModalSubtitle">
+                        Verified live stock • Instant automated delivery
+                    </div>
+                </div>
+                <button class="drawer-close-btn" onclick="closeModal('accountPreviewModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Price + Stock badge row — always visible -->
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.02); padding: 0.85rem 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-glass); margin-bottom: 1rem;">
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Unit Price:</span>
+                        <strong style="color: var(--accent-emerald); font-size: 1.15rem; margin-left: 0.4rem;">₦<span id="previewModalUnitPrice">0</span></strong>
+                    </div>
+                    <div>
+                        <span class="badge badge-success" id="previewModalStockBadge">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Dynamic content area — replaced by JS -->
+                <div id="accountPreviewOptionsList">
+                    <div style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
+                        <div>Loading preview...</div>
+                    </div>
+                </div>
+
+                <!-- Selection summary — only shown when account options are listed -->
+                <div id="previewSelectionSummary" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-md); padding: 0.9rem 1.25rem; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                    <div>
+                        <span style="font-size: 0.88rem; color: #c7d2fe;">Selected: <strong id="previewSelectedCount">0</strong> account(s)</span>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.88rem; color: var(--text-secondary); margin-right: 0.4rem;">Subtotal:</span>
+                        <strong style="font-size: 1.25rem; color: var(--accent-emerald);">₦<span id="previewSelectedTotal">0</span></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer: selection mode (with options) -->
+            <div class="modal-footer" id="previewFooterSelection" style="display: none; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleSelectAllAccounts()" id="selectAllAccountsBtn">Select All</button>
+                <button class="btn btn-primary" style="flex: 1; min-width: 170px;" onclick="confirmPreviewAddToCart()">Add Selected to Cart 🛒</button>
+                <button class="btn btn-emerald" style="flex: 1; min-width: 170px;" onclick="confirmPreviewBuyNow()">Buy Selected Now ⚡</button>
+                <button class="btn btn-secondary" style="flex: 0 0 auto; min-width: 85px;" onclick="closeModal('accountPreviewModal')">Close</button>
+            </div>
+
+            <!-- Footer: instant dispatch mode (no options, auto-fulfilled) -->
+            <div class="modal-footer" id="previewFooterInstant" style="display: none; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-primary" style="flex: 1; min-width: 170px;" onclick="quickAddToCart(window._previewProductId); closeModal('accountPreviewModal');">Add to Cart 🛒</button>
+                <button class="btn btn-emerald" style="flex: 1; min-width: 170px;" onclick="closeModal('accountPreviewModal'); initiateInstantCheckout(window._previewProductId);">Buy Now ⚡</button>
+                <button class="btn btn-secondary" style="flex: 0 0 auto; min-width: 85px;" onclick="closeModal('accountPreviewModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================
+         MODAL: DISPUTE REPORTING ("Report an Issue")
+         ==================================================================== -->
+    <div class="modal-overlay" id="disputeModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title">⚠️ Report Credential Issue</div>
+                <button class="drawer-close-btn" onclick="closeModal('disputeModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                    Order: <strong id="disputeOrderNumber" style="color: var(--text-primary); font-family: var(--font-mono);">---</strong>
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Detailed Description of Issue *</label>
+                    <textarea id="disputeReasonInput" class="form-control" rows="4" placeholder="Explain what occurred when attempting to log in (e.g., password mismatch, deactivated account)..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Attach Proof Screenshot (Optional but Recommended)</label>
+                    <input type="file" id="disputeProofInput" class="form-control" accept="image/*">
+                </div>
+
+                <p style="font-size: 0.8rem; color: var(--text-muted);">
+                    All reports are manually inspected by the admin team. Once approved, the full order cost is credited directly to your wallet balance.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('disputeModal')">Cancel</button>
+                <button class="btn btn-danger" onclick="submitDispute()">Submit Dispute Report</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================
+         MODAL: PAST CREDENTIALS VIEWER
+         ==================================================================== -->
+    <div class="modal-overlay" id="pastCredentialsModal">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-header">
+                <div class="modal-title">🔐 Order Credentials Viewer</div>
+                <button class="drawer-close-btn" onclick="closeModal('pastCredentialsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="pastCredentialsContainer"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('pastCredentialsModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ====================================================================
+         MODAL: AUTH (Sign In / Register / Forgot Password)
+         ==================================================================== -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title" id="authModalTitle">Sign In to Olaslog</div>
+                <button class="drawer-close-btn" onclick="closeModal('authModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="loginEmail" class="form-control" placeholder="user@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">Sign In</button>
+                    
+                    <div style="margin-top: 1.25rem; font-size: 0.88rem; text-align: center; color: var(--text-secondary);">
+                        Don't have an account? <a href="javascript:void(0)" onclick="switchAuthMode('register')" style="color: var(--primary);">Register</a>
+                    </div>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" style="display: none;" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" id="regFullName" class="form-control" placeholder="John Doe" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="regEmail" class="form-control" placeholder="user@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number (Optional)</label>
+                        <input type="text" id="regPhone" class="form-control" placeholder="+234 801 234 5678">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password (Min. 6 chars)</label>
+                        <input type="password" id="regPassword" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn btn-emerald" style="width: 100%; margin-top: 0.5rem;">Create Account</button>
+                    
+                    <div style="margin-top: 1.25rem; font-size: 0.88rem; text-align: center; color: var(--text-secondary);">
+                        Already registered? <a href="javascript:void(0)" onclick="switchAuthMode('login')" style="color: var(--primary);">Sign In</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    
+    <!-- Mobile-First Persistent Bottom Navigation Bar (per UI/olaslog-design.html) -->
+    <nav class="bottomnav">
+        <div class="navitem active" id="bnav-home" onclick="navigateTo('home')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Home</span>
+        </div>
+        <div class="navitem" id="bnav-shop" onclick="navigateTo('shop')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Shop</span>
+        </div>
+        <div class="navitem auth-only" id="bnav-orders" onclick="navigateTo('orders')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span>Orders</span>
+        </div>
+        <div class="navitem auth-only" id="bnav-wallet" onclick="navigateTo('wallet')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span>Wallet</span>
+        </div>
+        <div class="navitem" onclick="toggleCartDrawer()">
+            <div style="position: relative;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                <span class="cart-badge-dot" id="bnavCartDot"></span>
+            </div>
+            <span>Cart</span>
+        </div>
+    </nav>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Application Script -->
+    <script src="/js/app.js"></script>
+</body>
+</html>

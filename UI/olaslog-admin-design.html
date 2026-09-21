@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Olaslog Admin — Product Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0E18; --panel:#121A2C; --panel-2:#0F1524; --panel-3:#1A233A;
+    --edge:rgba(255,255,255,0.08); --edge-strong:rgba(255,255,255,0.14);
+    --text:#F2F0E9; --text-dim:#8D95AC; --text-faint:#5C6480;
+    --gold:#D9A85B; --gold-soft:rgba(217,168,91,0.14);
+    --teal:#49D8C4; --teal-soft:rgba(73,216,196,0.14);
+    --danger:#E2695E; --danger-soft:rgba(226,105,94,0.14);
+    --sans:'Inter',-apple-system,sans-serif; --display:'Space Grotesk',var(--sans);
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    color-scheme:dark;
+  }
+  :root:not([data-theme="light"]), :root[data-theme="dark"]{ --bg:var(--ink); }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--ink);}
+  body{
+    font-family:var(--sans); color:var(--text);
+    background:
+      radial-gradient(1000px 500px at 85% -8%, rgba(217,168,91,0.09), transparent 60%),
+      radial-gradient(800px 460px at -8% 40%, rgba(73,216,196,0.07), transparent 55%),
+      var(--ink);
+    min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  button, input{font-family:inherit;}
+  button{cursor:pointer;}
+
+  .wrap{max-width:1280px; margin:0 auto; padding:48px 24px 96px;}
+  .masthead{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap;
+    padding-bottom:36px; margin-bottom:36px; border-bottom:1px solid var(--edge);
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:40px; height:40px; border-radius:11px;
+    background:linear-gradient(155deg, var(--gold), #a97c33);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--display); font-weight:700; font-size:18px; color:#1a1206; flex-shrink:0;
+  }
+  .brand-name{font-family:var(--display); font-weight:600; font-size:22px;}
+  .brand-tag{color:var(--text-dim); font-size:14px; margin-top:2px;}
+  .masthead-note{max-width:380px; color:var(--text-dim); font-size:14.5px; line-height:1.55; text-align:right;}
+  @media (max-width:720px){ .masthead-note{text-align:left; max-width:100%;} }
+
+  h1.headline{
+    font-family:var(--display); font-weight:600; font-size:clamp(26px,3.6vw,38px);
+    line-height:1.15; letter-spacing:-0.015em; max-width:800px; margin-bottom:14px;
+  }
+  h1.headline .accent{color:var(--gold);}
+  p.sub{color:var(--text-dim); font-size:16px; line-height:1.6; max-width:640px; margin-bottom:40px;}
+
+  .tabs{display:flex; gap:6px; overflow-x:auto; margin-bottom:22px; padding-bottom:6px;}
+  .tab{
+    flex-shrink:0; background:transparent; border:1px solid var(--edge); color:var(--text-dim);
+    font-size:13.5px; font-weight:500; padding:9px 16px; border-radius:99px; white-space:nowrap;
+  }
+  .tab .num{font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-right:7px;}
+  .tab.active{background:var(--text); color:var(--ink); border-color:var(--text);}
+  .tab.active .num{color:var(--ink); opacity:.55;}
+
+  /* Browser-style device frame */
+  .device{
+    background:linear-gradient(160deg,#1b2337,#0c1120);
+    border-radius:18px; padding:10px;
+    box-shadow:0 50px 90px -40px rgba(0,0,0,.7), 0 1px 0 var(--edge-strong) inset, 0 0 0 1px rgba(0,0,0,.6);
+  }
+  .chrome{display:flex; align-items:center; gap:10px; padding:8px 12px 10px;}
+  .dots{display:flex; gap:6px;}
+  .dots span{width:10px; height:10px; border-radius:50%; background:var(--edge-strong);}
+  .urlbar{
+    flex:1; background:var(--panel-2); border:1px solid var(--edge); border-radius:8px;
+    padding:6px 12px; font-size:12px; color:var(--text-faint); font-family:var(--mono);
+  }
+  .app{
+    background:var(--panel); border-radius:12px; overflow:hidden; display:flex;
+    min-height:640px;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:212px; flex-shrink:0; background:var(--panel-2); border-right:1px solid var(--edge);
+    padding:18px 12px; display:flex; flex-direction:column;
+  }
+  .sb-brand{display:flex; align-items:center; gap:9px; padding:6px 8px 20px;}
+  .sb-mark{width:26px; height:26px; border-radius:7px; background:linear-gradient(155deg,var(--gold),#a97c33); flex-shrink:0;}
+  .sb-name{font-family:var(--display); font-weight:600; font-size:14.5px;}
+  .sb-sub{font-size:10.5px; color:var(--text-faint);}
+  .sb-nav{display:flex; flex-direction:column; gap:2px;}
+  .sb-item{
+    display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:9px;
+    font-size:13.5px; font-weight:500; color:var(--text-faint); border-left:2px solid transparent;
+  }
+  .sb-item svg{flex-shrink:0;}
+  .sb-item.active{background:var(--panel-3); color:var(--text); border-left-color:var(--gold);}
+  .sb-item .count{
+    margin-left:auto; font-size:10.5px; font-family:var(--mono); background:var(--danger-soft);
+    color:var(--danger); padding:1px 6px; border-radius:99px;
+  }
+  .sb-foot{margin-top:auto; display:flex; align-items:center; gap:9px; padding:10px 8px; border-top:1px solid var(--edge);}
+  .avatar{width:28px; height:28px; border-radius:50%; background:var(--panel-3); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--gold); flex-shrink:0;}
+  .sb-foot-name{font-size:12px; font-weight:600;}
+  .sb-foot-role{font-size:10.5px; color:var(--text-faint);}
+
+  /* Main content */
+  .main{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 22px; border-bottom:1px solid var(--edge);
+  }
+  .page-title{font-family:var(--display); font-weight:600; font-size:17px;}
+  .search{
+    display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--edge);
+    border-radius:9px; padding:8px 12px; font-size:12.5px; color:var(--text-faint); width:240px;
+  }
+  .content{flex:1; overflow-y:auto; padding:22px;}
+
+  .btn{border-radius:9px; border:none; font-weight:600; font-size:12.5px; padding:9px 15px;}
+  .btn-primary{background:linear-gradient(155deg,#e6bd7e,var(--gold)); color:#241a08;}
+  .btn-outline{background:transparent; border:1px solid var(--edge-strong); color:var(--text);}
+  .btn-danger{background:transparent; border:1px solid rgba(226,105,94,0.35); color:var(--danger);}
+  .btn-sm{padding:6px 11px; font-size:11.5px;}
+
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 9px; border-radius:99px;}
+  .pill .dot{width:5px; height:5px; border-radius:50%;}
+  .pill-teal{background:var(--teal-soft); color:var(--teal);} .pill-teal .dot{background:var(--teal);}
+  .pill-gold{background:var(--gold-soft); color:var(--gold);} .pill-gold .dot{background:var(--gold);}
+  .pill-danger{background:var(--danger-soft); color:var(--danger);} .pill-danger .dot{background:var(--danger);}
+  .pill-muted{background:var(--panel-3); color:var(--text-dim);} .pill-muted .dot{background:var(--text-faint);}
+
+  /* KPI cards */
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px;}
+  .kpi{background:var(--panel-2); border:1px solid var(--edge); border-radius:14px; padding:16px;}
+  .kpi-label{font-size:12px; color:var(--text-dim); margin-bottom:8px;}
+  .kpi-value{font-family:var(--display); font-size:22px; font-weight:600;}
+  .kpi-delta{font-size:11.5px; color:var(--teal); margin-top:6px;}
+
+  .split{display:grid; grid-template-columns:1.4fr 1fr; gap:16px;}
+  .panel{background:var(--panel-2); border:1px solid var(--edge); border-radius:14px; overflow:hidden;}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--edge);}
+  .panel-title{font-size:13.5px; font-weight:600;}
+  .panel-link{font-size:12px; color:var(--teal); font-weight:600;}
+
+  table{width:100%; border-collapse:collapse;}
+  th{
+    text-align:left; font-size:11.5px; font-weight:600; color:var(--text-faint);
+    padding:10px 16px; border-bottom:1px solid var(--edge);
+  }
+  td{padding:12px 16px; font-size:12.5px; border-bottom:1px solid var(--edge); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr.row-clickable:hover{background:var(--panel-3);}
+  .mono{font-family:var(--mono); font-size:11.5px; color:var(--text-dim);}
+  .cell-title{font-weight:600; font-size:12.5px;}
+  .cell-sub{font-size:11px; color:var(--text-faint); margin-top:2px;}
+
+  .filterbar{display:flex; align-items:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .fchip{padding:7px 13px; border-radius:99px; font-size:12px; font-weight:500; border:1px solid var(--edge); color:var(--text-dim);}
+  .fchip.active{background:var(--text); color:var(--ink); border-color:var(--text);}
+  .fselect{
+    padding:7px 12px; border-radius:99px; border:1px solid var(--edge); background:var(--panel-2);
+    color:var(--text-dim); font-size:12px;
+  }
+
+  .toolbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+
+  /* Product rows expanded rules */
+  .rules-inline{
+    background:var(--panel-3); border-left:2px solid var(--teal); border-radius:0 0 10px 10px;
+    margin:0 16px 12px; padding:12px 14px;
+  }
+  .rules-inline-title{font-size:11.5px; font-weight:600; margin-bottom:7px;}
+  .rules-inline ul{list-style:none;}
+  .rules-inline li{font-size:11.5px; color:var(--text-dim); line-height:1.5; padding-left:14px; position:relative; margin-bottom:5px;}
+  .rules-inline li::before{content:''; position:absolute; left:0; top:6px; width:4px; height:4px; border-radius:50%; background:var(--teal);}
+
+  /* Stock */
+  .stat-row{display:flex; gap:10px; margin-bottom:18px;}
+  .stat-chip{flex:1; background:var(--panel-2); border:1px solid var(--edge); border-radius:12px; padding:13px 15px;}
+  .stat-chip .n{font-family:var(--display); font-size:19px; font-weight:600;}
+  .stat-chip .l{font-size:11.5px; color:var(--text-dim); margin-top:3px;}
+  .chips-row{display:flex; gap:8px; margin-bottom:16px;}
+  .dropzone{
+    border:1.5px dashed var(--edge-strong); border-radius:14px; padding:20px;
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; gap:14px;
+    background:var(--panel-2);
+  }
+  .dropzone-text{font-size:12.5px; color:var(--text-dim); line-height:1.5;}
+  .dropzone-text b{color:var(--text); display:block; font-size:13.5px; margin-bottom:3px;}
+
+  /* Two-pane (disputes / users / orders) */
+  .two-pane{display:grid; grid-template-columns:1fr 1.1fr; gap:16px; align-items:start;}
+  .queue-item{padding:13px 16px; border-bottom:1px solid var(--edge); cursor:default;}
+  .queue-item.selected{background:var(--panel-3); border-left:2px solid var(--gold);}
+  .queue-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;}
+  .queue-id{font-family:var(--mono); font-size:11px; color:var(--text-faint);}
+  .queue-title{font-size:13px; font-weight:600; margin-bottom:2px;}
+  .queue-sub{font-size:11.5px; color:var(--text-faint);}
+
+  .detail-pad{padding:18px;}
+  .detail-row{display:flex; justify-content:space-between; padding:8px 0; font-size:12.5px; border-bottom:1px solid var(--edge);}
+  .detail-row span:first-child{color:var(--text-faint);}
+  .detail-row span:last-child{font-weight:600;}
+  .quote{
+    background:var(--panel-3); border-radius:10px; padding:13px 14px; font-size:12.5px;
+    color:var(--text-dim); line-height:1.55; margin:14px 0;
+  }
+  .proof{
+    height:110px; border-radius:10px; border:1px solid var(--edge); background:var(--panel);
+    display:flex; align-items:center; justify-content:center; gap:8px; color:var(--text-faint);
+    font-size:12px; margin-bottom:16px;
+  }
+  .reason-input{
+    width:100%; background:var(--panel); border:1px solid var(--edge); border-radius:9px;
+    padding:9px 12px; font-size:12.5px; color:var(--text-dim); margin:12px 0; font-family:inherit;
+  }
+
+  /* Users drawer */
+  .user-head{display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+  .user-avatar{width:44px; height:44px; border-radius:12px; background:var(--panel-3); display:flex; align-items:center; justify-content:center; font-weight:600; color:var(--gold); font-family:var(--display);}
+  .user-name{font-size:14.5px; font-weight:600;}
+  .user-email{font-size:11.5px; color:var(--text-faint);}
+  .ledger-row{display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--edge); font-size:12px;}
+  .ledger-row:last-child{border-bottom:none;}
+  .ledger-amt.pos{color:var(--teal); font-weight:600;}
+  .ledger-amt.neg{color:var(--text); font-weight:600;}
+
+  .screen-panel{display:none;} .screen-panel.active{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="brand">
+      <div class="brand-mark">O</div>
+      <div><div class="brand-name">Olaslog Admin</div><div class="brand-tag">Back office for the marketplace</div></div>
+    </div>
+    <div class="masthead-note">Product, stock, order, dispute and user management — six panels, built on the same design system as the customer app.</div>
+  </div>
+
+  <h1 class="headline">Every credential is inventory. Every <span class="accent">dispute</span> is a decision that needs proof.</h1>
+  <p class="sub">The admin side trades the customer app's warmth for density and traceability — this is where stock gets loaded, refunds get approved, and every action leaves an audit trail.</p>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-screen="overview"><span class="num">01</span>Overview</button>
+    <button class="tab" data-screen="products"><span class="num">02</span>Products</button>
+    <button class="tab" data-screen="stock"><span class="num">03</span>Stock</button>
+    <button class="tab" data-screen="orders"><span class="num">04</span>Orders</button>
+    <button class="tab" data-screen="disputes"><span class="num">05</span>Disputes</button>
+    <button class="tab" data-screen="users"><span class="num">06</span>Users</button>
+  </div>
+
+  <div class="device">
+    <div class="chrome">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="urlbar" id="urlbar">admin.olaslog.com/overview</div>
+    </div>
+    <div class="app">
+      <div class="sidebar">
+        <div class="sb-brand">
+          <div class="sb-mark"></div>
+          <div><div class="sb-name">Olaslog</div><div class="sb-sub">Admin</div></div>
+        </div>
+        <div class="sb-nav" id="sbnav">
+          <div class="sb-item active" data-screen="overview"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>Overview</div>
+          <div class="sb-item" data-screen="products"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16l-1.5 11a2 2 0 0 1-2 2H7.5a2 2 0 0 1-2-2z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>Products</div>
+          <div class="sb-item" data-screen="stock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8L12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>Stock</div>
+          <div class="sb-item" data-screen="orders"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 4v14H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>Orders</div>
+          <div class="sb-item" data-screen="disputes"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Disputes<span class="count">6</span></div>
+          <div class="sb-item" data-screen="users"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="18" cy="8.5" r="2.7"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg>Users</div>
+        </div>
+        <div class="sb-foot">
+          <div class="avatar">TA</div>
+          <div><div class="sb-foot-name">Tolu Adisa</div><div class="sb-foot-role">Super admin</div></div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="topbar">
+          <div class="page-title" id="pagetitle">Overview</div>
+          <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search…</div>
+        </div>
+        <div class="content">
+
+          <!-- OVERVIEW -->
+          <div class="screen-panel active" data-panel="overview">
+            <div class="kpi-grid">
+              <div class="kpi"><div class="kpi-label">Total revenue</div><div class="kpi-value">₦4,286,000</div><div class="kpi-delta">+8% vs last 30 days</div></div>
+              <div class="kpi"><div class="kpi-label">Total orders</div><div class="kpi-value">1,842</div><div class="kpi-delta">+142 this month</div></div>
+              <div class="kpi"><div class="kpi-label">Top-selling product</div><div class="kpi-value" style="font-size:16px">Google Voice</div><div class="kpi-delta" style="color:var(--gold)">Low stock — reorder</div></div>
+              <div class="kpi"><div class="kpi-label">Pending disputes</div><div class="kpi-value">6</div><div class="kpi-delta" style="color:var(--danger)">2 over 24h old</div></div>
+            </div>
+            <div class="split">
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">Recent orders</div><div class="panel-link">View all</div></div>
+                <table>
+                  <tbody>
+                    <tr><td><div class="cell-title">Ngozi E.</div><div class="cell-sub mono">OLG-88291</div></td><td>Google Voice</td><td>₦2,500</td><td><span class="pill pill-teal"><span class="dot"></span>Completed</span></td></tr>
+                    <tr><td><div class="cell-title">Bayo A.</div><div class="cell-sub mono">OLG-88290</div></td><td>VPN, 30 days</td><td>₦3,800</td><td><span class="pill pill-teal"><span class="dot"></span>Completed</span></td></tr>
+                    <tr><td><div class="cell-title">Chiamaka O.</div><div class="cell-sub mono">OLG-88289</div></td><td>TextPlus x3</td><td>₦3,600</td><td><span class="pill pill-danger"><span class="dot"></span>Failed</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">Recent disputes</div><div class="panel-link">View all</div></div>
+                <table>
+                  <tbody>
+                    <tr><td><div class="cell-title">OLG-88214</div><div class="cell-sub">Google Voice — not working</div></td><td><span class="pill pill-gold"><span class="dot"></span>Review</span></td></tr>
+                    <tr><td><div class="cell-title">OLG-88107</div><div class="cell-sub">VPN — wrong credentials</div></td><td><span class="pill pill-gold"><span class="dot"></span>Review</span></td></tr>
+                    <tr><td><div class="cell-title">OLG-87998</div><div class="cell-sub">Talkatone — duplicate</div></td><td><span class="pill pill-teal"><span class="dot"></span>Refunded</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- PRODUCTS -->
+          <div class="screen-panel" data-panel="products">
+            <div class="toolbar"><div></div><button class="btn btn-primary">New product</button></div>
+            <div class="panel">
+              <table>
+                <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr class="row-clickable"><td class="cell-title">TextPlus</td><td class="mono">Messaging apps</td><td>₦1,200</td><td><span class="pill pill-teal"><span class="dot"></span>42 in stock</span></td><td><span class="pill pill-muted"><span class="dot"></span>Active</span></td><td><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+                  <tr class="row-clickable"><td class="cell-title">Talkatone</td><td class="mono">Messaging apps</td><td>₦1,000</td><td><span class="pill pill-teal"><span class="dot"></span>15 in stock</span></td><td><span class="pill pill-muted"><span class="dot"></span>Active</span></td><td><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+                  <tr class="row-clickable"><td class="cell-title">Google Voice</td><td class="mono">Voice &amp; numbers</td><td>₦2,500</td><td><span class="pill pill-gold"><span class="dot"></span>3 in stock</span></td><td><span class="pill pill-muted"><span class="dot"></span>Active</span></td><td><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+                </tbody>
+              </table>
+              <div class="rules-inline">
+                <div class="rules-inline-title">Rules &amp; guide attached to Google Voice</div>
+                <ul>
+                  <li>Credentials carry no expiry date and no warranty from Olaslog.</li>
+                  <li>Buyer must verify sign-in within 24 hours of delivery.</li>
+                  <li>Shown to buyers on the product page before purchase.</li>
+                </ul>
+              </div>
+              <table>
+                <tbody>
+                  <tr class="row-clickable"><td class="cell-title">VPN Access, 30 days</td><td class="mono">VPN</td><td>₦3,800</td><td><span class="pill pill-teal"><span class="dot"></span>60 in stock</span></td><td><span class="pill pill-muted"><span class="dot"></span>Active</span></td><td><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- STOCK -->
+          <div class="screen-panel" data-panel="stock">
+            <div class="chips-row">
+              <div class="fchip">TextPlus</div><div class="fchip">Talkatone</div>
+              <div class="fchip active">Google Voice</div><div class="fchip">VPN, 30 days</div>
+            </div>
+            <div class="stat-row">
+              <div class="stat-chip"><div class="n">312</div><div class="l">Total uploaded</div></div>
+              <div class="stat-chip"><div class="n" style="color:var(--gold)">3</div><div class="l">Available</div></div>
+              <div class="stat-chip"><div class="n">307</div><div class="l">Sold</div></div>
+              <div class="stat-chip"><div class="n" style="color:var(--danger)">2</div><div class="l">Removed</div></div>
+            </div>
+            <div class="dropzone">
+              <div class="dropzone-text"><b>Bulk import stock</b>Drag a CSV of credentials here, or browse files. Each row becomes one available stock item.</div>
+              <button class="btn btn-primary">Import CSV</button>
+            </div>
+            <div class="panel">
+              <table>
+                <thead><tr><th>Item ID</th><th>Credential</th><th>Status</th><th>Added</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">GV-04471</td><td class="mono">gv.new0148 / •••••••</td><td><span class="pill pill-gold"><span class="dot"></span>Available</span></td><td class="mono">Sep 14</td><td><button class="btn btn-outline btn-sm">Remove</button></td></tr>
+                  <tr><td class="mono">GV-04472</td><td class="mono">gv.new0149 / •••••••</td><td><span class="pill pill-gold"><span class="dot"></span>Available</span></td><td class="mono">Sep 14</td><td><button class="btn btn-outline btn-sm">Remove</button></td></tr>
+                  <tr><td class="mono">GV-04398</td><td class="mono">adaeze.gv0148 / •••••••</td><td><span class="pill pill-teal"><span class="dot"></span>Sold — OLG-88291</span></td><td class="mono">Sep 9</td><td><button class="btn btn-outline btn-sm" disabled style="opacity:.4">Remove</button></td></tr>
+                  <tr><td class="mono">GV-04310</td><td class="mono">— redacted —</td><td><span class="pill pill-danger"><span class="dot"></span>Removed — bad login</span></td><td class="mono">Sep 2</td><td><button class="btn btn-outline btn-sm" disabled style="opacity:.4">Remove</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ORDERS -->
+          <div class="screen-panel" data-panel="orders">
+            <div class="filterbar">
+              <div class="fchip active">All</div><div class="fchip">Pending</div><div class="fchip">Completed</div><div class="fchip">Failed</div><div class="fchip">Refunded</div>
+              <div class="fselect">Any product</div><div class="fselect">Last 30 days</div>
+            </div>
+            <div class="two-pane">
+              <div class="panel">
+                <table>
+                  <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr class="row-clickable" style="background:var(--panel-3)"><td class="mono">OLG-88291</td><td>Ngozi E.</td><td>₦2,500</td><td><span class="pill pill-teal"><span class="dot"></span>Completed</span></td></tr>
+                    <tr class="row-clickable"><td class="mono">OLG-88290</td><td>Bayo A.</td><td>₦3,800</td><td><span class="pill pill-teal"><span class="dot"></span>Completed</span></td></tr>
+                    <tr class="row-clickable"><td class="mono">OLG-88289</td><td>Chiamaka O.</td><td>₦3,600</td><td><span class="pill pill-danger"><span class="dot"></span>Failed</span></td></tr>
+                    <tr class="row-clickable"><td class="mono">OLG-88214</td><td>Ngozi E.</td><td>₦1,200</td><td><span class="pill pill-gold"><span class="dot"></span>Disputed</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">Order OLG-88291</div><span class="pill pill-teal"><span class="dot"></span>Completed</span></div>
+                <div class="detail-pad">
+                  <div class="detail-row"><span>Customer</span><span>Ngozi E.</span></div>
+                  <div class="detail-row"><span>Item</span><span>Google Voice ×1</span></div>
+                  <div class="detail-row"><span>Amount charged</span><span>₦2,500</span></div>
+                  <div class="detail-row"><span>Wallet txn ref</span><span class="mono" style="font-weight:500">wtx_9f3a1</span></div>
+                  <div class="detail-row"><span>Delivered</span><span>Sep 15, 4:02 PM</span></div>
+                  <div class="detail-row"><span>Dispute</span><span>None filed</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DISPUTES -->
+          <div class="screen-panel" data-panel="disputes">
+            <div class="two-pane">
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">Queue</div><span class="pill pill-gold"><span class="dot"></span>6 open</span></div>
+                <div class="queue-item selected">
+                  <div class="queue-top"><span class="queue-id">OLG-88214</span><span class="pill pill-gold"><span class="dot"></span>Review</span></div>
+                  <div class="queue-title">Ngozi E. — Google Voice</div>
+                  <div class="queue-sub">Submitted Sep 16, 2:14 PM</div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-top"><span class="queue-id">OLG-88107</span><span class="pill pill-gold"><span class="dot"></span>Review</span></div>
+                  <div class="queue-title">Femi K. — VPN, 30 days</div>
+                  <div class="queue-sub">Submitted Sep 15, 9:40 AM</div>
+                </div>
+                <div class="queue-item">
+                  <div class="queue-top"><span class="queue-id">OLG-87998</span><span class="pill pill-muted"><span class="dot"></span>Submitted</span></div>
+                  <div class="queue-title">Aisha M. — Talkatone</div>
+                  <div class="queue-sub">Submitted Sep 14, 6:02 PM</div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">OLG-88214 — Google Voice</div><span class="pill pill-gold"><span class="dot"></span>Under review</span></div>
+                <div class="detail-pad">
+                  <div class="detail-row"><span>Customer</span><span>Ngozi E.</span></div>
+                  <div class="detail-row"><span>Amount paid</span><span>₦2,500</span></div>
+                  <div class="quote">"The number given doesn't accept the verification code — tried three times. Screenshot attached."</div>
+                  <div class="proof">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 4-4 5 5"/></svg>
+                    Attached screenshot
+                  </div>
+                  <textarea class="reason-input" rows="2" placeholder="Add a note for the customer (optional)"></textarea>
+                  <div class="btn-row" style="display:flex; gap:10px;">
+                    <button class="btn btn-primary" style="flex:1">Approve refund</button>
+                    <button class="btn btn-danger" style="flex:1">Reject</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- USERS -->
+          <div class="screen-panel" data-panel="users">
+            <div class="two-pane">
+              <div class="panel">
+                <table>
+                  <thead><tr><th>User</th><th>Balance</th><th>Orders</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr class="row-clickable" style="background:var(--panel-3)"><td class="cell-title">Ngozi E.</td><td>₦24,500</td><td>12</td><td><span class="pill pill-teal"><span class="dot"></span>Active</span></td></tr>
+                    <tr class="row-clickable"><td class="cell-title">Bayo A.</td><td>₦6,200</td><td>4</td><td><span class="pill pill-teal"><span class="dot"></span>Active</span></td></tr>
+                    <tr class="row-clickable"><td class="cell-title">Chiamaka O.</td><td>₦0</td><td>1</td><td><span class="pill pill-danger"><span class="dot"></span>Suspended</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="panel">
+                <div class="detail-pad">
+                  <div class="user-head">
+                    <div class="user-avatar">NE</div>
+                    <div><div class="user-name">Ngozi E.</div><div class="user-email">ngozi.e@mail.com · Joined Mar 2026</div></div>
+                  </div>
+                  <div class="detail-row"><span>Wallet balance</span><span>₦24,500</span></div>
+                  <div class="detail-row"><span>Total orders</span><span>12</span></div>
+                  <div class="section-label" style="font-size:12px; color:var(--text-dim); margin:16px 0 6px;">Wallet ledger</div>
+                  <div class="ledger-row"><span>Paystack funding</span><span class="ledger-amt pos">+₦10,000</span></div>
+                  <div class="ledger-row"><span>Google Voice ×1</span><span class="ledger-amt neg">–₦2,500</span></div>
+                  <div class="ledger-row"><span>TextPlus ×1</span><span class="ledger-amt neg">–₦1,200</span></div>
+                  <div class="btn-row" style="display:flex; gap:10px; margin-top:18px;">
+                    <button class="btn btn-outline" style="flex:1">View orders</button>
+                    <button class="btn btn-danger" style="flex:1">Suspend user</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const titles = {
+    overview:"Overview", products:"Products", stock:"Stock", orders:"Orders", disputes:"Disputes", users:"Users"
+  };
+  const tabs = document.querySelectorAll('.tab');
+  const sbItems = document.querySelectorAll('.sb-item');
+  const panels = document.querySelectorAll('.screen-panel');
+
+  function select(key){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.screen === key));
+    sbItems.forEach(s => s.classList.toggle('active', s.dataset.screen === key));
+    panels.forEach(p => p.classList.toggle('active', p.dataset.panel === key));
+    document.getElementById('pagetitle').textContent = titles[key];
+    document.getElementById('urlbar').textContent = 'admin.olaslog.com/' + key;
+  }
+  tabs.forEach(t => t.addEventListener('click', () => select(t.dataset.screen)));
+  sbItems.forEach(s => s.addEventListener('click', () => select(s.dataset.screen)));
+</script>
+</body>
+</html>

@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Olaslog Admin — Operations Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+
+  <!-- Dedicated Admin Sign-In Screen (Shown if logged out or unauthenticated) -->
+  <div id="adminLoginScreen" style="display: none; position: fixed; inset: 0; background: var(--ink); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: var(--panel); border: 1px solid var(--edge-strong); border-radius: 20px; padding: 36px 30px; width: 100%; max-width: 420px; box-shadow: 0 40px 80px rgba(0,0,0,0.85);">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+        <div style="width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(155deg, var(--gold), #a97c33); display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 700; font-size: 18px; color: #1a1206;">O</div>
+        <div>
+          <div style="font-family: var(--display); font-weight: 700; font-size: 20px;">Olaslog Admin</div>
+          <div style="font-size: 12px; color: var(--text-faint);">Operations &amp; Inventory Console</div>
+        </div>
+      </div>
+
+      <form id="adminLoginForm" onsubmit="handleAdminLogin(event)">
+        <div class="form-group">
+          <label class="form-label">Administrator Email</label>
+          <input type="email" id="adminEmailInput" class="form-control" placeholder="admin@olaslog.com" value="admin@olaslog.com" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 22px;">
+          <label class="form-label">Admin Secret Password</label>
+          <input type="password" id="adminPasswordInput" class="form-control" placeholder="••••••••" value="Admin@12345" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 13px; font-size: 14px;">Sign In to Console 🛡️</button>
+        <div style="text-align: center; margin-top: 18px;">
+          <a href="/" style="font-size: 12.5px; color: var(--text-faint); text-decoration: underline;">← Return to Storefront</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Mobile Sidebar Backdrop Overlay -->
+  <div class="admin-drawer-overlay" id="adminDrawerOverlay" onclick="toggleMobileSidebar(false)"></div>
+
+  <div class="app">
+    <!-- Sidebar per UI/olaslog-admin-design.html -->
+    <aside class="sidebar" id="adminSidebar">
+      <div class="sb-brand">
+        <div class="sb-mark">O</div>
+        <div>
+          <div class="sb-name">Olaslog</div>
+          <div class="sb-sub">Admin Console</div>
+        </div>
+      </div>
+
+      <nav class="sb-nav" id="adminNav">
+        <div class="sb-item active" data-screen="overview" onclick="switchTab('overview', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>
+          Overview
+        </div>
+        <div class="sb-item" data-screen="products" onclick="switchTab('products', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16l-1.5 11a2 2 0 0 1-2 2H7.5a2 2 0 0 1-2-2z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg>
+          Products & Pricing
+        </div>
+        <div class="sb-item" data-screen="stock" onclick="switchTab('stock', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8L12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+          Stock & Inventory
+        </div>
+        <div class="sb-item" data-screen="orders" onclick="switchTab('orders', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l3 4v14H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+          Orders Inspector
+        </div>
+        <div class="sb-item" data-screen="disputes" onclick="switchTab('disputes', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          Disputes
+          <span class="count" id="sbDisputeCount">0</span>
+        </div>
+        <div class="sb-item" data-screen="users" onclick="switchTab('users', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="18" cy="8.5" r="2.7"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg>
+          User Directory
+        </div>
+        <div class="sb-item" data-screen="ledger" onclick="switchTab('ledger', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          System Ledger
+        </div>
+      </nav>
+
+      <div class="sb-foot">
+        <div class="avatar" id="sbAvatar">AD</div>
+        <div>
+          <div class="sb-foot-name" id="sbAdminName">Administrator</div>
+          <div class="sb-foot-role">Super Admin</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()">☰</button>
+          <div class="page-title" id="pageTitle">Overview</div>
+        </div>
+        <div class="topbar-right">
+          <div class="search">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input type="text" id="adminGlobalSearch" placeholder="Search orders, items, users..." oninput="handleAdminSearch(this.value)">
+          </div>
+          <a href="/" class="btn btn-outline btn-sm">🏪 Storefront</a>
+          <button class="btn btn-danger btn-sm" onclick="logoutAdmin()">Logout</button>
+        </div>
+      </header>
+
+      <!-- Horizontal Scrollable Navigation Tabs (Fast Mobile/Desktop Switcher) -->
+      <nav class="admin-mobile-tabs" id="adminMobileTabs">
+        <button class="adm-tab-pill active" data-screen="overview" onclick="switchTab('overview')">Overview</button>
+        <button class="adm-tab-pill" data-screen="products" onclick="switchTab('products')">Products & Pricing</button>
+        <button class="adm-tab-pill" data-screen="stock" onclick="switchTab('stock')">Stock & Inventory</button>
+        <button class="adm-tab-pill" data-screen="orders" onclick="switchTab('orders')">Orders Inspector</button>
+        <button class="adm-tab-pill" data-screen="disputes" onclick="switchTab('disputes')">Disputes</button>
+        <button class="adm-tab-pill" data-screen="users" onclick="switchTab('users')">User Directory</button>
+        <button class="adm-tab-pill" data-screen="ledger" onclick="switchTab('ledger')">System Ledger</button>
+      </nav>
+
+      <div class="content">
+
+        <!-- ==============================================================
+             PANEL 1: OVERVIEW
+             ============================================================== -->
+        <section class="screen-panel active" id="panel-overview">
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-label">Total Revenue</div>
+              <div class="kpi-value" style="color: var(--teal);">₦<span id="kpiRevenue">0</span></div>
+              <div class="kpi-delta">+8% completed checkout sales</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Total Orders</div>
+              <div class="kpi-value" id="kpiOrders">0</div>
+              <div class="kpi-delta">Instant fulfillments</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Available Stock</div>
+              <div class="kpi-value" style="color: var(--teal);" id="kpiStock">0</div>
+              <div class="kpi-delta">Encrypted items in stock</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Pending Disputes</div>
+              <div class="kpi-value" style="color: var(--danger);" id="kpiDisputes">0</div>
+              <div class="kpi-delta" style="color: var(--danger);">Awaiting decision</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Registered Customers</div>
+              <div class="kpi-value" id="kpiUsers">0</div>
+              <div class="kpi-delta">Active client accounts</div>
+            </div>
+            <div class="kpi" style="border-color: rgba(217, 168, 91, 0.35);">
+              <div class="kpi-label" style="color: var(--gold); display: flex; justify-content: space-between;">
+                <span>Sujan API Balance</span>
+                <span class="pill pill-teal" style="font-size: 10px; padding: 2px 6px;">LIVE API</span>
+              </div>
+              <div class="kpi-value" style="color: var(--gold);">₦<span id="kpiSujanBal">0</span></div>
+              <div class="kpi-delta" style="color: var(--gold);">Wholesale reseller funds</div>
+            </div>
+          </div>
+
+          <div class="split">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">Recent Orders</div>
+                <div class="panel-link" onclick="switchTab('orders')">View all →</div>
+              </div>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Order #</th>
+                      <th>Customer</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overviewRecentOrdersBody">
+                    <tr><td colspan="4" style="text-align: center; color: var(--text-faint); padding: 2rem;">Loading live orders...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">Disputes Queue</div>
+                <div class="panel-link" onclick="switchTab('disputes')">View all →</div>
+              </div>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Order #</th>
+                      <th>Claim Reason</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overviewRecentDisputesBody">
+                    <tr><td colspan="3" style="text-align: center; color: var(--text-faint); padding: 2rem;">Loading disputes...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 2: PRODUCTS & PRICING
+             ============================================================== -->
+        <section class="screen-panel" id="panel-products">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h2 style="font-size: 1.3rem; margin-bottom: 4px;">Live Catalog & Price Controls</h2>
+              <p style="font-size: 12.5px; color: var(--text-dim);">
+                Synced with Sujan Logs Marketplace. Default markup: <strong style="color: var(--teal);">Base Wholesale + ₦1,000</strong>. Override any price below.
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="openAddCategoryModal()">+ Add Category</button>
+              <button class="btn btn-primary btn-sm" onclick="openAddProductModal()">+ Add Product</button>
+              <button class="btn btn-teal btn-sm" onclick="syncSujanCatalog()" id="btnSyncSujan">🔄 Sync Live Catalog</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Sujan Base</th>
+                    <th>Selling Price</th>
+                    <th>Mode</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="adminProductsTableBody">
+                  <tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading products...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 3: STOCK & INVENTORY
+             ============================================================== -->
+        <section class="screen-panel" id="panel-stock">
+          <div class="dropzone">
+            <div class="dropzone-text">
+              <b>⚡ Bulk Encrypt & Upload Stock</b>
+              Paste credentials line-by-line. Each row is immediately encrypted via AES-256-GCM and stored in SQLite.
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openBulkStockModal()">Upload Credentials</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Decrypted Inventory & Credentials Explorer</div>
+              <div style="font-size: 12px; color: var(--text-faint);">Live preview for privileged administrators</div>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Product</th>
+                    <th>Status</th>
+                    <th>Decrypted Credential Payload</th>
+                    <th>Order #</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody id="adminStockTableBody">
+                  <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading inventory items...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 4: ORDERS INSPECTOR
+             ============================================================== -->
+        <section class="screen-panel" id="panel-orders">
+          <div class="two-pane">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">All Customer Orders</div>
+              </div>
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Order #</th>
+                      <th>Customer</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminOrdersTableBody">
+                    <tr><td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading orders...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel" id="orderDetailPanel">
+              <div class="panel-head">
+                <div class="panel-title" id="orderDetailTitle">Select an order to inspect</div>
+                <span class="pill pill-muted" id="orderDetailBadge">None</span>
+              </div>
+              <div class="detail-pad" id="orderDetailBody">
+                <p style="color: var(--text-faint); text-align: center; padding: 2rem;">Click on any order in the left list to view transaction metadata and decrypted credentials.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 5: DISPUTE RESOLUTION QUEUE
+             ============================================================== -->
+        <section class="screen-panel" id="panel-disputes">
+          <div class="two-pane">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">Claim Queue</div>
+                <span class="pill pill-gold" id="disputeQueueCountBadge"><span class="dot"></span>0 Claims</span>
+              </div>
+              <div id="disputesQueueList">
+                <div style="padding: 2rem; text-align: center; color: var(--text-faint);">No open disputes.</div>
+              </div>
+            </div>
+
+            <div class="panel" id="disputeDetailPanel">
+              <div class="panel-head">
+                <div class="panel-title" id="disputeDetailTitle">Claim Inspection</div>
+                <span class="pill pill-muted" id="disputeDetailBadge">Pending</span>
+              </div>
+              <div class="detail-pad" id="disputeDetailBody">
+                <p style="color: var(--text-faint); text-align: center; padding: 2rem;">Select a dispute on the left to inspect customer proof and approve/reject.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 6: USER DIRECTORY
+             ============================================================== -->
+        <section class="screen-panel" id="panel-users">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Registered Customer Directory</div>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User ID</th>
+                    <th>Full Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Wallet Balance</th>
+                    <th>Registered</th>
+                  </tr>
+                </thead>
+                <tbody id="adminUsersTableBody">
+                  <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading users...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 7: SYSTEM LEDGER AUDIT
+             ============================================================== -->
+        <section class="screen-panel" id="panel-ledger">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">Financial Transaction Ledger (Double-Entry Audit)</div>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Customer</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Before</th>
+                    <th>After</th>
+                    <th>Reference</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody id="adminLedgerTableBody">
+                  <tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading ledger entries...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Manual Price Control Modal -->
+  <div class="modal-overlay" id="admPriceModal">
+    <div class="modal-dialog">
+      <div class="modal-title">Manual Price Control</div>
+      <input type="hidden" id="admPriceProductId">
+      <div style="margin-bottom: 16px;">
+        <div id="admPriceProductName" style="font-weight: 700; font-size: 15px; margin-bottom: 4px;"></div>
+        <div id="admPriceProductCategory" style="font-size: 12px; color: var(--text-faint);"></div>
+      </div>
+
+      <div style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 10px; padding: 14px; margin-bottom: 16px; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--text-faint);">Sujan Base Wholesale:</span>
+          <strong id="admPriceSujanBase">₦0</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="color: var(--text-faint);">Default Formula:</span>
+          <span style="color: var(--teal);">Wholesale + ₦1,000</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-faint);">Current Active Price:</span>
+          <strong id="admPriceCurrentActive" style="color: var(--gold);">₦0</strong>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Set Custom Selling Price (₦)</label>
+        <input type="number" id="admPriceCustomInput" class="form-control" placeholder="Enter custom price" min="0" step="100">
+        <span style="font-size: 11px; color: var(--text-faint); display: block; margin-top: 6px;">
+          Setting a custom price sets <strong>Manual Override</strong> so future syncs won't reset your price.
+        </span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="resetPriceToDefault()">Reset Formula</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admPriceModal')">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="saveCustomPrice()">Save Price</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Stock Upload Modal -->
+  <div class="modal-overlay" id="admBulkStockModal">
+    <div class="modal-dialog">
+      <div class="modal-title">Bulk Upload Stock Credentials</div>
+      <div class="form-group">
+        <label class="form-label">Select Product</label>
+        <select id="admBulkProductSelect" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Credentials (One per line)</label>
+        <textarea id="admBulkStockTextarea" class="form-control" rows="5" placeholder="Email: user1@mail.com | Pass: pass1&#10;Email: user2@mail.com | Pass: pass2"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admBulkStockModal')">Cancel</button>
+        <button class="btn btn-teal btn-sm" onclick="submitBulkStock()">Upload & Encrypt 🔒</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Create / Edit Modal -->
+  <div class="modal-overlay" id="admProductModal">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-title" id="admProductModalTitle">Add New Product</div>
+      <input type="hidden" id="admProductEditId">
+      
+      <div class="form-group">
+        <label class="form-label">Product Name *</label>
+        <input type="text" id="admProdName" class="form-control" placeholder="e.g. USA Gmail PVA Aged 2023" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Category *</label>
+          <select id="admProdCategorySelect" class="form-control" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Selling Price (₦) *</label>
+          <input type="number" id="admProdPrice" class="form-control" placeholder="3500" min="0" step="50" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description &amp; Details</label>
+        <textarea id="admProdDesc" class="form-control" rows="3" placeholder="Aged email credentials with 2FA and recovery details."></textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Min Order Qty</label>
+          <input type="number" id="admProdMinQty" class="form-control" value="1" min="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Order Qty</label>
+          <input type="number" id="admProdMaxQty" class="form-control" value="50" min="1">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Product Image URL (Optional)</label>
+        <input type="text" id="admProdImage" class="form-control" placeholder="https://images.unsplash.com/...">
+      </div>
+
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+        <input type="checkbox" id="admProdIsActive" checked style="width: 18px; height: 18px; accent-color: var(--teal);">
+        <label for="admProdIsActive" style="font-size: 13px; color: var(--text); cursor: pointer;">Product is active &amp; purchasable in store</label>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admProductModal')">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveProductForm()" id="btnSaveProduct">Save Product</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Create Modal -->
+  <div class="modal-overlay" id="admCategoryModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-title">Create New Category</div>
+      
+      <div class="form-group">
+        <label class="form-label">Category Name *</label>
+        <input type="text" id="admCatName" class="form-control" placeholder="e.g. Streaming Accounts" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Icon (Emoji or Symbol)</label>
+          <input type="text" id="admCatIcon" class="form-control" value="📦" placeholder="📦">
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL Slug (Auto if empty)</label>
+          <input type="text" id="admCatSlug" class="form-control" placeholder="streaming-accounts">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Usage Rules &amp; Guidelines (Markdown)</label>
+        <textarea id="admCatRules" class="form-control" rows="4" placeholder="### ⚠️ Usage Rules&#10;- Verify credentials within 1 hour.&#10;- Use dedicated proxy matching country."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admCategoryModal')">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveCategoryForm()" id="btnSaveCategory">Create Category</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="adminToastContainer"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

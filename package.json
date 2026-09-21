@@ -1,0 +1,30 @@
+{
+  "name": "olaslog-marketplace",
+  "version": "1.0.0",
+  "description": "Olaslog - Digital Products Marketplace (Wallet-Based Instant Delivery Platform)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "seed": "node server/db/seed.js",
+    "test": "node test/test_core.js"
+  },
+  "keywords": [
+    "marketplace",
+    "digital-products",
+    "wallet",
+    "paystack",
+    "instant-delivery"
+  ],
+  "author": "Olaslog Team",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}
