@@ -171,7 +171,13 @@ async function loadMetrics() {
       document.getElementById('kpiDisputes').textContent = m.pendingDisputesCount || 0;
       document.getElementById('sbDisputeCount').textContent = m.pendingDisputesCount || 0;
       document.getElementById('kpiUsers').textContent = (m.totalCustomersCount || 0).toLocaleString();
-      document.getElementById('kpiSujanBal').textContent = (m.sujanBalance || 0).toLocaleString();
+      let sujanVal = 0;
+      if (typeof m.sujanBalance === 'object' && m.sujanBalance !== null) {
+        sujanVal = m.sujanBalance.balance ?? m.sujanBalance.amount ?? m.sujanBalance.funds ?? 0;
+      } else if (typeof m.sujanBalance === 'number') {
+        sujanVal = m.sujanBalance;
+      }
+      document.getElementById('kpiSujanBal').textContent = Number(sujanVal || 0).toLocaleString();
     }
   } catch (err) {
     console.error('Failed to load metrics:', err);

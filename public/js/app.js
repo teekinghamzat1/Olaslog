@@ -18,7 +18,7 @@ const state = {
 function initTheme() {
     const saved = localStorage.getItem('olaslog_theme') || 'light';
     document.documentElement.setAttribute('data-theme', saved);
-    updateThemeIcon(saved);
+    updateThemeAssets(saved);
 }
 
 function toggleTheme() {
@@ -26,13 +26,21 @@ function toggleTheme() {
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('olaslog_theme', next);
-    updateThemeIcon(next);
+    updateThemeAssets(next);
 }
 
-function updateThemeIcon(theme) {
+function updateThemeAssets(theme) {
+    // Legacy single icon (if used elsewhere)
     const icon = document.getElementById('themeToggleIcon');
     if (icon) {
         icon.textContent = theme === 'light' ? '☀️' : '🌙';
+    }
+    // Swap hero person image to match theme shirt colour
+    const heroImg = document.getElementById('heroPersonImg');
+    if (heroImg) {
+        heroImg.src = theme === 'light'
+            ? '/assets/hero_olaslog_person_light.jpg'
+            : '/assets/hero_olaslog_person_dark.jpg';
     }
 }
 

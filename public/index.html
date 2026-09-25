@@ -11,6 +11,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/svg+xml" href="/assets/olaslog-icon-app.svg">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/olaslog-icon-app.png">
+    <link rel="apple-touch-icon" href="/assets/olaslog-icon-app.png">
+    <link rel="shortcut icon" href="/favicon.ico">
+    
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -23,8 +29,8 @@
                 <button class="mobile-hamburger-btn" id="mobileHamburgerBtn" onclick="toggleMobileDrawer()" title="Open Navigation Menu">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </button>
-                <div class="brand-logo" onclick="navigateTo('home')">
-                    <div class="brand-mark">O</div>
+                <div class="brand-logo" onclick="navigateTo('home')" title="Olaslog Home">
+                    <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Icon" class="brand-mark-img">
                     <div>Olas<span class="brand-highlight">log</span></div>
                 </div>
             </div>
@@ -43,7 +49,7 @@
                 <div class="wallet-nav-badge auth-only" onclick="navigateTo('wallet')" title="Your Wallet Balance (Click to Fund)">
                     <span>₦</span>
                     <span id="navWalletBalance">0.00</span>
-                    <span style="font-size: 0.75rem; background: rgba(73, 216, 196, 0.2); color: var(--teal); padding: 2px 6px; border-radius: 6px;">+ Fund</span>
+                    <span style="font-size: 0.75rem; background: rgba(91, 217, 165, 0.2); color: var(--teal); padding: 2px 6px; border-radius: 6px;">+ Fund</span>
                 </div>
 
                 <!-- Theme Toggle Switch (Animated Sun/Moon) -->
@@ -80,8 +86,8 @@
     <div class="mobile-drawer-overlay" id="mobileDrawerOverlay" onclick="toggleMobileDrawer(false)"></div>
     <aside class="mobile-sidebar" id="mobileSidebar">
         <div class="mobile-sidebar-head">
-            <div class="brand-logo" onclick="navigateTo('home'); toggleMobileDrawer(false);">
-                <div class="brand-mark">O</div>
+            <div class="brand-logo" onclick="navigateTo('home'); toggleMobileDrawer(false);" title="Olaslog Home">
+                <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Icon" class="brand-mark-img" style="width: 32px; height: 32px; border-radius: 8px;">
                 <div>Olas<span class="brand-highlight">log</span></div>
             </div>
             <button class="drawer-close-btn" onclick="toggleMobileDrawer(false)">&times;</button>
@@ -147,18 +153,83 @@
              ================================================================ -->
         <section id="view-home" class="app-view">
             <div class="hero-section">
-                <div class="hero-pill">⚡ Instant Digital Delivery Platform • Paystack Powered</div>
-                <h1 class="hero-title">
-                    Digital Accounts & Numbers <br>
-                    <span class="gradient-text">Delivered Instantly to Your Wallet</span>
-                </h1>
-                <p class="hero-subtitle">
-                    Self-service verified accounts for Google Voice, TextPlus, Talkatone, and Premium VPNs. 
-                    Pre-fund in Nigerian Naira (₦), purchase atomically, and receive your credentials immediately.
-                </p>
-                <div class="hero-cta-group">
-                    <button class="btn btn-emerald btn-lg" onclick="navigateTo('shop')">Browse Available Stock 🛒</button>
-                    <button class="btn btn-secondary btn-lg" onclick="openFundModalShortcut()">Fund Wallet (from ₦100) 💳</button>
+                <div class="hero-grid">
+                    <!-- Left Column: Pitch & Action -->
+                    <div class="hero-content">
+                        <div class="hero-pill">
+                            <span class="pulse-dot"></span>
+                            <span>⚡ Instant Automated Delivery • Paystack Secured</span>
+                        </div>
+                        <h1 class="hero-title">
+                            Digital Accounts &amp; Numbers <br>
+                            <span class="gradient-text">Delivered Instantly to Your Wallet</span>
+                        </h1>
+                        <p class="hero-subtitle">
+                            Self-service verified accounts for Google Voice, TextPlus, Talkatone, and Premium VPNs. Pre-fund your wallet in Nigerian Naira (₦), purchase atomically, and receive your credentials immediately.
+                        </p>
+                        
+                        <div class="hero-cta-group">
+                            <button class="btn btn-emerald btn-lg hero-cta-btn" onclick="navigateTo('shop')">
+                                <span>Browse Available Stock</span>
+                                <span>🛒</span>
+                            </button>
+                            <button class="btn btn-secondary btn-lg hero-cta-btn" onclick="openFundModalShortcut()">
+                                <span>Fund Wallet (from ₦100)</span>
+                                <span>💳</span>
+                            </button>
+                        </div>
+
+                        <!-- Fintech Trust & Speed Badges -->
+                        <div class="hero-trust-badges">
+                            <div class="trust-badge-item">
+                                <span class="trust-icon">⚡</span>
+                                <div>
+                                    <div class="trust-title">Instant Dispatch</div>
+                                    <div class="trust-desc">Under 2 seconds</div>
+                                </div>
+                            </div>
+                            <div class="trust-badge-item">
+                                <span class="trust-icon">🔒</span>
+                                <div>
+                                    <div class="trust-title">Encrypted Vault</div>
+                                    <div class="trust-desc">AES-256 Storage</div>
+                                </div>
+                            </div>
+                            <div class="trust-badge-item">
+                                <span class="trust-icon">🛡️</span>
+                                <div>
+                                    <div class="trust-title">100% Guarantee</div>
+                                    <div class="trust-desc">Instant wallet refunds</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Branded Visual with Floating Cards -->
+                    <div class="hero-visual">
+                        <div class="hero-img-wrapper">
+                            <div class="hero-img-glow"></div>
+                            <img src="/assets/hero_olaslog_person_dark.jpg" alt="Olaslog Branded Team Member" class="hero-person-img" id="heroPersonImg" loading="eager">
+
+                            <!-- Top Floating Badge -->
+                            <div class="hero-float-card float-card-top">
+                                <div class="float-icon-box">⚡</div>
+                                <div class="float-card-info">
+                                    <div class="float-card-title">Google Voice USA (Verified)</div>
+                                    <div class="float-card-sub"><span class="badge-dot-green"></span> Dispatched in 1.4s</div>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Floating Badge -->
+                            <div class="hero-float-card float-card-bottom">
+                                <div class="float-icon-box" style="background: rgba(30, 155, 68, 0.2); color: var(--gold);">₦</div>
+                                <div class="float-card-info">
+                                    <div class="float-card-title">Instant Wallet Payment</div>
+                                    <div class="float-card-sub">Zero transaction delay • 24/7</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -322,7 +393,7 @@
 
             <!-- Wallet Highlight Card & Key Widgets -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                <div class="card" style="background: radial-gradient(140px 100px at 85% 0%, rgba(217,168,91,0.22), transparent 70%), linear-gradient(160deg, #182238, #101627); border: 1px solid var(--edge-strong); border-radius: var(--r-md); padding: 1.5rem;">
+                <div class="card" style="background: radial-gradient(140px 100px at 85% 0%, rgba(30,155,68,0.22), transparent 70%), linear-gradient(160deg, #152E22, #101a14); border: 1px solid var(--edge-strong); border-radius: var(--r-md); padding: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-dim);">Spendable Wallet Balance</span>
                         <span class="pill" style="background: var(--gold-soft); color: var(--gold); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Active</span>
@@ -447,7 +518,7 @@
                 </div>
 
                 <!-- Live Balance & Rules Overview -->
-                <div class="card" style="background: radial-gradient(180px 120px at 85% 0%, rgba(73,216,196,0.18), transparent 70%), linear-gradient(160deg, #182238, #0f1524); border: 1px solid var(--edge-strong);">
+                <div class="card" style="background: radial-gradient(180px 120px at 85% 0%, rgba(91,217,165,0.18), transparent 70%), linear-gradient(160deg, #152E22, #0a2319); border: 1px solid var(--edge-strong);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim);">Current Wallet Balance</span>
                         <span class="pill" style="background: var(--teal-soft); color: var(--teal); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Paystack Verified</span>

@@ -1,22 +1,22 @@
 /* ==========================================================================
    OLASLOG ADMIN OPERATIONS CENTER - DESIGN SYSTEM
-   Directly derived from UI/olaslog-admin-design.html
+   Identity: Forest Green Brand (Olaslog Green #1E9B44 on Deep Ink #0B2E22)
    ========================================================================== */
 
 :root {
-  --ink: #0A0E18;
-  --panel: #121A2C;
-  --panel-2: #0F1524;
-  --panel-3: #1A233A;
+  --ink: #0B2E22;
+  --panel: #102D20;
+  --panel-2: #0A2319;
+  --panel-3: #173626;
   --edge: rgba(255, 255, 255, 0.08);
   --edge-strong: rgba(255, 255, 255, 0.14);
   --text: #F2F0E9;
   --text-dim: #8D95AC;
   --text-faint: #5C6480;
-  --gold: #D9A85B;
-  --gold-soft: rgba(217, 168, 91, 0.14);
-  --teal: #49D8C4;
-  --teal-soft: rgba(73, 216, 196, 0.14);
+  --gold: #1E9B44;
+  --gold-soft: rgba(30, 155, 68, 0.14);
+  --teal: #5BD9A5;
+  --teal-soft: rgba(91, 217, 165, 0.14);
   --danger: #E2695E;
   --danger-soft: rgba(226, 105, 94, 0.14);
   --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -41,8 +41,8 @@ html, body {
 
 body {
   background:
-    radial-gradient(1000px 500px at 85% -8%, rgba(217, 168, 91, 0.09), transparent 60%),
-    radial-gradient(800px 460px at -8% 40%, rgba(73, 216, 196, 0.07), transparent 55%),
+    radial-gradient(1000px 500px at 85% -8%, rgba(30, 155, 68, 0.09), transparent 60%),
+    radial-gradient(800px 460px at -8% 40%, rgba(91, 217, 165, 0.07), transparent 55%),
     var(--ink);
 }
 
@@ -95,15 +95,24 @@ a {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: linear-gradient(155deg, var(--gold), #a97c33);
+  background: linear-gradient(155deg, var(--gold), #17773A);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--display);
   font-weight: 700;
   font-size: 16px;
-  color: #1a1206;
+  color: #091F17;
   flex-shrink: 0;
+}
+
+.sb-mark-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(30, 155, 68, 0.3);
 }
 
 .sb-name {
@@ -314,7 +323,7 @@ a {
   color: var(--gold);
   border-color: var(--gold);
   font-weight: 600;
-  box-shadow: 0 0 10px rgba(217, 168, 91, 0.18);
+  box-shadow: 0 0 10px rgba(30, 155, 68, 0.18);
 }
 
 .content {
@@ -338,8 +347,8 @@ a {
 }
 
 .btn-primary {
-  background: linear-gradient(155deg, #e6bd7e, var(--gold));
-  color: #241a08;
+  background: linear-gradient(155deg, #27C157, var(--gold));
+  color: #091F17;
 }
 .btn-primary:hover {
   filter: brightness(1.05);
@@ -356,8 +365,8 @@ a {
 }
 
 .btn-teal {
-  background: linear-gradient(155deg, #5fe4d2, var(--teal));
-  color: #06231e;
+  background: linear-gradient(155deg, #6EDDB5, var(--teal));
+  color: #091F17;
 }
 
 .btn-danger {
