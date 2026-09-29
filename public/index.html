@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Olaslog - Digital Products Marketplace | Instant Automated Delivery</title>
-    <meta name="description" content="Self-service marketplace for digital accounts, Google Voice, TextPlus, Talkatone, and VPN subscriptions. Pre-fund your wallet via Paystack and receive instant delivery.">
+    <meta name="description" content="Self-service marketplace for digital accounts, Google Voice, TextPlus, Talkatone, and VPN subscriptions. Pre-fund your wallet via dedicated Korapay Virtual Bank Accounts and receive instant delivery.">
     
     <!-- Google Fonts: Space Grotesk, Inter, JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -158,7 +158,7 @@
                     <div class="hero-content">
                         <div class="hero-pill">
                             <span class="pulse-dot"></span>
-                            <span>⚡ Instant Automated Delivery • Paystack Secured</span>
+                            <span>⚡ Instant Automated Delivery • Korapay Bank Transfer Secured</span>
                         </div>
                         <h1 class="hero-title">
                             Digital Accounts &amp; Numbers <br>
@@ -175,7 +175,7 @@
                             </button>
                             <button class="btn btn-secondary btn-lg hero-cta-btn" onclick="openFundModalShortcut()">
                                 <span>Fund Wallet (from ₦100)</span>
-                                <span>💳</span>
+                                <span>🏦</span>
                             </button>
                         </div>
 
@@ -249,7 +249,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" style="color: var(--gold);">₦100</div>
-                    <div class="stat-label">Minimum Paystack Deposit</div>
+                    <div class="stat-label">Minimum Bank Transfer Deposit</div>
                 </div>
             </div>
 
@@ -274,9 +274,9 @@
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
                     <div style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
-                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">💳</div>
-                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">1. Fund Your Wallet</h3>
-                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Top up your internal wallet in ₦ using Paystack card, bank transfer, or USSD starting from ₦100.</p>
+                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">🏦</div>
+                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">1. Fund Your Dedicated Account</h3>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Top up your wallet in ₦ by transferring to your dedicated Korapay Virtual Bank Account from any bank app starting from ₦100.</p>
                     </div>
                     <div style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
                         <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">📦</div>
@@ -311,7 +311,7 @@
                             <span>▾</span>
                         </div>
                         <div class="faq-answer">
-                            You can fund your wallet with any amount starting from ₦100 via Paystack. Your balance is updated automatically upon successful server-side payment confirmation.
+                            You can fund your wallet with any amount starting from ₦100 via your dedicated Korapay Virtual Bank Account. Simply transfer to your account number and your balance is updated automatically.
                         </div>
                     </div>
                     <div class="faq-item">
@@ -340,7 +340,7 @@
                 <p style="margin-bottom: 0.8rem;">
                     <strong>Disclaimer:</strong> Olaslog is an independent digital products marketplace and is not affiliated with, endorsed by, or sponsored by Google Voice, TextPlus, Talkatone, NordVPN, or ExpressVPN.
                 </p>
-                <p>© 2026 Olaslog Marketplace. All rights reserved. • Secured by Paystack • NGN Wallet-Based Delivery</p>
+                <p>© 2026 Olaslog Marketplace. All rights reserved. • Powered by Korapay • NGN Wallet-Based Delivery</p>
             </footer>
         </section>
 
@@ -483,57 +483,51 @@
 
 
         <!-- ================================================================
-             VIEW: WALLET (Paystack Funding & Immutable Ledger)
+             VIEW: WALLET (Korapay Virtual Bank Account & Immutable Ledger)
              ================================================================ -->
         <section id="view-wallet" class="app-view" style="display: none;">
             <div style="margin-bottom: 2rem;">
                 <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Wallet & Funding</h1>
-                <p style="color: var(--text-secondary);">Pre-fund your balance using Paystack and track every debit and credit</p>
+                <p style="color: var(--text-secondary);">Fund your balance instantly via your dedicated Nigerian Virtual Bank Account</p>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 2rem; margin-bottom: 2.5rem;" class="wallet-grid">
-                <!-- Funding Box -->
-                <div class="card">
-                    <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Fund Wallet</h3>
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
-                        Minimum funding: <strong>₦100</strong>. Supported via Card, Bank Transfer, or USSD via Paystack.
-                    </p>
-
-                    <div class="form-group">
-                        <label class="form-label">Amount to Fund (NGN ₦)</label>
-                        <input type="number" id="walletFundAmountInput" class="form-control" placeholder="1000" min="100" value="2500" style="font-family: var(--display); font-size: 1.4rem; font-weight: 700; color: var(--gold);">
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 2rem; margin-bottom: 2.5rem;" class="wallet-grid">
+                <!-- Virtual Bank Account / BVN Onboarding Box -->
+                <div class="card" id="vbaCard">
+                    <div id="vbaContainer">
+                        <!-- Populated dynamically via loadWallet() in app.js -->
+                        <div style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
+                            <div>Loading virtual bank account details...</div>
+                        </div>
                     </div>
-
-                    <!-- Preset Quick Amount Chips -->
-                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-                        <button class="pill-btn" onclick="setFundAmount(1000)">+ ₦1,000</button>
-                        <button class="pill-btn" onclick="setFundAmount(2500)">+ ₦2,500</button>
-                        <button class="pill-btn" onclick="setFundAmount(5000)">+ ₦5,000</button>
-                        <button class="pill-btn" onclick="setFundAmount(10000)">+ ₦10,000</button>
-                    </div>
-
-                    <button class="btn btn-primary" style="width: 100%;" onclick="initiateWalletFunding()">
-                        Proceed to Paystack Checkout 💳
-                    </button>
                 </div>
 
                 <!-- Live Balance & Rules Overview -->
-                <div class="card" style="background: radial-gradient(180px 120px at 85% 0%, rgba(91,217,165,0.18), transparent 70%), linear-gradient(160deg, #152E22, #0a2319); border: 1px solid var(--edge-strong);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim);">Current Wallet Balance</span>
-                        <span class="pill" style="background: var(--teal-soft); color: var(--teal); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Paystack Verified</span>
-                    </div>
-                    <div style="font-family: var(--display); font-size: 3rem; font-weight: 700; color: var(--text); margin: 0.5rem 0 1.2rem; letter-spacing: -0.01em;">
-                        <span style="color: var(--teal);">₦</span><span id="walletPageBalance">0.00</span>
+                <div class="card" style="background: radial-gradient(180px 120px at 85% 0%, rgba(91,217,165,0.18), transparent 70%), linear-gradient(160deg, #152E22, #0a2319); border: 1px solid var(--edge-strong); display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-dim);">Current Wallet Balance</span>
+                            <span class="pill" style="background: var(--teal-soft); color: var(--teal); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Korapay Instant Transfer</span>
+                        </div>
+                        <div style="font-family: var(--display); font-size: 3rem; font-weight: 700; color: var(--text); margin: 0.5rem 0 1.2rem; letter-spacing: -0.01em;">
+                            <span style="color: var(--teal);">₦</span><span id="walletPageBalance">0.00</span>
+                        </div>
+
+                        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--edge); padding: 1rem; border-radius: 10px; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1.2rem;">
+                            <div style="font-weight: 600; color: var(--text); margin-bottom: 0.4rem;">🛡️ Virtual Account Guarantees:</div>
+                            <ul style="margin-left: 1.2rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                                <li><strong>Dedicated & Permanent:</strong> Assigned exclusively to your profile. Save it as a beneficiary in your bank app.</li>
+                                <li><strong>Automated Instant Credit:</strong> Webhook listeners verify and credit your balance within seconds of transfer clearance.</li>
+                                <li><strong>Ledger Security:</strong> Every deposit is backed by an immutable double-entry financial ledger.</li>
+                            </ul>
+                        </div>
                     </div>
 
-                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--edge); padding: 1rem; border-radius: 10px; font-size: 0.85rem; color: var(--text-dim);">
-                        <div style="font-weight: 600; color: var(--text); margin-bottom: 0.4rem;">🛡️ Account & Buyer Guarantees:</div>
-                        <ul style="margin-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem;">
-                            <li>Immutable financial ledger prevents unauthorized balance drifts.</li>
-                            <li>Atomic checkout ensures funds are only deducted when credentials are reserved.</li>
-                            <li>Idempotent Paystack webhooks eliminate double-crediting risks.</li>
-                        </ul>
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <button class="btn btn-outline" style="width: 100%;" onclick="loadWallet()">
+                            🔄 Refresh Balance & Ledger
+                        </button>
                     </div>
                 </div>
             </div>
@@ -601,7 +595,7 @@
                 <strong>⚠️ Insufficient Wallet Balance!</strong>
                 <p style="margin: 0.3rem 0;">You need <span id="cartShortfallAmount" style="font-weight: 800;">₦0.00</span> more to complete this purchase.</p>
                 <button class="btn btn-emerald btn-sm" style="width: 100%; margin-top: 0.5rem;" onclick="redirectToFundShortfall()">
-                    + Fund Shortfall with Paystack 💳
+                    + Fund Wallet via Bank Transfer 🏦
                 </button>
             </div>
 

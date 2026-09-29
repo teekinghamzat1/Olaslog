@@ -74,6 +74,30 @@ try {
     if (!currentProductCols.includes('manual_price_override')) {
         db.exec("ALTER TABLE products ADD COLUMN manual_price_override INTEGER DEFAULT 0;");
     }
+
+    // Korapay Virtual Bank Accounts table migration
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS user_virtual_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE,
+            account_name TEXT NOT NULL,
+            account_number TEXT NOT NULL,
+            bank_code TEXT NOT NULL,
+            bank_name TEXT NOT NULL,
+            account_reference TEXT UNIQUE NOT NULL,
+            unique_id TEXT,
+            account_status TEXT DEFAULT 'active',
+            currency TEXT DEFAULT 'NGN',
+            bvn TEXT,
+            nin TEXT,
+            is_mock INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_vba_account_number ON user_virtual_accounts(account_number);
+        CREATE INDEX IF NOT EXISTS idx_vba_account_reference ON user_virtual_accounts(account_reference);
+    `);
 } catch (migErr) {
     console.warn('DB Migration notice:', migErr.message);
 }

@@ -2579,4 +2579,151 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     }
 }
 
+/* ==========================================================================
+   Korapay Virtual Bank Account & KYC Styling
+   ========================================================================== */
+.vba-bank-card {
+    background: radial-gradient(140px 100px at 90% 10%, rgba(91, 217, 165, 0.12), transparent 70%),
+                linear-gradient(145deg, #113626, #092017);
+    border: 1px solid var(--edge-strong);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+:root[data-theme="light"] .vba-bank-card {
+    background: radial-gradient(140px 100px at 90% 10%, rgba(30, 155, 68, 0.12), transparent 70%),
+                linear-gradient(145deg, #ffffff, #edf7f1);
+    box-shadow: 0 12px 30px rgba(15, 45, 32, 0.08);
+}
+
+.vba-card-chip {
+    width: 38px;
+    height: 28px;
+    background: linear-gradient(135deg, #d4af37, #aa820a);
+    border-radius: 6px;
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 2px 5px rgba(0,0,0,0.3);
+    position: relative;
+}
+.vba-card-chip::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(0,0,0,0.25);
+}
+
+.vba-num-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.15rem;
+    margin: 1.1rem 0;
+    transition: all 0.2s ease;
+}
+:root[data-theme="light"] .vba-num-box {
+    background: rgba(255, 255, 255, 0.7);
+}
+.vba-num-box:hover {
+    border-color: var(--teal);
+}
+
+.vba-account-digits {
+    font-family: var(--mono);
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: var(--teal);
+}
+:root[data-theme="light"] .vba-account-digits {
+    color: #0d6832;
+}
+
+.vba-copy-btn {
+    background: var(--teal-soft);
+    color: var(--teal);
+    border: 1px solid var(--teal);
+    padding: 0.45rem 0.9rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+}
+.vba-copy-btn:hover {
+    background: var(--teal);
+    color: #061910;
+    transform: translateY(-1px);
+}
+
+.vba-status-pulse {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--teal);
+    background: rgba(91, 217, 165, 0.12);
+    padding: 3px 10px;
+    border-radius: 99px;
+    border: 1px solid rgba(91, 217, 165, 0.3);
+}
+
+.vba-pulse-dot {
+    width: 7px;
+    height: 7px;
+    background-color: var(--teal);
+    border-radius: 50%;
+    animation: vbaPulse 2s infinite;
+}
+
+@keyframes vbaPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(91, 217, 165, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(91, 217, 165, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(91, 217, 165, 0); }
+}
+
+.vba-instruction-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.65rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+.vba-step-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--gold-soft);
+    color: var(--teal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.vba-simulator-box {
+    margin-top: 1.25rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px dashed var(--edge-strong);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+}
+:root[data-theme="light"] .vba-simulator-box {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+
 

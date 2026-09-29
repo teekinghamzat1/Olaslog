@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { getWalletBalance, getTransactions } = require('../services/wallet');
-const { initializeFunding, verifyTransaction, verifyWebhookSignature, MIN_FUNDING } = require('../services/paystack');
+
+const korapayService = require('../services/korapay');
 
 // Get current wallet balance
 router.get('/balance', authenticate, (req, res) => {
@@ -13,6 +14,69 @@ router.get('/balance', authenticate, (req, res) => {
         balance
     });
 });
+
+// Get user dedicated Virtual Bank Account details
+router.get('/virtual-account', authenticate, (req, res) => {
+    try {
+        const account = korapayService.getVirtualAccount(req.user.id);
+        if (!account) {
+            return res.json({
+                success: true,
+                hasAccount: false,
+                needsBvn: true,
+                message: 'No Virtual Bank Account generated yet. BVN is required.'
+            });
+        }
+
+        return res.json({
+            success: true,
+            hasAccount: true,
+            needsBvn: false,
+            account: {
+                accountName: account.account_name,
+                accountNumber: account.account_number,
+                bankName: account.bank_name,
+                bankCode: account.bank_code,
+                accountReference: account.account_reference,
+                accountStatus: account.account_status,
+                currency: account.currency,
+                isMock: Boolean(account.is_mock)
+            }
+        });
+    } catch (err) {
+        console.error('Fetch virtual account error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to retrieve virtual bank account' });
+    }
+});
+
+// Create user dedicated Virtual Bank Account with BVN & optional NIN
+router.post('/virtual-account', authenticate, async (req, res) => {
+    try {
+        const { bvn, nin, bankCode } = req.body;
+        const result = await korapayService.createOrGetVirtualAccount(req.user.id, { bvn, nin, bankCode });
+
+        return res.json({
+            success: true,
+            isNew: result.isNew,
+            message: result.isNew ? 'Virtual Bank Account created successfully' : 'Retrieved existing Virtual Bank Account',
+            account: {
+                accountName: result.data.account_name,
+                accountNumber: result.data.account_number,
+                bankName: result.data.bank_name,
+                bankCode: result.data.bank_code,
+                accountReference: result.data.account_reference,
+                accountStatus: result.data.account_status,
+                currency: result.data.currency,
+                isMock: Boolean(result.data.is_mock)
+            }
+        });
+    } catch (err) {
+        console.error('Create virtual account error:', err);
+        return res.status(400).json({ success: false, error: err.message || 'Failed to create virtual bank account' });
+    }
+});
+
+
 
 // Get user wallet transaction ledger
 router.get('/transactions', authenticate, (req, res) => {
@@ -39,69 +103,27 @@ router.get('/transactions', authenticate, (req, res) => {
     }
 });
 
-// Initiate wallet funding
-router.post('/fund', authenticate, async (req, res) => {
+
+
+// Korapay Webhook Handler
+router.post('/webhook', async (req, res) => {
     try {
-        const amount = parseFloat(req.body.amount);
-        if (isNaN(amount) || amount < MIN_FUNDING) {
-            return res.status(400).json({
-                success: false,
-                error: `Minimum wallet funding amount is ₦${MIN_FUNDING.toLocaleString()}`
-            });
-        }
-
-        const callbackUrl = req.body.callbackUrl || `${req.protocol}://${req.get('host')}/wallet.html`;
-        const result = await initializeFunding(req.user.id, req.user.email, amount, callbackUrl);
-
-        return res.json({
-            success: true,
-            message: 'Funding transaction initialized',
-            data: result
-        });
-    } catch (err) {
-        console.error('Wallet funding init error:', err);
-        return res.status(400).json({ success: false, error: err.message || 'Failed to initialize funding' });
-    }
-});
-
-// Verify transaction server-side
-router.post('/verify/:reference', authenticate, async (req, res) => {
-    try {
-        const { reference } = req.params;
-        const result = await verifyTransaction(reference);
-
-        return res.json({
-            success: true,
-            message: 'Transaction verified successfully',
-            balance: result.balance,
-            alreadyProcessed: result.alreadyProcessed
-        });
-    } catch (err) {
-        console.error('Wallet verify error:', err);
-        return res.status(400).json({ success: false, error: err.message || 'Verification failed' });
-    }
-});
-
-// Paystack Webhook Handler
-router.post('/webhook', (req, res) => {
-    try {
-        const signature = req.headers['x-paystack-signature'];
         const rawBody = JSON.stringify(req.body);
+        const koraSignature = req.headers['x-korapay-signature'];
 
-        // Verify webhook signature
-        if (signature && !verifyWebhookSignature(rawBody, signature)) {
-            return res.status(400).send('Invalid signature');
+        if (koraSignature && !korapayService.verifyWebhookSignature(rawBody, koraSignature)) {
+            return res.status(400).send('Invalid Korapay signature');
         }
 
         const event = req.body;
-        if (event && event.event === 'charge.success') {
-            const { reference } = event.data;
-            if (reference) {
-                verifyTransaction(reference);
+        if (event && event.event === 'charge.success' && event.data) {
+            if (event.data.virtual_bank_account_details) {
+                await korapayService.processIncomingPayment(event.data);
+                return res.status(200).send('Korapay webhook processed successfully');
             }
         }
 
-        return res.status(200).send('Webhook processed');
+        return res.status(200).send('Webhook received');
     } catch (err) {
         console.error('Webhook error:', err);
         return res.status(500).send('Webhook processing error');
@@ -109,3 +131,4 @@ router.post('/webhook', (req, res) => {
 });
 
 module.exports = router;
+

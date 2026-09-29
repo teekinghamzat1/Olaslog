@@ -49,7 +49,7 @@ function seedDatabase() {
         customerId,
         15000,
         `WAL-SEED-${Date.now()}`,
-        'paystack',
+        'korapay',
         'successful',
         { note: 'Initial starter wallet balance for testing' }
     );

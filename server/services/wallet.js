@@ -1,4 +1,8 @@
 const db = require('../db');
+require('dotenv').config();
+
+const MIN_FUNDING = parseInt(process.env.MIN_FUNDING_AMOUNT || '100', 10);
+
 
 /**
  * Calculates current spendable wallet balance in NGN for a user directly from immutable ledger
@@ -26,7 +30,7 @@ function getWalletBalance(userId) {
  * @param {string} status 'pending' | 'successful' | 'failed'
  * @param {object} [metadata]
  */
-function recordFunding(userId, amount, reference, paymentChannel = 'paystack', status = 'pending', metadata = {}) {
+function recordFunding(userId, amount, reference, paymentChannel = 'virtual_bank_account', status = 'pending', metadata = {}) {
     const currentBalance = getWalletBalance(userId);
     const newBalance = status === 'successful' ? currentBalance + amount : currentBalance;
 
@@ -171,5 +175,7 @@ module.exports = {
     recordFunding,
     completeFunding,
     recordRefund,
-    getTransactions
+    getTransactions,
+    MIN_FUNDING
 };
+
