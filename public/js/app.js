@@ -1304,231 +1304,149 @@ async function loadVirtualAccount() {
     const container = document.getElementById('vbaContainer');
     if (!container) return;
 
-    try {
-        const res = await fetch('/api/wallet/virtual-account');
-        const data = await res.json();
+    // Check for incoming payment return from Korapay
+    await checkUrlPaymentVerification();
 
-        if (data.success && data.hasAccount && data.account) {
-            state.userVirtualAccount = data.account;
-            renderActiveVirtualAccount(data.account);
-        } else {
-            state.userVirtualAccount = null;
-            renderBvnActivationForm();
+    // Render Korapay Standard Checkout form (Cards, Bank Transfer, USSD - no CAC/BVN needed)
+    renderKorapayFundingForm();
+}
+
+async function checkUrlPaymentVerification() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const reference = urlParams.get('reference') || hashParams.get('reference') || urlParams.get('trxref') || hashParams.get('trxref');
+
+    if (reference) {
+        showToast('Verifying payment with Korapay...', 'info');
+        try {
+            const res = await fetch(`/api/wallet/verify/${encodeURIComponent(reference)}`);
+            const data = await res.json();
+            if (data.success && data.status === 'successful') {
+                showToast('🎉 Payment verified! Your wallet has been credited.', 'success');
+            } else if (data.status === 'pending') {
+                showToast('Payment is processing. Your balance will update shortly.', 'info');
+            }
+        } catch (e) {
+            console.warn('Verify error:', e);
         }
-    } catch (err) {
-        console.error('Error fetching virtual account:', err);
-        container.innerHTML = `
-            <div style="text-align: center; padding: 2rem; color: var(--danger);">
-                <div>Failed to load virtual bank account information.</div>
-                <button class="btn btn-outline btn-sm" style="margin-top: 1rem;" onclick="loadVirtualAccount()">Retry</button>
-            </div>
-        `;
+        // Clean URL parameter
+        if (window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + '#wallet');
+        }
     }
 }
 
-function renderBvnActivationForm() {
+function setFundingAmount(amt) {
+    const input = document.getElementById('fundAmountInput');
+    if (input) {
+        input.value = amt;
+        input.focus();
+    }
+}
+
+function renderKorapayFundingForm() {
     const container = document.getElementById('vbaContainer');
     if (!container) return;
 
-    const userName = state.currentUser ? (state.currentUser.fullName || state.currentUser.email) : 'Customer';
-
     container.innerHTML = `
-        <div id="vbaBvnPromptSection">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.85rem;">
+        <div id="korapayFundingSection">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--teal-soft); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                    🏦
+                    💳
                 </div>
                 <div>
-                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Dedicated Virtual Bank Account</h3>
-                    <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">Instant Automated Bank Transfer via Korapay</p>
+                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Fund Wallet via Korapay</h3>
+                    <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">Instant Bank Transfer, Debit Card & USSD</p>
                 </div>
             </div>
 
+            <!-- Payment Channels Banner -->
             <div style="background: rgba(91, 217, 165, 0.08); border: 1px solid rgba(91, 217, 165, 0.25); border-radius: var(--radius-md); padding: 0.9rem 1.1rem; margin-bottom: 1.25rem;">
                 <div style="font-size: 0.85rem; font-weight: 700; color: var(--teal); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
-                    🛡️ CBN Identity Requirement Notice
+                    ⚡ Instant Automated Credit
                 </div>
                 <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.5;">
-                    In compliance with Central Bank of Nigeria (CBN) regulations, Korapay requires your <strong>11-digit BVN</strong> to generate your permanent dedicated virtual account. Your BVN is strictly used for one-time identity verification and cannot debit your bank account.
+                    Pay using <strong>Bank Transfer</strong> (instant temporary account) or any <strong>Mastercard / Visa / Verve</strong> card. Your wallet is updated automatically upon confirmation.
                 </div>
             </div>
 
-            <form id="vbaCreationForm" onsubmit="handleCreateVirtualAccount(event)">
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
-                        Bank Verification Number (BVN) <span style="color: var(--danger);">*</span>
-                    </label>
-                    <input type="text" id="vbaBvnInput" class="form-control" maxlength="11" pattern="[0-9]{11}" placeholder="Enter 11-digit BVN (e.g. 22212345678)" required style="font-family: var(--mono); font-size: 1.1rem; letter-spacing: 0.08em;" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                    <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; display: block;">Must be exactly 11 numeric digits.</small>
+            <!-- Quick Preset Buttons -->
+            <div style="margin-bottom: 1rem;">
+                <label class="form-label" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">Quick Select Amount</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(500)">₦500</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(1000)">₦1,000</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(2500)">₦2,500</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(5000)">₦5,000</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(10000)">₦10,000</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(20000)">₦20,000</button>
                 </div>
+            </div>
 
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label" style="font-size: 0.85rem;">
-                        National Identity Number (NIN) <span style="color: var(--text-dim); font-weight: 400;">(Optional)</span>
-                    </label>
-                    <input type="text" id="vbaNinInput" class="form-control" maxlength="11" placeholder="Enter 11-digit NIN" style="font-family: var(--mono); font-size: 0.95rem;" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                </div>
-
+            <form id="korapayFundingForm" onsubmit="handleKorapayCheckout(event)">
                 <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-size: 0.85rem;">Preferred Bank Provider</label>
-                    <select id="vbaBankSelect" class="form-control" style="cursor: pointer;">
-                        <option value="070" selected>Fidelity Bank (070)</option>
-                        <option value="035">Wema Bank (035)</option>
-                        <option value="090405">Moniepoint (090405)</option>
-                        <option value="033">United Bank for Africa - UBA (033)</option>
-                        <option value="103">Globus Bank (103)</option>
-                        <option value="214">FCMB (214)</option>
-                    </select>
+                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
+                        Amount to Deposit (₦) <span style="color: var(--danger);">*</span>
+                    </label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--teal); font-size: 1.1rem;">₦</span>
+                        <input type="number" id="fundAmountInput" class="form-control" min="100" step="100" placeholder="e.g. 2500" required style="padding-left: 2rem; font-family: var(--mono); font-size: 1.15rem; font-weight: 700;">
+                    </div>
+                    <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; display: block;">Minimum funding is ₦100.</small>
                 </div>
 
-                <button type="submit" id="vbaSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-weight: 700; font-size: 0.95rem;">
-                    Generate My Dedicated Bank Account 🏦
+                <button type="submit" id="fundSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-weight: 700; font-size: 1rem;">
+                    Proceed to Secure Payment 🔒
                 </button>
             </form>
         </div>
     `;
 }
 
-function renderActiveVirtualAccount(acc) {
-    const container = document.getElementById('vbaContainer');
-    if (!container) return;
-
-    // Format account number with spacing for effortless scanning
-    const rawNum = acc.accountNumber || '';
-    const formattedNum = rawNum.length === 10 ? `${rawNum.slice(0, 3)} ${rawNum.slice(3, 6)} ${rawNum.slice(6)}` : rawNum;
-
-    container.innerHTML = `
-        <div id="vbaActiveAccountSection">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                <div>
-                    <span class="vba-status-pulse">
-                        <span class="vba-pulse-dot"></span> Active Dedicated Account
-                    </span>
-                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">Korapay NGN Settlement · Permanent</div>
-                </div>
-                <div class="vba-card-chip" title="EMV Secured"></div>
-            </div>
-
-            <div class="vba-bank-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
-                    <div style="font-size: 1.15rem; font-weight: 800; color: var(--text);">
-                        🏦 ${escapeHtml(acc.bankName)}
-                    </div>
-                    <span style="font-family: var(--mono); font-size: 0.78rem; color: var(--teal); background: rgba(91,217,165,0.14); padding: 2px 8px; border-radius: 4px; font-weight: 700;">
-                        ${escapeHtml(acc.currency || 'NGN')} ₦
-                    </span>
-                </div>
-
-                <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; margin-bottom: 2px;">
-                    Account Number
-                </div>
-                <div class="vba-num-box">
-                    <span class="vba-account-digits" id="vbaDigits">${escapeHtml(formattedNum)}</span>
-                    <button class="vba-copy-btn" id="vbaCopyBtn" onclick="copyVirtualAccountNumber('${escapeHtml(rawNum)}')">
-                        📋 Copy Number
-                    </button>
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 0.4rem;">
-                    <div>
-                        <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600;">
-                            Account Beneficiary Name
-                        </div>
-                        <div style="font-size: 0.95rem; font-weight: 700; color: var(--text);">
-                            ${escapeHtml(acc.accountName)}
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600;">
-                            Auto-Credit
-                        </div>
-                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--teal);">
-                            ⚡ Instant Delivery
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Transfer instructions -->
-            <div style="margin-top: 1.25rem;">
-                <div class="vba-instruction-step">
-                    <span class="vba-step-icon">1</span>
-                    <div>Open any Nigerian banking app (GTBank, Access, Kuda, OPay, Zenith, PalmPay, etc.).</div>
-                </div>
-                <div class="vba-instruction-step">
-                    <span class="vba-step-icon">2</span>
-                    <div>Transfer your desired deposit amount to your dedicated account number above.</div>
-                </div>
-                <div class="vba-instruction-step">
-                    <span class="vba-step-icon">3</span>
-                    <div>Your Olaslog wallet is credited automatically via Korapay within seconds of transfer clearance!</div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-async function handleCreateVirtualAccount(event) {
+async function handleKorapayCheckout(event) {
     event.preventDefault();
-    const bvn = document.getElementById('vbaBvnInput').value.trim();
-    const nin = (document.getElementById('vbaNinInput')?.value || '').trim();
-    const bankCode = document.getElementById('vbaBankSelect')?.value || '070';
-    const submitBtn = document.getElementById('vbaSubmitBtn');
+    const input = document.getElementById('fundAmountInput');
+    const submitBtn = document.getElementById('fundSubmitBtn');
+    const amount = parseFloat(input?.value);
 
-    if (!bvn || bvn.length !== 11) {
-        showToast('Please enter a valid 11-digit BVN', 'error');
+    if (isNaN(amount) || amount < 100) {
+        showToast('Please enter an amount of at least ₦100', 'error');
         return;
     }
 
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Generating Dedicated Account...';
+        submitBtn.innerHTML = '⏳ Opening Korapay Checkout...';
     }
 
     try {
-        const res = await fetch('/api/wallet/virtual-account', {
+        const redirectUrl = `${window.location.origin}/#wallet`;
+        const res = await fetch('/api/wallet/fund', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bvn, nin, bankCode })
+            body: JSON.stringify({ amount, redirectUrl })
         });
-        const data = await res.json();
 
-        if (data.success && data.account) {
-            state.userVirtualAccount = data.account;
-            showToast('🎉 Dedicated Virtual Bank Account generated successfully!', 'success');
-            renderActiveVirtualAccount(data.account);
+        const data = await res.json();
+        if (data.success && data.data?.checkoutUrl) {
+            showToast('Redirecting to Korapay secure checkout...', 'success');
+            window.location.href = data.data.checkoutUrl;
         } else {
-            showToast(data.error || 'Failed to generate virtual bank account', 'error');
+            showToast(data.error || 'Failed to initialize payment with Korapay', 'error');
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Generate Dedicated Bank Account 🏦';
+                submitBtn.innerHTML = 'Proceed to Secure Payment 🔒';
             }
         }
     } catch (err) {
-        showToast('Network error while generating virtual bank account', 'error');
+        showToast('Network error initializing payment', 'error');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Generate Dedicated Bank Account 🏦';
+            submitBtn.innerHTML = 'Proceed to Secure Payment 🔒';
         }
     }
 }
 
-function copyVirtualAccountNumber(number) {
-    const numToCopy = number || (state.userVirtualAccount ? state.userVirtualAccount.accountNumber : '');
-    if (!numToCopy) return;
-
-    navigator.clipboard.writeText(numToCopy).then(() => {
-        showToast(`Account number ${numToCopy} copied to clipboard! 📋`, 'success');
-        const btn = document.getElementById('vbaCopyBtn');
-        if (btn) {
-            const orig = btn.innerHTML;
-            btn.innerHTML = '✓ Copied!';
-            setTimeout(() => { btn.innerHTML = orig; }, 2000);
-        }
-    }).catch(() => {
-        showToast(`Account Number: ${numToCopy}`, 'info');
-    });
-}
 
 
 

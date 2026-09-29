@@ -40,20 +40,23 @@ async function runTests() {
     assert(MIN_FUNDING === 100, 'MIN_FUNDING must be 100');
     console.log(`✓ MIN_FUNDING constant confirmed: ₦${MIN_FUNDING}`);
 
-    // Simulate a Korapay incoming payment via recordFunding + completeFunding
-    const testRef = `TEST-${Date.now()}`;
-    recordFunding(customer.id, 2500, testRef, 'virtual_bank_account', 'pending', {});
-    const verifyResult = completeFunding(testRef, 'successful', { simulated: true });
+    // Test Korapay Standard Checkout initialization
+    const checkoutInit = await korapayService.initializeCheckout(customer.id, customer.email, customer.full_name, 2500);
+    assert(checkoutInit.success && checkoutInit.reference && checkoutInit.checkoutUrl, 'Checkout init should return reference and checkoutUrl');
+    console.log(`✓ Korapay standard checkout initialized: ${checkoutInit.reference}`);
+
+    // Verify checkout funding
+    const verifyResult = await korapayService.verifyPayment(checkoutInit.reference);
     assert.strictEqual(verifyResult.balance, 17500, 'Balance should increase to ₦17,500 after ₦2,500 top-up');
     console.log(`✓ Balance after verified top-up: ₦${verifyResult.balance.toLocaleString()}`);
 
-    // Test idempotency (completing same reference again must not double-credit)
-    const duplicateVerify = completeFunding(testRef, 'successful', { simulated: true });
+    // Test idempotency (verifying same reference again must not double credit)
+    const duplicateVerify = await korapayService.verifyPayment(checkoutInit.reference);
     assert.strictEqual(duplicateVerify.alreadyProcessed, true, 'Duplicate completion must be flagged as already processed');
     assert.strictEqual(duplicateVerify.balance, 17500, 'Balance must remain ₦17,500 and not double-credit');
-    console.log('✓ Webhook/verification idempotency verified (no double crediting)');
+    console.log('✓ Korapay checkout verification idempotency verified (no double crediting)');
 
-    // 4b. Test Korapay Dedicated Virtual Bank Account Creation & Webhook / Sandbox Crediting
+    // 4b. Test Korapay Dedicated Virtual Bank Account & Webhooks (when enabled)
     console.log('\n[3b] Testing Korapay Dedicated Virtual Bank Account & Webhooks...');
     
     // Test BVN requirement

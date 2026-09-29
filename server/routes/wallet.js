@@ -105,6 +105,56 @@ router.get('/transactions', authenticate, (req, res) => {
 
 
 
+// Initiate wallet funding via Korapay Standard Checkout (Cards, Bank Transfer, USSD)
+router.post('/fund', authenticate, async (req, res) => {
+    try {
+        const amount = parseFloat(req.body.amount);
+        if (isNaN(amount) || amount < 100) {
+            return res.status(400).json({
+                success: false,
+                error: 'Minimum wallet funding amount is ₦100'
+            });
+        }
+
+        const redirectUrl = req.body.redirectUrl || `${req.protocol}://${req.get('host')}/#wallet`;
+        const result = await korapayService.initializeCheckout(
+            req.user.id,
+            req.user.email,
+            req.user.full_name,
+            amount,
+            redirectUrl
+        );
+
+        return res.json({
+            success: true,
+            message: 'Korapay payment initialized',
+            data: result
+        });
+    } catch (err) {
+        console.error('Wallet funding init error:', err);
+        return res.status(400).json({ success: false, error: err.message || 'Failed to initialize funding' });
+    }
+});
+
+// Verify transaction server-side
+router.get('/verify/:reference', authenticate, async (req, res) => {
+    try {
+        const { reference } = req.params;
+        const result = await korapayService.verifyPayment(reference);
+
+        return res.json({
+            success: result.success,
+            message: result.message,
+            balance: result.balance,
+            alreadyProcessed: result.alreadyProcessed,
+            status: result.status
+        });
+    } catch (err) {
+        console.error('Wallet verify error:', err);
+        return res.status(400).json({ success: false, error: err.message || 'Verification failed' });
+    }
+});
+
 // Korapay Webhook Handler
 router.post('/webhook', async (req, res) => {
     try {
@@ -117,10 +167,8 @@ router.post('/webhook', async (req, res) => {
 
         const event = req.body;
         if (event && event.event === 'charge.success' && event.data) {
-            if (event.data.virtual_bank_account_details) {
-                await korapayService.processIncomingPayment(event.data);
-                return res.status(200).send('Korapay webhook processed successfully');
-            }
+            await korapayService.processIncomingPayment(event.data);
+            return res.status(200).send('Korapay webhook processed successfully');
         }
 
         return res.status(200).send('Webhook received');

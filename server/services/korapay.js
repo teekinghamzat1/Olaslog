@@ -228,8 +228,122 @@ async function verifyCharge(reference) {
 }
 
 /**
- * Process an incoming payment to a virtual bank account (Idempotent)
- * Used by webhooks and sandbox simulator
+ * Initialize a standard Korapay checkout session (Cards, Bank Transfer, USSD)
+ * No CAC or customer BVN required!
+ * @param {number} userId
+ * @param {string} email
+ * @param {string} name
+ * @param {number} amount
+ * @param {string} [redirectUrl]
+ */
+async function initializeCheckout(userId, email, name, amount, redirectUrl = '') {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount < 100) {
+        const err = new Error('Minimum wallet funding amount is ₦100');
+        err.code = 'MIN_FUNDING_NOT_MET';
+        throw err;
+    }
+
+    const reference = `WAL-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Record pending transaction in immutable ledger
+    recordFunding(userId, numAmount, reference, 'korapay', 'pending', { email, name, redirectUrl });
+
+    if (!isMock && KORAPAY_SECRET_KEY && process.env.NODE_ENV !== 'test') {
+        try {
+            const payload = {
+                amount: numAmount,
+                redirect_url: redirectUrl || 'http://localhost:3000/#wallet',
+                currency: 'NGN',
+                reference,
+                narration: 'Olaslog Wallet Top-up',
+                customer: {
+                    name: name || 'Customer',
+                    email
+                }
+            };
+
+            const response = await fetch(`${KORAPAY_BASE_URL}/merchant/api/v1/charges/initialize`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${KORAPAY_SECRET_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const resData = await response.json();
+            if (resData.status && resData.data && resData.data.checkout_url) {
+                return {
+                    success: true,
+                    reference,
+                    checkoutUrl: resData.data.checkout_url,
+                    isMock: false
+                };
+            } else {
+                throw new Error(resData.message || 'Failed to initialize payment with Korapay');
+            }
+        } catch (apiErr) {
+            console.error('Korapay initialize error:', apiErr.message);
+            throw apiErr;
+        }
+    }
+
+    // Dev/fallback mode
+    return {
+        success: true,
+        reference,
+        checkoutUrl: `${redirectUrl || '/#wallet'}?reference=${reference}`,
+        isMock: true
+    };
+}
+
+/**
+ * Verify a Korapay checkout transaction by reference and credit wallet
+ * @param {string} reference
+ */
+async function verifyPayment(reference) {
+    if (!reference) throw new Error('Transaction reference is required');
+
+    // 1. Check if already credited in wallet ledger
+    const existingTx = db.prepare(`SELECT * FROM wallet_transactions WHERE reference = ?`).get(reference);
+    if (existingTx && existingTx.status === 'successful') {
+        return {
+            success: true,
+            status: 'successful',
+            alreadyProcessed: true,
+            balance: getWalletBalance(existingTx.user_id),
+            message: 'Transaction already verified and credited'
+        };
+    }
+
+    // 2. Query Korapay API if live
+    let chargeData = { status: 'success' };
+    if (!isMock && KORAPAY_SECRET_KEY && process.env.NODE_ENV !== 'test') {
+        chargeData = await verifyCharge(reference);
+    }
+
+    if (chargeData.status === 'success') {
+        const result = completeFunding(reference, 'successful', chargeData);
+        return {
+            success: true,
+            status: 'successful',
+            alreadyProcessed: result.alreadyProcessed,
+            balance: result.balance,
+            message: 'Payment verified and wallet credited successfully'
+        };
+    } else {
+        return {
+            success: false,
+            status: chargeData.status || 'pending',
+            message: `Payment status is ${chargeData.status || 'pending'}`
+        };
+    }
+}
+
+/**
+ * Process an incoming payment from Korapay (Idempotent)
+ * Handles both Standard Checkout charges and Dedicated Virtual Bank Accounts
  * @param {object} paymentPayload
  */
 async function processIncomingPayment(paymentPayload) {
@@ -244,7 +358,7 @@ async function processIncomingPayment(paymentPayload) {
         throw new Error('Invalid payment amount');
     }
 
-    // 1. Idempotency check: Has this transaction reference already been credited?
+    // 1. Idempotency check: Has this transaction reference already been recorded in wallet ledger?
     const existingTx = db.prepare(`SELECT * FROM wallet_transactions WHERE reference = ?`).get(reference);
     if (existingTx) {
         if (existingTx.status === 'successful') {
@@ -255,9 +369,17 @@ async function processIncomingPayment(paymentPayload) {
                 transaction: existingTx
             };
         }
+        // If it was initiated via Korapay standard checkout, complete and credit it immediately
+        const completed = completeFunding(reference, 'successful', paymentPayload);
+        return {
+            alreadyProcessed: false,
+            message: 'Wallet credited successfully via Korapay Checkout',
+            balance: completed.balance,
+            transaction: completed.transaction
+        };
     }
 
-    // 2. Identify the user by virtual bank account reference or account number
+    // 2. Identify user by virtual bank account reference or account number
     const vbaInfo = (virtual_bank_account_details && virtual_bank_account_details.virtual_bank_account) || {};
     const accountRef = vbaInfo.account_reference;
     const accountNumber = vbaInfo.account_number;
@@ -400,9 +522,12 @@ module.exports = {
     SUPPORTED_BANKS,
     getVirtualAccount,
     createOrGetVirtualAccount,
+    initializeCheckout,
+    verifyPayment,
     verifyWebhookSignature,
     verifyCharge,
     processIncomingPayment,
     creditSandboxAccount,
     isMock
 };
+
