@@ -98,6 +98,17 @@ try {
         CREATE INDEX IF NOT EXISTS idx_vba_account_number ON user_virtual_accounts(account_number);
         CREATE INDEX IF NOT EXISTS idx_vba_account_reference ON user_virtual_accounts(account_reference);
     `);
+    // Auto-bootstrap default admin if none exists
+    const adminCheck = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
+    if (!adminCheck) {
+        const bcrypt = require('bcryptjs');
+        const adminPasswordHash = bcrypt.hashSync('Admin@12345', 10);
+        db.prepare(`
+            INSERT INTO users (email, password_hash, full_name, phone, role, is_verified)
+            VALUES ('admin@olaslog.com', ?, 'System Administrator', '+2348011223344', 'admin', 1)
+        `).run(adminPasswordHash);
+        console.log('🛡️ Auto-initialized default admin account (admin@olaslog.com)');
+    }
 } catch (migErr) {
     console.warn('DB Migration notice:', migErr.message);
 }

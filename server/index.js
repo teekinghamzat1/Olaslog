@@ -19,6 +19,9 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable trust proxy for Nginx reverse proxy
+app.set('trust proxy', 1);
+
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));

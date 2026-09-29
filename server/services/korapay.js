@@ -253,7 +253,7 @@ async function initializeCheckout(userId, email, name, amount, redirectUrl = '')
         try {
             const payload = {
                 amount: numAmount,
-                redirect_url: redirectUrl || 'http://localhost:3000/#wallet',
+                redirect_url: redirectUrl || (process.env.APP_URL ? `${process.env.APP_URL}/#wallet` : 'http://localhost:3000/#wallet'),
                 currency: 'NGN',
                 reference,
                 narration: 'Olaslog Wallet Top-up',
