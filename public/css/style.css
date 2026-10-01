@@ -12,9 +12,9 @@
     --edge: rgba(255, 255, 255, 0.08);
     --edge-strong: rgba(255, 255, 255, 0.14);
 
-    --text: #F2F0E9;
-    --text-dim: #8D95AC;
-    --text-faint: #5C6480;
+    --text: #FFFFFF;
+    --text-dim: #94A3B8;
+    --text-faint: #64748B;
 
     --gold: #1E9B44;
     --gold-soft: rgba(30, 155, 68, 0.14);
@@ -841,13 +841,14 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
 }
 
 .hero-title .gradient-text {
-    background: linear-gradient(135deg, #ffffff 30%, var(--gold) 90%);
+    background: linear-gradient(135deg, #FFFFFF 0%, #FFFFFF 70%, #E2E8F0 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    color: #FFFFFF;
 }
 
 [data-theme="light"] .hero-title .gradient-text {
-    background: linear-gradient(135deg, #0B2E22 40%, #1E9B44 100%);
+    background: linear-gradient(135deg, #0F2D20 40%, #187A36 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
