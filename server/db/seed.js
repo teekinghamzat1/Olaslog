@@ -8,7 +8,7 @@ const { recordFunding } = require('../services/wallet');
  * - Demo wallet balance for testing
  *
  * NOTE: Products and categories are NOT seeded here.
- * They are synced from the provider API on server startup (see syncCatalogFromSujan in sujan.js).
+ * They are synced from the provider API on server startup (see syncCatalogFromRakib in rakib.js).
  * Local stock_items are used ONLY as admin-uploaded backup inventory.
  */
 function seedDatabase() {

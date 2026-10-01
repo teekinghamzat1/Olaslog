@@ -1,10 +1,10 @@
 const db = require('../db');
 const { getWalletBalance } = require('./wallet');
 const { encrypt, decrypt } = require('./crypto');
-const sujanService = require('./sujan');
+const rakibService = require('./rakib');
 
 /**
- * Performs atomic checkout for a cart with Sujan Logs API integration
+ * Performs atomic checkout for a cart with Rakib Socials API integration
  * @param {number} userId
  * @param {Array<{ productId: number, quantity: number, inventoryItemIds?: number[] }>} items
  * @returns {Promise<object>} completed order with decrypted credentials
@@ -64,31 +64,31 @@ async function checkoutCart(userId, items) {
         throw err;
     }
 
-    // Step 3: Fulfill items via Sujan Logs API (or local stock fallback)
+    // Step 3: Fulfill items via Rakib Socials API (or local stock fallback)
     const fulfillmentResults = [];
 
     for (const valItem of validatedItems) {
-        const targetSujanId = valItem.product.sujan_product_id || valItem.product.id;
+        const targetRakibId = valItem.product.rakib_product_id || valItem.product.sujan_product_id || valItem.product.id;
 
         try {
-            // Place order with Sujan API
-            const sujanRes = await sujanService.placeOrder({
-                productId: targetSujanId,
-                quantity: valItem.quantity,
-                inventoryItemIds: valItem.inventoryItemIds
+            // Place order with Rakib Socials API (POST /buy)
+            const rakibRes = await rakibService.buyProduct({
+                productId: targetRakibId,
+                quantity: valItem.quantity
             });
 
-            const sujanOrderData = sujanRes.data || sujanRes;
-            const sujanItems = sujanOrderData.items || [];
+            const rakibOrderData = rakibRes.data || rakibRes;
+            const keys = rakibOrderData.keys || [];
 
             fulfillmentResults.push({
                 item: valItem,
-                source: 'sujan',
-                sujanOrderId: sujanOrderData.id,
-                items: sujanItems
+                source: 'rakib',
+                rakibOrderId: String(rakibOrderData.order_id || ''),
+                productName: rakibOrderData.product || valItem.product.name,
+                keys: keys
             });
-        } catch (sujanErr) {
-            console.warn(`Sujan API order failed for product ${valItem.product.id}, attempting local stock fallback:`, sujanErr.message);
+        } catch (rakibErr) {
+            console.warn(`Rakib API order failed for product ${valItem.product.id}, attempting local stock fallback:`, rakibErr.message);
             
             // Check if local stock rows exist as fallback
             const stockRows = db.prepare(`
@@ -105,7 +105,7 @@ async function checkoutCart(userId, items) {
                     stockRows
                 });
             } else {
-                const stockErr = new Error(`Order could not be fulfilled: ${sujanErr.message || 'Out of stock'}`);
+                const stockErr = new Error(`Order could not be fulfilled: ${rakibErr.message || 'Out of stock'}`);
                 stockErr.code = 'OUT_OF_STOCK';
                 throw stockErr;
             }
@@ -136,17 +136,17 @@ async function checkoutCart(userId, items) {
             JSON.stringify({ orderNumber, totalCost })
         );
 
-        // Collect all Sujan order IDs
-        const sujanOrderIds = fulfillmentResults
-            .filter(f => f.sujanOrderId)
-            .map(f => f.sujanOrderId)
+        // Collect all Rakib order IDs
+        const rakibOrderIds = fulfillmentResults
+            .filter(f => f.rakibOrderId)
+            .map(f => f.rakibOrderId)
             .join(',');
 
         // Create Order
         const orderResult = db.prepare(`
-            INSERT INTO orders (order_number, sujan_order_id, user_id, total_amount, status)
-            VALUES (?, ?, ?, ?, 'completed')
-        `).run(orderNumber, sujanOrderIds || null, userId, totalCost);
+            INSERT INTO orders (order_number, rakib_order_id, sujan_order_id, user_id, total_amount, status)
+            VALUES (?, ?, ?, ?, ?, 'completed')
+        `).run(orderNumber, rakibOrderIds || null, rakibOrderIds || null, userId, totalCost);
         const orderId = orderResult.lastInsertRowid;
 
         const deliveredCredentials = [];
@@ -161,21 +161,23 @@ async function checkoutCart(userId, items) {
             `).run(orderId, item.product.id, item.quantity, item.unitPrice, item.subtotal);
             const orderItemId = orderItemResult.lastInsertRowid;
 
-            if (source === 'sujan') {
-                for (const sujanItem of fulfillment.items) {
-                    const rawCred = sujanItem.credential || 'No credential provided';
-                    const publicData = sujanItem.public_data || '';
-                    const enc = encrypt(rawCred);
+            if (source === 'rakib') {
+                const keys = fulfillment.keys || [];
+                for (let idx = 0; idx < keys.length; idx++) {
+                    const rawKey = keys[idx] || 'No key provided';
+                    const publicData = `Key ${idx + 1} of ${keys.length}`;
+                    const enc = encrypt(rawKey);
+                    const rakibItemId = fulfillment.rakibOrderId ? `${fulfillment.rakibOrderId}-${idx + 1}` : null;
 
                     db.prepare(`
                         INSERT INTO delivered_credentials
-                        (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
-                        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
+                        (order_id, order_item_id, product_id, stock_item_id, rakib_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
+                        VALUES (?, ?, ?, NULL, ?, NULL, ?, ?, ?, ?)
                     `).run(
                         orderId,
                         orderItemId,
                         item.product.id,
-                        sujanItem.id || null,
+                        rakibItemId,
                         publicData,
                         enc.encrypted,
                         enc.iv,
@@ -184,9 +186,9 @@ async function checkoutCart(userId, items) {
 
                     deliveredCredentials.push({
                         productId: item.product.id,
-                        productName: sujanItem.product_name || item.product.name,
+                        productName: fulfillment.productName || item.product.name,
                         publicData: publicData,
-                        credentialText: rawCred
+                        credentialText: rawKey
                     });
                 }
             } else if (source === 'local') {
@@ -225,7 +227,8 @@ async function checkoutCart(userId, items) {
         return {
             orderId,
             orderNumber,
-            sujanOrderIds,
+            rakibOrderIds,
+            sujanOrderIds: rakibOrderIds,
             totalAmount: totalCost,
             remainingBalance: newBalance,
             createdAt: new Date().toISOString(),
@@ -271,6 +274,7 @@ function getOrderWithCredentials(orderId, userId = null) {
         productId: row.product_id,
         productName: row.product_name,
         stockItemId: row.stock_item_id,
+        rakibItemId: row.rakib_item_id || row.sujan_item_id,
         sujanItemId: row.sujan_item_id,
         publicData: row.public_data,
         deliveredAt: row.delivered_at,

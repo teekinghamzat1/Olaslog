@@ -75,6 +75,30 @@ try {
         db.exec("ALTER TABLE products ADD COLUMN manual_price_override INTEGER DEFAULT 0;");
     }
 
+    // Rakib API provider migrations
+    if (!currentProductCols.includes('rakib_product_id')) {
+        db.exec("ALTER TABLE products ADD COLUMN rakib_product_id INTEGER;");
+    }
+    if (!currentProductCols.includes('rakib_base_price')) {
+        db.exec("ALTER TABLE products ADD COLUMN rakib_base_price REAL;");
+    }
+    // Sync existing Sujan IDs/prices to Rakib fields if empty
+    db.exec(`
+        UPDATE products SET rakib_product_id = sujan_product_id WHERE rakib_product_id IS NULL AND sujan_product_id IS NOT NULL;
+        UPDATE products SET rakib_base_price = sujan_base_price WHERE rakib_base_price IS NULL AND sujan_base_price IS NOT NULL;
+    `);
+
+    const currentOrderCols = db.prepare("PRAGMA table_info(orders)").all().map(c => c.name);
+    if (!currentOrderCols.includes('rakib_order_id')) {
+        db.exec("ALTER TABLE orders ADD COLUMN rakib_order_id TEXT;");
+        db.exec("UPDATE orders SET rakib_order_id = sujan_order_id WHERE rakib_order_id IS NULL AND sujan_order_id IS NOT NULL;");
+    }
+
+    const currentDeliveredCredCols = db.prepare("PRAGMA table_info(delivered_credentials)").all().map(c => c.name);
+    if (!currentDeliveredCredCols.includes('rakib_item_id')) {
+        db.exec("ALTER TABLE delivered_credentials ADD COLUMN rakib_item_id TEXT;");
+    }
+
     // Korapay Virtual Bank Accounts table migration
     db.exec(`
         CREATE TABLE IF NOT EXISTS user_virtual_accounts (

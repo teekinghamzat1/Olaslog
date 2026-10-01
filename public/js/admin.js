@@ -171,13 +171,17 @@ async function loadMetrics() {
       document.getElementById('kpiDisputes').textContent = m.pendingDisputesCount || 0;
       document.getElementById('sbDisputeCount').textContent = m.pendingDisputesCount || 0;
       document.getElementById('kpiUsers').textContent = (m.totalCustomersCount || 0).toLocaleString();
-      let sujanVal = 0;
-      if (typeof m.sujanBalance === 'object' && m.sujanBalance !== null) {
-        sujanVal = m.sujanBalance.balance ?? m.sujanBalance.amount ?? m.sujanBalance.funds ?? 0;
-      } else if (typeof m.sujanBalance === 'number') {
-        sujanVal = m.sujanBalance;
+      let rakibVal = 0;
+      const balObj = m.rakibBalance || m.sujanBalance;
+      if (typeof balObj === 'object' && balObj !== null) {
+        rakibVal = balObj.balance ?? balObj.amount ?? balObj.funds ?? 0;
+      } else if (typeof balObj === 'number') {
+        rakibVal = balObj;
       }
-      document.getElementById('kpiSujanBal').textContent = Number(sujanVal || 0).toLocaleString();
+      const elRakib = document.getElementById('kpiRakibBal');
+      if (elRakib) elRakib.textContent = Number(rakibVal || 0).toLocaleString();
+      const elSujan = document.getElementById('kpiSujanBal');
+      if (elSujan) elSujan.textContent = Number(rakibVal || 0).toLocaleString();
     }
   } catch (err) {
     console.error('Failed to load metrics:', err);
@@ -209,20 +213,23 @@ function renderProductsTable(products) {
   }
 
   tbody.innerHTML = products.map(p => {
-    const wholesale = p.sujan_cost ? `₦${p.sujan_cost.toLocaleString()}` : '<span style="color:var(--text-faint);">N/A</span>';
-    const isOverride = p.is_custom_price === 1;
+    const cost = p.rakib_base_price ?? p.rakib_cost ?? p.sujan_base_price ?? p.sujan_cost;
+    const wholesale = cost ? `₦${Number(cost).toLocaleString()}` : '<span style="color:var(--text-faint);">N/A</span>';
+    const isOverride = p.is_custom_price === 1 || p.manual_price_override === 1;
     const modeBadge = isOverride
       ? `<span class="pill pill-gold"><span class="dot"></span>Manual</span>`
       : `<span class="pill pill-teal"><span class="dot"></span>Auto +₦1,000</span>`;
-    const stockPill = p.stock_count > 0
-      ? `<span class="pill pill-teal"><span class="dot"></span>${p.stock_count} in stock</span>`
+    const stockCount = p.stock_count !== undefined ? p.stock_count : (p.available_stock || 0);
+    const stockPill = stockCount > 0
+      ? `<span class="pill pill-teal"><span class="dot"></span>${stockCount} in stock</span>`
       : `<span class="pill pill-danger"><span class="dot"></span>Out of stock</span>`;
+    const providerId = p.rakib_product_id || p.sujan_product_id;
 
     return `
       <tr class="row-clickable">
         <td>
           <div class="cell-title">${p.name}</div>
-          <div class="cell-sub mono">#${p.id} • ${p.sujan_product_id ? `Sujan #${p.sujan_product_id}` : 'Local'}</div>
+          <div class="cell-sub mono">#${p.id} • ${providerId ? `Rakib #${providerId}` : 'Local'}</div>
         </td>
         <td class="mono">${p.category_name || 'General'}</td>
         <td class="mono" style="color:var(--text-faint);">${wholesale}</td>
@@ -248,15 +255,17 @@ function populateBulkProductSelect(products) {
   sel.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (₦${p.price.toLocaleString()})</option>`).join('');
 }
 
-async function syncSujanCatalog() {
-  const btn = document.getElementById('btnSyncSujan');
-  btn.disabled = true;
-  btn.textContent = 'Syncing...';
+async function syncRakibCatalog() {
+  const btn = document.getElementById('btnSyncRakib') || document.getElementById('btnSyncSujan');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+  }
   try {
-    const res = await fetch('/api/admin/products/sync-sujan', { method: 'POST' });
+    const res = await fetch('/api/admin/products/sync-rakib', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      showAdminToast(data.message || 'Catalog synced successfully!', 'success');
+      showAdminToast(data.message || 'Catalog synced with Rakib Socials!', 'success');
       await loadProducts();
       await loadMetrics();
     } else {
@@ -265,20 +274,30 @@ async function syncSujanCatalog() {
   } catch (err) {
     showAdminToast('Network error triggering sync', 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Sync Live Catalog';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔄 Sync Live Catalog';
+    }
   }
 }
+const syncSujanCatalog = syncRakibCatalog;
 
 // Manual Price Modal
 function openPriceModal(productId) {
   const product = adminState.products.find(p => p.id === productId);
   if (!product) return;
 
+  const cost = product.rakib_base_price ?? product.rakib_cost ?? product.sujan_base_price ?? product.sujan_cost ?? 0;
+
   document.getElementById('admPriceProductId').value = product.id;
   document.getElementById('admPriceProductName').textContent = product.name;
   document.getElementById('admPriceProductCategory').textContent = product.category_name || 'General';
-  document.getElementById('admPriceSujanBase').textContent = product.sujan_cost ? `₦${product.sujan_cost.toLocaleString()}` : '₦0';
+  
+  const elRakib = document.getElementById('admPriceRakibBase');
+  if (elRakib) elRakib.textContent = cost ? `₦${Number(cost).toLocaleString()}` : '₦0';
+  const elSujan = document.getElementById('admPriceSujanBase');
+  if (elSujan) elSujan.textContent = cost ? `₦${Number(cost).toLocaleString()}` : '₦0';
+
   document.getElementById('admPriceCurrentActive').textContent = `₦${product.price.toLocaleString()}`;
   document.getElementById('admPriceCustomInput').value = product.price;
 

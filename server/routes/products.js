@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const sujanService = require('../services/sujan');
+const rakibService = require('../services/rakib');
 
 // List Categories
 router.get('/categories', (req, res) => {
@@ -20,7 +20,7 @@ router.get('/categories', (req, res) => {
     }
 });
 
-// List Products with Live Sujan Stock Counts
+// List Products with Live Rakib Stock Counts
 router.get('/', async (req, res) => {
     try {
         const { category, search } = req.query;
@@ -28,12 +28,15 @@ router.get('/', async (req, res) => {
         let query = `
             SELECT 
                 p.id, 
+                p.rakib_product_id,
                 p.sujan_product_id,
                 p.category_id, 
                 p.name, 
                 p.slug, 
                 p.description, 
                 p.price, 
+                p.rakib_base_price,
+                p.sujan_base_price,
                 p.reseller_markup_percent,
                 p.image_url, 
                 p.min_order_qty, 
@@ -62,53 +65,53 @@ router.get('/', async (req, res) => {
 
         const products = db.prepare(query).all(...params);
 
-        // Fetch live catalog from Sujan API to sync stock counts
-        let sujanProductsMap = new Map();
+        // Fetch live catalog from Rakib API to sync stock counts
+        let rakibProductsMap = new Map();
         try {
-            const sujanCatalog = await sujanService.getProducts();
-            if (sujanCatalog && sujanCatalog.data) {
-                for (const sp of sujanCatalog.data) {
-                    sujanProductsMap.set(Number(sp.id), sp);
+            const rakibCatalog = await rakibService.getAllProducts();
+            if (Array.isArray(rakibCatalog)) {
+                for (const rp of rakibCatalog) {
+                    rakibProductsMap.set(Number(rp.id), rp);
                 }
             }
         } catch (e) {
-            console.warn('Could not fetch Sujan catalog for stock count overlay:', e.message);
+            console.warn('Could not fetch Rakib catalog for stock count overlay:', e.message);
         }
 
         const enrichedProducts = products.map(p => {
             let stockCount = 0;
             let isAutoFulfilled = false;
-            const targetSujanId = p.sujan_product_id || p.id;
-            const sujanItem = sujanProductsMap.get(Number(targetSujanId));
+            let inStock = false;
+            const targetRakibId = p.rakib_product_id || p.sujan_product_id || p.id;
+            const rakibItem = rakibProductsMap.get(Number(targetRakibId));
 
-            if (sujanItem) {
-                if (sujanItem.fulfillment_type === 'external_auto') {
-                    // Provider auto-assigns accounts — stock is always "available" (999 is a placeholder)
-                    isAutoFulfilled = true;
-                    stockCount = -1; // sentinel: means "available, count unknown"
-                } else if (sujanItem.available_stock !== undefined && sujanItem.available_stock !== null) {
-                    const parsed = parseInt(sujanItem.available_stock, 10);
-                    stockCount = isNaN(parsed) ? 0 : parsed;
-                }
+            if (rakibItem) {
+                stockCount = parseInt(rakibItem.stock, 10);
+                if (isNaN(stockCount)) stockCount = 0;
+                inStock = rakibItem.in_stock !== false && (stockCount > 0);
             } else {
                 // Fallback to local stock count
                 const localStock = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(p.id);
                 stockCount = localStock ? localStock.count : (p.stock_count || 0);
+                inStock = stockCount > 0;
             }
 
             return {
                 id: p.id,
-                sujanProductId: targetSujanId,
+                rakibProductId: targetRakibId,
+                sujanProductId: targetRakibId, // backwards compatibility
                 name: p.name,
                 slug: p.slug,
                 description: p.description,
                 price: p.price,
-                imageUrl: p.image_url,
+                imageUrl: (p.image_url && !p.image_url.includes('clearbit') && !p.image_url.includes('unsplash'))
+                    ? p.image_url
+                    : rakibService.resolveProductLogoUrl(p.name, p.category_name),
                 minQty: p.min_order_qty || 1,
                 maxQty: p.max_order_qty || 50,
                 stockCount,
-                isAutoFulfilled,
-                inStock: isAutoFulfilled || stockCount > 0,
+                isAutoFulfilled: false,
+                inStock,
                 hasOptions: false,
                 category: {
                     id: p.category_id,
@@ -130,7 +133,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Preview Available Accounts Before Purchase (MUST be before /:id to avoid swallowing)
+// Preview Available Accounts Before Purchase
 // GET /api/products/:id/stock
 router.get('/:id/stock', async (req, res) => {
     try {
@@ -145,40 +148,25 @@ router.get('/:id/stock', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetSujanId = product.sujan_product_id || product.id;
+        const targetRakibId = product.rakib_product_id || product.sujan_product_id || product.id;
         let stockData = null;
         try {
-            stockData = await sujanService.getProductStock(targetSujanId);
+            stockData = await rakibService.getProductStock(targetRakibId);
         } catch (_) {}
 
         let stockCount = 0;
-        let isAutoFulfilled = false;
-        const rawFulfillment = stockData?.data?.fulfillment_type;
+        let inStock = false;
         const rawStock = stockData?.data?.available_stock;
 
-        if (rawFulfillment === 'external_auto') {
-            // Provider placeholder — actual count unknown, treat as always available
-            isAutoFulfilled = true;
-            stockCount = -1;
-        } else if (rawStock !== undefined && rawStock !== null) {
+        if (rawStock !== undefined && rawStock !== null) {
             stockCount = parseInt(rawStock, 10);
             if (isNaN(stockCount)) stockCount = 0;
+            inStock = stockData?.data?.in_stock ?? (stockCount > 0);
         } else {
             const localStock = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(product.id);
             stockCount = localStock ? localStock.count : (product.stock_count || 0);
+            inStock = stockCount > 0;
         }
-
-        let options = (stockData?.data?.options || []).map(opt => ({
-            id: opt.id,
-            publicData: opt.public_data,
-            preview: {
-                location: opt.preview?.location || '',
-                year: opt.preview?.year || '',
-                profileUrl: opt.preview?.profile_url || ''
-            }
-        }));
-
-        const hasOptions = options.length > 0;
 
         return res.json({
             success: true,
@@ -186,11 +174,12 @@ router.get('/:id/stock', async (req, res) => {
                 productId: product.id,
                 productName: product.name,
                 unitPrice: product.price,
-                fulfillmentType: rawFulfillment || 'instant',
-                isAutoFulfilled,
-                availableStock: isAutoFulfilled ? null : stockCount,
-                hasOptions,
-                options
+                fulfillmentType: 'instant_key',
+                isAutoFulfilled: false,
+                availableStock: stockCount,
+                inStock,
+                hasOptions: false,
+                options: []
             }
         });
     } catch (err) {
@@ -250,33 +239,39 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetSujanId = product.sujan_product_id || product.id;
+        const targetRakibId = product.rakib_product_id || product.sujan_product_id || product.id;
         let stockCount = 10;
+        let inStock = true;
 
         try {
-            const stockRes = await sujanService.getProductStock(targetSujanId);
+            const stockRes = await rakibService.getProductStock(targetRakibId);
             if (stockRes && stockRes.data) {
-                stockCount = stockRes.data.available_stock || (stockRes.data.options ? stockRes.data.options.length : 0);
+                stockCount = stockRes.data.available_stock || 0;
+                inStock = stockRes.data.in_stock ?? (stockCount > 0);
             }
         } catch (e) {
             const localStock = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(product.id);
             stockCount = localStock ? localStock.count : 10;
+            inStock = stockCount > 0;
         }
 
         return res.json({
             success: true,
             product: {
                 id: product.id,
-                sujanProductId: targetSujanId,
+                rakibProductId: targetRakibId,
+                sujanProductId: targetRakibId,
                 name: product.name,
                 slug: product.slug,
                 description: product.description,
                 price: product.price,
-                imageUrl: product.image_url,
+                imageUrl: (product.image_url && !product.image_url.includes('clearbit') && !product.image_url.includes('unsplash'))
+                    ? product.image_url
+                    : rakibService.resolveProductLogoUrl(product.name, product.category_name),
                 minQty: product.min_order_qty || 1,
                 maxQty: product.max_order_qty || 50,
                 stockCount: stockCount,
-                inStock: stockCount > 0,
+                inStock: inStock,
                 category: {
                     id: product.category_id,
                     name: product.category_name,

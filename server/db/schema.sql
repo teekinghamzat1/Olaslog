@@ -46,12 +46,16 @@ CREATE TABLE IF NOT EXISTS product_categories (
 -- Products
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rakib_product_id INTEGER,
     sujan_product_id INTEGER,
     category_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     description TEXT,
     price REAL NOT NULL, -- NGN
+    rakib_base_price REAL,
+    sujan_base_price REAL,
+    manual_price_override INTEGER DEFAULT 0,
     reseller_markup_percent REAL DEFAULT 15,
     image_url TEXT,
     min_order_qty INTEGER DEFAULT 1,
@@ -83,6 +87,7 @@ CREATE TABLE IF NOT EXISTS stock_items (
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_number TEXT UNIQUE NOT NULL,
+    rakib_order_id TEXT,
     sujan_order_id TEXT,
     user_id INTEGER NOT NULL,
     total_amount REAL NOT NULL,
@@ -110,6 +115,7 @@ CREATE TABLE IF NOT EXISTS delivered_credentials (
     order_item_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     stock_item_id INTEGER,
+    rakib_item_id TEXT,
     sujan_item_id INTEGER,
     public_data TEXT,
     encrypted_credential TEXT NOT NULL,

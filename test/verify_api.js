@@ -24,7 +24,7 @@ async function run() {
   // Test 2: Stock preview for first available product
   const firstProdId = prods[0] ? prods[0].id : 1;
   r = await get('/api/products/' + firstProdId + '/stock');
-  const stock = r.body.stock;
+  const { stock } = r.body;
   const firstOpt = stock && stock.options && stock.options[0];
   console.log('Stock/' + firstProdId + ':', 'status=' + r.status + ', availableStock=' + (stock && stock.availableStock) + ', options=' + (stock && stock.options && stock.options.length) + ', location=' + (firstOpt && firstOpt.preview && firstOpt.preview.location));
 
@@ -33,9 +33,9 @@ async function run() {
   const cats = r.body.categories || [];
   console.log('Categories:', 'count=' + cats.length + ', names=' + cats.map(function(c){ return c.name; }).join(', '));
 
-  // Test 4: Admin Sujan status (may be 401 without auth)
-  r = await get('/api/admin/sujan-status');
-  console.log('Sujan-status:', 'status=' + r.status + (r.status === 200 ? ', sandbox=' + r.body.sandbox + ', balance=' + JSON.stringify(r.body.balance) : ' (auth required)'));
+  // Test 4: Admin Rakib status (may be 401 without auth)
+  r = await get('/api/admin/rakib-status');
+  console.log('Rakib-status:', 'status=' + r.status + (r.status === 200 ? ', sandbox=' + r.body.sandbox + ', balance=' + JSON.stringify(r.body.balance) : ' (auth required)'));
 
   // Test 5: Static frontend
   r = await get('/');

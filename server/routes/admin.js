@@ -5,7 +5,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../services/crypto');
 const { recordRefund, getWalletBalance } = require('../services/wallet');
 const { getOrderWithCredentials } = require('../services/order');
-const sujanService = require('../services/sujan');
+const rakibService = require('../services/rakib');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -30,12 +30,12 @@ router.get('/metrics', async (req, res) => {
         const totalUsers = db.prepare(`SELECT COUNT(*) as count FROM users WHERE role = 'customer'`).get().count;
         const pendingDisputes = db.prepare(`SELECT COUNT(*) as count FROM disputes WHERE status IN ('submitted', 'under_review')`).get().count;
         
-        let sujanBalance = null;
+        let rakibBalance = null;
         try {
-            const balRes = await sujanService.getBalance();
-            sujanBalance = balRes.data;
+            const balRes = await rakibService.getBalance();
+            rakibBalance = balRes.data;
         } catch (e) {
-            console.warn('Admin metrics: could not fetch Sujan balance', e.message);
+            console.warn('Admin metrics: could not fetch Rakib balance', e.message);
         }
 
         const stockStats = db.prepare(`
@@ -60,9 +60,14 @@ router.get('/metrics', async (req, res) => {
             metrics: {
                 totalRevenue,
                 totalOrders,
+                completedOrdersCount: totalOrders,       // alias for frontend
                 totalUsers,
+                totalCustomersCount: totalUsers,         // alias for frontend
                 pendingDisputes,
-                sujanBalance,
+                pendingDisputesCount: pendingDisputes,   // alias for frontend
+                availableStockCount: stockStats ? (stockStats.available_items || 0) : 0, // alias for frontend
+                rakibBalance,
+                sujanBalance: rakibBalance, // backwards compatibility
                 stock: stockStats,
                 topProducts
             }
@@ -72,21 +77,23 @@ router.get('/metrics', async (req, res) => {
     }
 });
 
-// Sujan API Health & Balance
-router.get('/sujan/status', async (req, res) => {
+// Rakib API Health & Balance (with Sujan status alias)
+router.get(['/rakib/status', '/rakib-status', '/sujan/status', '/sujan-status'], async (req, res) => {
     try {
-        const balanceData = await sujanService.getBalance();
+        const balanceData = await rakibService.getBalance();
         return res.json({
             success: true,
             status: {
-                isLive: !sujanService.isPlaceholderKey,
-                baseUrl: process.env.SUJAN_API_BASE_URL || 'https://api.sujanlogsmarketplace.com/v1',
+                isLive: !rakibService.isPlaceholderKey,
+                baseUrl: process.env.RAKIB_API_BASE_URL || 'https://www.rakibsocials.com/api/v1',
                 balance: balanceData.data,
                 isSandbox: balanceData.is_sandbox
-            }
+            },
+            sandbox: balanceData.is_sandbox,
+            balance: balanceData.data
         });
     } catch (err) {
-        return res.status(500).json({ success: false, error: 'Failed to fetch Sujan API status' });
+        return res.status(500).json({ success: false, error: 'Failed to fetch Rakib API status' });
     }
 });
 
@@ -111,22 +118,22 @@ router.get('/products', (req, res) => {
     }
 });
 
-// Trigger catalog sync from Sujan API on demand
-router.post('/products/sync-sujan', async (req, res) => {
+// Trigger catalog sync from Rakib API on demand
+router.post(['/products/sync-rakib', '/products/sync-sujan'], async (req, res) => {
     try {
-        const syncResult = await sujanService.syncCatalogFromSujan();
-        logAudit(req.user.id, 'SYNC_SUJAN_CATALOG', 'CATALOG', 0, `Synced ${syncResult.productsSynced} products from Sujan`);
-        return res.json({ success: true, result: syncResult });
+        const syncResult = await rakibService.syncCatalogFromRakib();
+        logAudit(req.user.id, 'SYNC_RAKIB_CATALOG', 'CATALOG', 0, `Synced ${syncResult.productsSynced} products from Rakib Socials`);
+        return res.json({ success: true, result: syncResult, message: `Synced ${syncResult.productsSynced} products from Rakib Socials` });
     } catch (err) {
-        console.error('Sujan sync error:', err);
-        return res.status(500).json({ success: false, error: err.message || 'Failed to sync from Sujan API' });
+        console.error('Rakib sync error:', err);
+        return res.status(500).json({ success: false, error: err.message || 'Failed to sync from Rakib Socials API' });
     }
 });
 
 // Quick Manual Price Update for Admin
 router.put('/products/:id/price', (req, res) => {
     try {
-        const { price, resetToDefault } = req.body;
+        const { price, resetToDefault, resetToDefaultFormula } = req.body;
         const productId = req.params.id;
 
         const product = db.prepare(`SELECT * FROM products WHERE id = ?`).get(productId);
@@ -134,17 +141,17 @@ router.put('/products/:id/price', (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        if (resetToDefault) {
-            // Reset to default auto price: Sujan base price + ₦1,000 markup
-            const sujanBase = product.sujan_base_price || product.price;
-            const newPrice = sujanBase + 1000;
+        if (resetToDefault || resetToDefaultFormula) {
+            // Reset to default auto price: Wholesale base price + ₦1,000 markup
+            const wholesaleBase = product.rakib_base_price || product.sujan_base_price || product.price;
+            const newPrice = wholesaleBase + 1000;
             db.prepare(`
                 UPDATE products 
                 SET price = ?, manual_price_override = 0, updated_at = CURRENT_TIMESTAMP 
                 WHERE id = ?
             `).run(newPrice, productId);
 
-            logAudit(req.user.id, 'RESET_PRODUCT_PRICE', 'PRODUCT', productId, `Reset price to default (Base ₦${sujanBase} + ₦1,000 = ₦${newPrice})`);
+            logAudit(req.user.id, 'RESET_PRODUCT_PRICE', 'PRODUCT', productId, `Reset price to default (Base ₦${wholesaleBase} + ₦1,000 = ₦${newPrice})`);
             return res.json({ success: true, message: `Price reset to default ₦${newPrice.toLocaleString()}`, newPrice, manualOverride: 0 });
         }
 

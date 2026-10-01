@@ -8,7 +8,7 @@ const { encrypt, decrypt } = require('../server/services/crypto');
 const { MIN_FUNDING } = require('../server/services/wallet');
 
 const korapayService = require('../server/services/korapay');
-const sujanService = require('../server/services/sujan');
+const rakibService = require('../server/services/rakib');
 
 async function runTests() {
     console.log('--- Starting Olaslog Automated Core Tests ---');
@@ -121,34 +121,27 @@ async function runTests() {
     assert.strictEqual(dupPayment.balance, startBal + transferAmount, 'Balance must remain unchanged on duplicate webhook');
     console.log('✓ Korapay webhook idempotency verified');
 
-    // 5. Test Sujan Logs API Integration: Balance, Catalog & Stock Previews
-    console.log('\n[4] Testing Sujan Logs Marketplace API Service...');
-    const sujanBal = await sujanService.getBalance();
-    assert(sujanBal.success && sujanBal.data, 'Sujan balance query should succeed');
-    console.log(`✓ Sujan API balance: ₦${(sujanBal.data.balance_minor / 100).toLocaleString()}`);
+    // 5. Test Rakib Socials API Integration: Balance, Catalog & Stock Previews
+    console.log('\n[4] Testing Rakib Socials Marketplace API Service...');
+    const rakibBal = await rakibService.getBalance();
+    assert(rakibBal.success && rakibBal.data, 'Rakib balance query should succeed');
+    const balNum = parseFloat(rakibBal.data.balance || rakibBal.data.balance_minor / 100 || 0);
+    console.log(`✓ Rakib API balance: ₦${balNum.toLocaleString()} (${rakibBal.data.currency || 'NGN'})`);
 
-    const stockPreview = await sujanService.getProductStock(1);
-    assert(stockPreview.success && stockPreview.data, 'Sujan stock preview must return data');
-    assert(Array.isArray(stockPreview.data.options), 'Sujan stock preview must return options array');
-
-    const fulfillmentType = stockPreview.data.fulfillment_type || 'unknown';
-    if (fulfillmentType === 'external_auto' || fulfillmentType === 'auto') {
-        // Live API: accounts are auto-dispatched — no pre-selection options needed
-        console.log(`✓ Sujan stock preview: fulfillment_type="${fulfillmentType}", available_stock=${stockPreview.data.available_stock} (auto-dispatch mode)`);
-    } else if (stockPreview.data.options.length > 0) {
-        // Sandbox / manual selection mode: options should include preview data
-        assert(stockPreview.data.options[0].preview && stockPreview.data.options[0].preview.location, 'Preview option must include location attribute');
-        console.log(`✓ Sujan stock preview retrieved: ${stockPreview.data.options.length} options (e.g. ${stockPreview.data.options[0].preview.location})`);
-    } else {
-        console.log(`✓ Sujan stock preview: no manual options (empty stock or unrecognised fulfillment type "${fulfillmentType}")`);
-    }
+    const stockPreview = await rakibService.getProductStock(128);
+    assert(stockPreview.success && stockPreview.data, 'Rakib stock preview must return data');
+    console.log(`✓ Rakib stock preview: fulfillment_type="${stockPreview.data.fulfillment_type}", available_stock=${stockPreview.data.available_stock}`);
 
     // 6. Test Insufficient Funds Check
     console.log('\n[5] Testing Insufficient Funds Prevention...');
-    const gvProduct = db.prepare(`SELECT id, price FROM products WHERE slug = 'google-voice-us'`).get();
+    let testProd = db.prepare(`SELECT id, price FROM products LIMIT 1`).get();
+    if (!testProd) {
+        // Fallback product if table was just cleared
+        testProd = { id: 1, price: 4500 };
+    }
     try {
-        // Try to buy 10 Google Voice accounts (10 * 4200 = 42000 > 17500 balance)
-        await checkoutCart(customer.id, [{ productId: gvProduct.id, quantity: 10 }]);
+        // Try to buy 100 accounts (exceeds balance)
+        await checkoutCart(customer.id, [{ productId: testProd.id, quantity: 100 }]);
         assert.fail('Should have failed with INSUFFICIENT_FUNDS');
     } catch (err) {
         assert(err.code === 'INSUFFICIENT_FUNDS' || err.code === 'OUT_OF_STOCK');
@@ -157,20 +150,28 @@ async function runTests() {
 
     // 7. Test Successful Atomic Checkout via Local Stock Fallback
     console.log('\n[6] Testing Atomic Checkout (Local Stock Fallback)...');
-    const fbProduct = db.prepare(`SELECT id, price FROM products WHERE slug = 'usa-facebook-aged'`).get();
+    let fbProduct = db.prepare(`SELECT id, price FROM products WHERE is_active = 1 LIMIT 1`).get();
+    if (!fbProduct) {
+        // Ensure a product exists for checkout test
+        const cat = db.prepare(`SELECT id FROM product_categories LIMIT 1`).get();
+        const catId = cat ? cat.id : 1;
+        const insertRes = db.prepare(`
+            INSERT INTO products (category_id, name, slug, price, is_active)
+            VALUES (?, 'Test Account Product', 'test-account-prod', 3500, 1)
+        `).run(catId);
+        fbProduct = { id: insertRes.lastInsertRowid, price: 3500 };
+    }
 
-    // Seed a local encrypted stock item for the Facebook product so checkout
-    // works independent of the live Sujan provider wallet balance.
+    // Seed a local encrypted stock item for the product
     const { encrypt: encryptLocal } = require('../server/services/crypto');
-    const testCredential = 'Email: test_fb_usa@gmail.com | Password: FbTest@2026! | 2FA: TOTP-ABCD | Profile: https://facebook.com/test';
+    const testCredential = 'Email: test_account@gmail.com | Password: Secret@2026! | Key: RAKIB-XXXX-YYYY';
     const { encrypted, iv, authTag } = encryptLocal(testCredential);
     db.prepare(`
         INSERT INTO stock_items (product_id, encrypted_credential, iv, auth_tag, status)
         VALUES (?, ?, ?, ?, 'available')
     `).run(fbProduct.id, encrypted, iv, authTag);
-    console.log('✓ Seeded 1 local stock item for Facebook product');
+    console.log('✓ Seeded 1 local stock item for checkout test');
 
-    // Checkout via local fallback (Sujan API will fail with 0 balance, fallback kicks in)
     const orderResult = await checkoutCart(customer.id, [
         { productId: fbProduct.id, quantity: 1 }
     ]);
@@ -210,7 +211,7 @@ async function runTests() {
     console.log(`✓ Wallet refund successfully processed! Balance restored to: ₦${balanceAfterRefund.toLocaleString()}`);
 
     console.log('\n=============================================');
-    console.log('🎉 ALL SUJAN API & BACKEND TESTS PASSED!');
+    console.log('🎉 ALL RAKIB API & BACKEND TESTS PASSED!');
     console.log('=============================================');
 }
 

@@ -460,6 +460,35 @@ function renderFeaturedGrid(products) {
     grid.innerHTML = products.map(p => createProductCardHTML(p)).join('');
 }
 
+function resolveProductBrandLogo(p) {
+    if (p.imageUrl && !p.imageUrl.includes('clearbit.com') && !p.imageUrl.includes('unsplash.com')) {
+        return p.imageUrl;
+    }
+    const n = (p.name || '').toUpperCase();
+    const c = ((p.category && p.category.name) || '').toUpperCase();
+
+    if (n.includes('TIKTOK') || n.includes('TIKTIOK') || c.includes('TIKTOK')) return '/assets/logos/tiktok.png';
+    if (n.includes('INSTAGRAM') || c.includes('INSTAGRAM')) return '/assets/logos/instagram.png';
+    if (n.includes('FACEBOOK') || n.includes('FB') || c.includes('FACEBOOK') || c.includes('FB')) return '/assets/logos/facebook.png';
+    if (n.includes('DISCORD')) return '/assets/logos/discord.png';
+    if (n.includes('ICLOUD') || n.includes('APPLE')) return '/assets/logos/apple.png';
+    if (n.includes('GOOGLE VOICE') || c.includes('GOOGLE VOICE') || n.includes('GMAIL') || n.includes('GOOGLE')) return '/assets/logos/google.png';
+    if (n.includes('TEXTPLUS')) return '/assets/logos/textplus.png';
+    if (n.includes('NEXTPLUS') || n.includes('MICROSOFT')) return '/assets/logos/microsoft.png';
+    if (n.includes('NORD VPN') || n.includes('NORDVPN')) return '/assets/logos/nordvpn.png';
+    if (n.includes('EXPRESS VPN') || n.includes('EXPRESSVPN')) return '/assets/logos/expressvpn.png';
+    if (n.includes('PROTON VPN') || n.includes('PROTONVPN')) return '/assets/logos/protonvpn.png';
+    if (n.includes('AVAST')) return '/assets/logos/avast.png';
+    if (n.includes('HMA')) return '/assets/logos/hma.png';
+    if (n.includes('PIA VPN') || n.includes('IPVANISH') || n.includes('IP VANISH')) return '/assets/logos/pia.png';
+    if (n.includes('TWITTER') || n.includes('CLONE X') || n.includes(' X ')) return '/assets/logos/x.png';
+    if (n.includes('TELEGRAM')) return '/assets/logos/telegram.png';
+    if (n.includes('WHATSAPP')) return '/assets/logos/whatsapp.png';
+    if (n.includes('SNAPCHAT')) return '/assets/logos/snapchat.png';
+
+    return '/assets/logos/google.png';
+}
+
 function createProductCardHTML(p) {
     // Use the pre-computed inStock from the API (reliable, handles auto-fulfilled products)
     const inStock = p.inStock === true || p.isAutoFulfilled === true;
@@ -467,7 +496,7 @@ function createProductCardHTML(p) {
         ? 'Available'
         : (inStock ? `${p.stockCount} in stock` : 'Sold out');
     const catName = (p.category && p.category.name) || 'Digital Goods';
-    const words = p.name.split(' ');
+    const words = p.name.trim().split(' ');
     const initials = (words[0][0] + (words[1] ? words[1][0] : '')).toUpperCase();
     const colors = [
         { top: 'linear-gradient(90deg, #49D8C4, #2A9D8F)', bg: 'rgba(73, 216, 196, 0.15)', text: '#49D8C4' },
@@ -477,13 +506,24 @@ function createProductCardHTML(p) {
     ];
     const theme = colors[p.id % colors.length];
 
+    // Build official brand logo with initials fallback
+    const logoSrc = resolveProductBrandLogo(p);
+    const logoIcon = `
+        <img
+            src="${logoSrc}"
+            alt="${escapeHtml(p.name)} logo"
+            style="width: 28px; height: 28px; object-fit: contain; display: block;"
+            onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+        /><span style="display:none; width:100%; height:100%; align-items:center; justify-content:center; font-weight:700; font-size:14px;">${initials}</span>
+    `;
+
     return `
         <div class="pcard">
             <div class="pcard-top" style="background: ${theme.top};"></div>
             <div class="pcard-body">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                     <div class="pcard-icon" style="background: ${theme.bg}; color: ${theme.text};">
-                        ${initials}
+                        ${logoIcon}
                     </div>
                     <span class="pill ${inStock ? 'pill-teal' : 'pill-danger'}" style="font-size: 11px;">
                         <span class="dot"></span>${stockLabel}
@@ -1484,10 +1524,13 @@ async function loadAdminDashboard() {
             document.getElementById('admMetricDisputes').textContent = m.pendingDisputes;
             document.getElementById('admMetricUsers').textContent = m.totalUsers;
 
-            if (m.sujanBalance) {
-                const bal = m.sujanBalance.balance_minor ? (m.sujanBalance.balance_minor / 100) : (m.sujanBalance.balance || 0);
-                const balEl = document.getElementById('admMetricSujanBal');
-                if (balEl) balEl.textContent = bal.toLocaleString();
+            const balObj = m.rakibBalance || m.sujanBalance;
+            if (balObj) {
+                const bal = balObj.balance_minor ? (balObj.balance_minor / 100) : (parseFloat(balObj.balance) || balObj.amount || 0);
+                const balElRakib = document.getElementById('admMetricRakibBal');
+                if (balElRakib) balElRakib.textContent = bal.toLocaleString();
+                const balElSujan = document.getElementById('admMetricSujanBal');
+                if (balElSujan) balElSujan.textContent = bal.toLocaleString();
             }
         }
 
@@ -1539,12 +1582,12 @@ function renderAdminProducts(products) {
     if (!tbody) return;
 
     if (!products.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No products in catalog. Click "Sync Sujan Catalog" to import.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No products in catalog. Click "Sync Rakib Catalog" to import.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = products.map(p => {
-        const sujanBase = p.sujan_base_price != null ? Number(p.sujan_base_price) : null;
+        const rakibBase = p.rakib_base_price != null ? Number(p.rakib_base_price) : (p.sujan_base_price != null ? Number(p.sujan_base_price) : null);
         const isManual = p.manual_price_override === 1;
 
         return `
@@ -1552,7 +1595,7 @@ function renderAdminProducts(products) {
                 <td style="font-weight: 700;">${escapeHtml(p.name)}</td>
                 <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHtml(p.category_name)}</span></td>
                 <td style="color: #94a3b8; font-family: var(--font-mono);">
-                    ${sujanBase != null ? `₦${sujanBase.toLocaleString()}` : '<span style="color: var(--text-muted);">Local</span>'}
+                    ${rakibBase != null ? `₦${rakibBase.toLocaleString()}` : '<span style="color: var(--text-muted);">Local</span>'}
                 </td>
                 <td>
                     <strong style="color: var(--accent-emerald); font-size: 1.05rem;">₦${Number(p.price).toLocaleString()}</strong>
@@ -1570,7 +1613,7 @@ function renderAdminProducts(products) {
                 </td>
                 <td>
                     <div style="display: flex; gap: 0.4rem; align-items: center;">
-                        <button class="btn btn-primary btn-sm" onclick="openPriceModal(${p.id}, '${escapeCredential(p.name)}', '${escapeCredential(p.category_name)}', ${sujanBase || 0}, ${p.price}, ${p.manual_price_override || 0})">💰 Set Price</button>
+                        <button class="btn btn-primary btn-sm" onclick="openPriceModal(${p.id}, '${escapeCredential(p.name)}', '${escapeCredential(p.category_name)}', ${rakibBase || 0}, ${p.price}, ${p.manual_price_override || 0})">💰 Set Price</button>
                         <button class="btn btn-secondary btn-sm" onclick="switchAdminTab('stock', document.querySelectorAll('.admin-nav-tab')[1])">+ Stock</button>
                     </div>
                 </td>
@@ -1831,44 +1874,50 @@ async function submitCreateProduct() {
 }
 
 // ============================================================================
-// Sujan Catalog Sync & Manual Price Control
+// Rakib Catalog Sync & Manual Price Control
 // ============================================================================
 
-async function triggerSujanCatalogSync() {
-    const btn = document.getElementById('btnSyncSujan');
+async function triggerRakibCatalogSync() {
+    const btn = document.getElementById('btnSyncRakib') || document.getElementById('btnSyncSujan');
     if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ Syncing...';
     }
 
     try {
-        const res = await fetch('/api/admin/products/sync-sujan', {
+        const res = await fetch('/api/admin/products/sync-rakib', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`Catalog Synced! ${data.result.productsSynced} products updated with live Sujan prices.`, 'success');
+            showToast(`Catalog Synced! ${data.result.productsSynced} products updated with live Rakib wholesale prices.`, 'success');
             loadAdminDashboard();
             loadCatalog();
         } else {
-            showToast(data.error || 'Failed to sync Sujan catalog', 'error');
+            showToast(data.error || 'Failed to sync Rakib catalog', 'error');
         }
     } catch (e) {
         showToast('Sync request error', 'error');
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '🔄 Sync Sujan Catalog';
+            btn.textContent = '🔄 Sync Live Catalog';
         }
     }
 }
+const triggerSujanCatalogSync = triggerRakibCatalogSync;
 
-function openPriceModal(productId, productName, categoryName, sujanBase, currentPrice, isManual) {
+function openPriceModal(productId, productName, categoryName, rakibBase, currentPrice, isManual) {
     document.getElementById('admPriceProductId').value = productId;
     document.getElementById('admPriceProductName').textContent = productName;
     document.getElementById('admPriceProductCategory').textContent = categoryName;
-    document.getElementById('admPriceSujanBase').textContent = sujanBase ? `₦${Number(sujanBase).toLocaleString()}` : 'Local Inventory';
+    
+    const elRakib = document.getElementById('admPriceRakibBase');
+    if (elRakib) elRakib.textContent = rakibBase ? `₦${Number(rakibBase).toLocaleString()}` : 'Local Inventory';
+    const elSujan = document.getElementById('admPriceSujanBase');
+    if (elSujan) elSujan.textContent = rakibBase ? `₦${Number(rakibBase).toLocaleString()}` : 'Local Inventory';
+
     document.getElementById('admPriceCurrentActive').textContent = `₦${Number(currentPrice).toLocaleString()}`;
     document.getElementById('admPriceCustomInput').value = currentPrice;
     openModal('admPriceModal');

@@ -2171,8 +2171,8 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
 }
 
 .pcard-icon {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -2181,6 +2181,15 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     font-weight: 700;
     font-size: 16px;
     margin-bottom: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.pcard-icon img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    display: block;
 }
 
 .pcard-name {
