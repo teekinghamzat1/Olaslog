@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS wallet_transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    type TEXT CHECK(type IN ('funding', 'purchase', 'refund')) NOT NULL,
+    type TEXT CHECK(type IN ('funding', 'purchase', 'refund', 'adjustment', 'debit')) NOT NULL,
     amount REAL NOT NULL,
     balance_before REAL NOT NULL,
     balance_after REAL NOT NULL,

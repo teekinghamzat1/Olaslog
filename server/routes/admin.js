@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../services/crypto');
-const { recordRefund, getWalletBalance } = require('../services/wallet');
+const { recordRefund, getWalletBalance, adjustUserBalance } = require('../services/wallet');
 const { getOrderWithCredentials } = require('../services/order');
 const rakibService = require('../services/rakib');
 
@@ -654,6 +655,47 @@ router.post('/users/:id/toggle-ban', (req, res) => {
     }
 });
 
+router.post('/users/:id/adjust-balance', (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId)) {
+            return res.status(400).json({ success: false, error: 'Invalid user ID' });
+        }
+
+        const { action, amount, newBalance, reason } = req.body;
+        if (!action || !['credit', 'debit', 'set'].includes(action)) {
+            return res.status(400).json({ success: false, error: 'Action must be credit, debit, or set' });
+        }
+
+        const result = adjustUserBalance(userId, req.user.id, { action, amount, newBalance, reason });
+
+        logAudit(
+            req.user.id,
+            'ADJUST_USER_BALANCE',
+            'USER',
+            userId,
+            `Adjusted balance for ${result.user.email} (${action.toUpperCase()}): ₦${result.balanceBefore.toLocaleString()} ➔ ₦${result.balanceAfter.toLocaleString()} (Ref: ${result.reference}). Reason: ${reason || 'N/A'}`
+        );
+
+        return res.json({
+            success: true,
+            message: `User balance successfully updated to ₦${result.balanceAfter.toLocaleString()}`,
+            data: {
+                userId,
+                reference: result.reference,
+                balanceBefore: result.balanceBefore,
+                balanceAfter: result.balanceAfter,
+                amount: result.amount,
+                action,
+                description: result.description
+            }
+        });
+    } catch (err) {
+        console.error('Balance adjustment error:', err);
+        return res.status(400).json({ success: false, error: err.message || 'Failed to adjust balance' });
+    }
+});
+
 // 8. Wallet & Transaction Oversight (Full Ledger)
 router.get('/ledger', (req, res) => {
     try {
@@ -685,6 +727,220 @@ router.get('/audit-logs', (req, res) => {
         return res.json({ success: true, logs });
     } catch (err) {
         return res.status(500).json({ success: false, error: 'Failed to fetch audit logs' });
+    }
+});
+
+// 10. Administrator & Staff Management
+router.get('/administrators', (req, res) => {
+    try {
+        const admins = db.prepare(`
+            SELECT id, email, full_name, phone, role, is_banned, is_verified, created_at, updated_at
+            FROM users
+            WHERE role IN ('admin', 'support')
+            ORDER BY id ASC
+        `).all();
+
+        return res.json({ success: true, administrators: admins });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to fetch administrators' });
+    }
+});
+
+router.post('/administrators', (req, res) => {
+    try {
+        const { email, password, fullName, phone, role } = req.body;
+        if (!email || !password || !fullName) {
+            return res.status(400).json({ success: false, error: 'Email, password, and full name are required' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
+        }
+
+        const assignedRole = role === 'support' ? 'support' : 'admin';
+
+        const existing = db.prepare(`SELECT id, role FROM users WHERE email = ?`).get(email.toLowerCase().trim());
+        if (existing) {
+            return res.status(400).json({ success: false, error: 'A user with this email address already exists' });
+        }
+
+        const passwordHash = bcrypt.hashSync(password, 10);
+        const result = db.prepare(`
+            INSERT INTO users (email, password_hash, full_name, phone, role, is_verified, is_banned)
+            VALUES (?, ?, ?, ?, ?, 1, 0)
+        `).run(email.toLowerCase().trim(), passwordHash, fullName.trim(), phone ? phone.trim() : null, assignedRole);
+
+        const newAdminId = result.lastInsertRowid;
+
+        logAudit(
+            req.user.id,
+            'CREATE_ADMIN',
+            'USER',
+            newAdminId,
+            `Created administrator ${email.toLowerCase().trim()} with role ${assignedRole}`
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: `Administrator ${fullName} created successfully`,
+            administrator: {
+                id: newAdminId,
+                email: email.toLowerCase().trim(),
+                full_name: fullName.trim(),
+                phone: phone ? phone.trim() : null,
+                role: assignedRole,
+                is_banned: 0,
+                created_at: new Date().toISOString()
+            }
+        });
+    } catch (err) {
+        console.error('Create admin error:', err);
+        return res.status(500).json({ success: false, error: err.message || 'Failed to create administrator' });
+    }
+});
+
+router.put('/administrators/:id', (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        const admin = db.prepare(`SELECT id, email, full_name, role FROM users WHERE id = ? AND role IN ('admin', 'support')`).get(targetId);
+        if (!admin) {
+            return res.status(404).json({ success: false, error: 'Administrator not found' });
+        }
+
+        const { fullName, phone, role } = req.body;
+        if (!fullName) {
+            return res.status(400).json({ success: false, error: 'Full name is required' });
+        }
+
+        let assignedRole = admin.role;
+        if (role && ['admin', 'support'].includes(role)) {
+            if (targetId === req.user.id && role !== 'admin') {
+                return res.status(400).json({ success: false, error: 'You cannot demote your own administrator account' });
+            }
+            assignedRole = role;
+        }
+
+        db.prepare(`
+            UPDATE users
+            SET full_name = ?, phone = ?, role = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(fullName.trim(), phone ? phone.trim() : null, assignedRole, targetId);
+
+        logAudit(
+            req.user.id,
+            'UPDATE_ADMIN',
+            'USER',
+            targetId,
+            `Updated administrator profile for ${admin.email} (Role: ${assignedRole})`
+        );
+
+        return res.json({
+            success: true,
+            message: 'Administrator profile updated successfully'
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to update administrator' });
+    }
+});
+
+router.post('/administrators/:id/reset-password', (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long' });
+        }
+
+        const admin = db.prepare(`SELECT id, email FROM users WHERE id = ? AND role IN ('admin', 'support')`).get(targetId);
+        if (!admin) {
+            return res.status(404).json({ success: false, error: 'Administrator not found' });
+        }
+
+        const passwordHash = bcrypt.hashSync(newPassword, 10);
+        db.prepare(`UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(passwordHash, targetId);
+
+        logAudit(
+            req.user.id,
+            'RESET_ADMIN_PASSWORD',
+            'USER',
+            targetId,
+            `Reset password for administrator ${admin.email}`
+        );
+
+        return res.json({
+            success: true,
+            message: `Password successfully updated for ${admin.email}`
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to reset administrator password' });
+    }
+});
+
+router.post('/administrators/:id/toggle-status', (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (targetId === req.user.id) {
+            return res.status(400).json({ success: false, error: 'You cannot suspend your own active administrator account' });
+        }
+
+        const admin = db.prepare(`SELECT id, email, is_banned, role FROM users WHERE id = ? AND role IN ('admin', 'support')`).get(targetId);
+        if (!admin) {
+            return res.status(404).json({ success: false, error: 'Administrator not found' });
+        }
+
+        const newStatus = admin.is_banned ? 0 : 1;
+        db.prepare(`UPDATE users SET is_banned = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(newStatus, targetId);
+
+        logAudit(
+            req.user.id,
+            newStatus ? 'SUSPEND_ADMIN' : 'REACTIVATE_ADMIN',
+            'USER',
+            targetId,
+            `${newStatus ? 'Suspended' : 'Reactivated'} administrator ${admin.email}`
+        );
+
+        return res.json({
+            success: true,
+            message: `Administrator has been ${newStatus ? 'suspended' : 'reactivated'}`
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to toggle administrator status' });
+    }
+});
+
+router.delete('/administrators/:id', (req, res) => {
+    try {
+        const targetId = parseInt(req.params.id, 10);
+        if (targetId === req.user.id) {
+            return res.status(400).json({ success: false, error: 'You cannot delete your own administrator account' });
+        }
+
+        const admin = db.prepare(`SELECT id, email, role FROM users WHERE id = ? AND role IN ('admin', 'support')`).get(targetId);
+        if (!admin) {
+            return res.status(404).json({ success: false, error: 'Administrator not found' });
+        }
+
+        const adminCount = db.prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'admin' AND is_banned = 0`).get().c;
+        if (adminCount <= 1 && admin.role === 'admin') {
+            return res.status(400).json({ success: false, error: 'Cannot delete the only remaining active administrator' });
+        }
+
+        db.prepare(`DELETE FROM users WHERE id = ?`).run(targetId);
+
+        logAudit(
+            req.user.id,
+            'DELETE_ADMIN',
+            'USER',
+            targetId,
+            `Deleted administrator account ${admin.email} (Role: ${admin.role})`
+        );
+
+        return res.json({
+            success: true,
+            message: `Administrator ${admin.email} has been permanently deleted`
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to delete administrator' });
     }
 });
 

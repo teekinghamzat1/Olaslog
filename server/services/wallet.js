@@ -12,8 +12,14 @@ const MIN_FUNDING = parseInt(process.env.MIN_FUNDING_AMOUNT || '100', 10);
 function getWalletBalance(userId) {
     const row = db.prepare(`
         SELECT 
-            COALESCE(SUM(CASE WHEN type IN ('funding', 'refund') AND status = 'successful' THEN amount ELSE 0 END), 0) -
-            COALESCE(SUM(CASE WHEN type = 'purchase' AND status = 'successful' THEN amount ELSE 0 END), 0) as balance
+            COALESCE(SUM(CASE 
+                WHEN type IN ('funding', 'refund', 'credit') AND status = 'successful' THEN amount 
+                WHEN type = 'adjustment' AND status = 'successful' AND amount >= 0 THEN amount
+                ELSE 0 END), 0) -
+            COALESCE(SUM(CASE 
+                WHEN type IN ('purchase', 'debit') AND status = 'successful' THEN amount 
+                WHEN type = 'adjustment' AND status = 'successful' AND amount < 0 THEN ABS(amount)
+                ELSE 0 END), 0) as balance
         FROM wallet_transactions
         WHERE user_id = ?
     `).get(userId);
@@ -170,12 +176,125 @@ function getTransactions(userId, limit = 50) {
     `).all(userId, limit);
 }
 
+/**
+ * Admin manual adjustment of a user's wallet balance
+ * @param {number} userId - The target user ID
+ * @param {number} adminId - The administrator performing the adjustment
+ * @param {object} options - { action: 'credit' | 'debit' | 'set', amount: number, newBalance?: number, reason?: string }
+ */
+function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason }) {
+    const user = db.prepare('SELECT id, email, full_name FROM users WHERE id = ?').get(userId);
+    if (!user) {
+        throw new Error('User not found');
+    }
+
+    const currentBalance = getWalletBalance(userId);
+    let targetBalance = currentBalance;
+    let delta = 0;
+    let txType = 'funding';
+    let channel = 'admin_credit';
+    let desc = '';
+
+    if (action === 'credit') {
+        delta = Math.round(parseFloat(amount) * 100) / 100;
+        if (isNaN(delta) || delta <= 0) {
+            throw new Error('Credit amount must be greater than ₦0');
+        }
+        targetBalance = Math.round((currentBalance + delta) * 100) / 100;
+        txType = 'funding';
+        channel = 'admin_credit';
+        desc = reason ? `Admin Credit: ${reason}` : 'Admin manual balance credit';
+    } else if (action === 'debit') {
+        delta = Math.round(parseFloat(amount) * 100) / 100;
+        if (isNaN(delta) || delta <= 0) {
+            throw new Error('Debit amount must be greater than ₦0');
+        }
+        if (delta > currentBalance) {
+            throw new Error(`Debit amount (₦${delta.toLocaleString()}) exceeds user's current balance (₦${currentBalance.toLocaleString()})`);
+        }
+        targetBalance = Math.round((currentBalance - delta) * 100) / 100;
+        txType = 'debit';
+        channel = 'admin_debit';
+        desc = reason ? `Admin Debit: ${reason}` : 'Admin manual balance debit';
+    } else if (action === 'set') {
+        const target = Math.round(parseFloat(newBalance !== undefined && newBalance !== '' ? newBalance : amount) * 100) / 100;
+        if (isNaN(target) || target < 0) {
+            throw new Error('Target balance must be a non-negative number');
+        }
+        const diff = Math.round((target - currentBalance) * 100) / 100;
+        if (diff === 0) {
+            throw new Error('Target balance is identical to the current balance');
+        }
+        targetBalance = target;
+        if (diff > 0) {
+            delta = diff;
+            txType = 'funding';
+            channel = 'admin_credit';
+            desc = reason ? `Admin Balance Adjustment (+₦${delta.toLocaleString()}): ${reason}` : `Admin adjusted balance to ₦${target.toLocaleString()}`;
+        } else {
+            delta = Math.abs(diff);
+            txType = 'debit';
+            channel = 'admin_debit';
+            desc = reason ? `Admin Balance Adjustment (-₦${delta.toLocaleString()}): ${reason}` : `Admin adjusted balance to ₦${target.toLocaleString()}`;
+        }
+    } else {
+        throw new Error('Invalid adjustment action. Must be credit, debit, or set');
+    }
+
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const reference = `ADJ-${timestamp}-${randomSuffix}`;
+
+    const metadata = {
+        adminId,
+        action,
+        delta,
+        reason: reason || '',
+        adjustedAt: new Date().toISOString()
+    };
+
+    const runTx = db.transaction(() => {
+        const stmt = db.prepare(`
+            INSERT INTO wallet_transactions
+            (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, 'successful', ?, ?, ?)
+        `);
+        const result = stmt.run(
+            userId,
+            txType,
+            delta,
+            currentBalance,
+            targetBalance,
+            reference,
+            channel,
+            desc,
+            JSON.stringify(metadata)
+        );
+
+        return {
+            id: result.lastInsertRowid,
+            reference,
+            balanceBefore: currentBalance,
+            balanceAfter: targetBalance,
+            amount: delta,
+            type: txType,
+            channel,
+            description: desc,
+            user
+        };
+    });
+
+    return runTx();
+}
+
 module.exports = {
     getWalletBalance,
     recordFunding,
     completeFunding,
     recordRefund,
     getTransactions,
+    adjustUserBalance,
     MIN_FUNDING
 };
+
 

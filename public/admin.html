@@ -86,6 +86,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="18" cy="8.5" r="2.7"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg>
           User Directory
         </div>
+        <div class="sb-item" data-screen="admins" onclick="switchTab('admins', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Manage Admins
+        </div>
         <div class="sb-item" data-screen="ledger" onclick="switchTab('ledger', this)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           System Ledger
@@ -126,6 +130,7 @@
         <button class="adm-tab-pill" data-screen="orders" onclick="switchTab('orders')">Orders Inspector</button>
         <button class="adm-tab-pill" data-screen="disputes" onclick="switchTab('disputes')">Disputes</button>
         <button class="adm-tab-pill" data-screen="users" onclick="switchTab('users')">User Directory</button>
+        <button class="adm-tab-pill" data-screen="admins" onclick="switchTab('admins')">Manage Admins</button>
         <button class="adm-tab-pill" data-screen="ledger" onclick="switchTab('ledger')">System Ledger</button>
       </nav>
 
@@ -365,8 +370,11 @@
              ============================================================== -->
         <section class="screen-panel" id="panel-users">
           <div class="panel">
-            <div class="panel-head">
-              <div class="panel-title">Registered Customer Directory</div>
+            <div class="panel-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div class="panel-title">Registered Customer Directory</div>
+                <div style="font-size: 12px; color: var(--text-faint); margin-top: 2px;">View registered users, inspect and alter wallet balances, manage status</div>
+              </div>
             </div>
             <div class="table-responsive">
               <table>
@@ -377,11 +385,48 @@
                     <th>Email</th>
                     <th>Role</th>
                     <th>Wallet Balance</th>
+                    <th>Status</th>
                     <th>Registered</th>
+                    <th style="text-align: right;">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="adminUsersTableBody">
-                  <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading users...</td></tr>
+                  <tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading users...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 7: ADMIN & STAFF MANAGEMENT
+             ============================================================== -->
+        <section class="screen-panel" id="panel-admins">
+          <div class="panel">
+            <div class="panel-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div class="panel-title">Administrator &amp; Staff Console</div>
+                <div style="font-size: 12px; color: var(--text-faint); margin-top: 2px;">Manage administrator privileges, create staff accounts, and reset access credentials</div>
+              </div>
+              <button class="btn btn-teal btn-sm" onclick="openCreateAdminModal()">
+                <span>➕</span> Create New Admin
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Admin ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminAdminsTableBody">
+                  <tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-faint);">Loading administrators...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -569,6 +614,160 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
         <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admCategoryModal')">Cancel</button>
         <button class="btn btn-primary btn-sm" onclick="saveCategoryForm()" id="btnSaveCategory">Create Category</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alter User Balance Modal -->
+  <div class="modal-overlay" id="admBalanceModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-title">⚡ Alter User Wallet Balance</div>
+      <input type="hidden" id="admBalanceUserId">
+
+      <div style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="font-weight: 700; font-size: 15px;" id="admBalanceUserName">-</div>
+          <span class="mono" style="font-size: 12px; color: var(--text-faint);" id="admBalanceUserTag">#0</span>
+        </div>
+        <div class="mono" style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 10px;" id="admBalanceUserEmail">-</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--edge);">
+          <span style="font-size: 12px; color: var(--text-faint);">Current Wallet Balance:</span>
+          <span style="font-size: 16px; font-weight: 800; color: var(--teal);" id="admBalanceCurrentBal">₦0.00</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Adjustment Action *</label>
+        <select id="admBalanceAction" class="form-control" onchange="onBalanceActionChange()" style="font-weight: 600;">
+          <option value="credit">➕ Credit (Add Funds to User)</option>
+          <option value="debit">➖ Debit (Deduct Funds from User)</option>
+          <option value="set">🎯 Set Exact Balance (Override to Target)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" id="admBalanceAmountLabel">Amount to Add (₦) *</label>
+        <input type="number" id="admBalanceAmount" class="form-control" placeholder="e.g. 5000" min="0" step="100" oninput="updateBalancePreview()" required>
+      </div>
+
+      <div style="background: rgba(30, 155, 68, 0.12); border: 1px solid rgba(30, 155, 68, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 12.5px; color: var(--text-dim);">New Resulting Balance:</span>
+        <span class="mono" style="font-size: 17px; font-weight: 800; color: var(--teal);" id="admBalancePreview">₦0.00</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Reason / Admin Audit Note *</label>
+        <input type="text" id="admBalanceReason" class="form-control" placeholder="e.g. Manual bank deposit credited / Correction" required>
+        <span style="font-size: 11px; color: var(--text-faint); margin-top: 4px; display: block;">Recorded in immutable ledger for transparency.</span>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admBalanceModal')">Cancel</button>
+        <button class="btn btn-teal btn-sm" onclick="submitBalanceAdjustment()" id="btnSubmitBalance">Apply Adjustment ⚡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create New Administrator Modal -->
+  <div class="modal-overlay" id="admCreateAdminModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-title">Create New Administrator</div>
+      
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" id="admNewAdminName" class="form-control" placeholder="e.g. John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email Address *</label>
+        <input type="email" id="admNewAdminEmail" class="form-control" placeholder="admin2@olaslog.com" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label">Phone Number (Optional)</label>
+          <input type="text" id="admNewAdminPhone" class="form-control" placeholder="+2348000000000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Administrative Role *</label>
+          <select id="admNewAdminRole" class="form-control">
+            <option value="admin">Super Admin (Full Access)</option>
+            <option value="support">Support Agent (Operations)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Secret Password (Min 6 chars) *</label>
+        <input type="password" id="admNewAdminPassword" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admCreateAdminModal')">Cancel</button>
+        <button class="btn btn-teal btn-sm" onclick="submitCreateAdmin()" id="btnSubmitCreateAdmin">Create Administrator 🛡️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Administrator Password Modal -->
+  <div class="modal-overlay" id="admResetAdminPasswordModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-title">Reset Admin Password</div>
+      <input type="hidden" id="admResetAdminId">
+
+      <div style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+        <div style="font-size: 12px; color: var(--text-faint);">Target Administrator:</div>
+        <div style="font-weight: 700; font-size: 14px; margin-top: 2px;" id="admResetAdminTarget">-</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">New Password (Min 6 chars) *</label>
+        <input type="password" id="admResetAdminPass" class="form-control" placeholder="••••••••" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm New Password *</label>
+        <input type="password" id="admResetAdminPassConfirm" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admResetAdminPasswordModal')">Cancel</button>
+        <button class="btn btn-teal btn-sm" onclick="submitResetAdminPassword()" id="btnSubmitResetPass">Update Password</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Administrator Profile Modal -->
+  <div class="modal-overlay" id="admEditAdminModal">
+    <div class="modal-dialog" style="max-width: 440px;">
+      <div class="modal-title">Edit Administrator</div>
+      <input type="hidden" id="admEditAdminId">
+
+      <div class="form-group">
+        <label class="form-label">Email Address (Read-only)</label>
+        <input type="text" id="admEditAdminEmail" class="form-control" disabled style="opacity: 0.7;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" id="admEditAdminName" class="form-control" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="text" id="admEditAdminPhone" class="form-control">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Administrative Role</label>
+        <select id="admEditAdminRole" class="form-control">
+          <option value="admin">Super Admin</option>
+          <option value="support">Support Agent</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admEditAdminModal')">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="submitEditAdmin()">Save Changes</button>
       </div>
     </div>
   </div>

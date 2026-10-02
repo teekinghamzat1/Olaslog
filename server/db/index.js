@@ -122,6 +122,35 @@ try {
         CREATE INDEX IF NOT EXISTS idx_vba_account_number ON user_virtual_accounts(account_number);
         CREATE INDEX IF NOT EXISTS idx_vba_account_reference ON user_virtual_accounts(account_reference);
     `);
+
+    // Migration to allow 'debit' and 'adjustment' in wallet_transactions
+    const txTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='wallet_transactions'").get();
+    if (txTableSql && txTableSql.sql && (!txTableSql.sql.includes('debit') || !txTableSql.sql.includes('adjustment'))) {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS wallet_transactions_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                type TEXT CHECK(type IN ('funding', 'purchase', 'refund', 'adjustment', 'debit')) NOT NULL,
+                amount REAL NOT NULL,
+                balance_before REAL NOT NULL,
+                balance_after REAL NOT NULL,
+                reference TEXT UNIQUE NOT NULL,
+                status TEXT CHECK(status IN ('pending', 'successful', 'failed')) DEFAULT 'pending',
+                payment_channel TEXT DEFAULT 'internal',
+                description TEXT,
+                metadata TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            INSERT INTO wallet_transactions_new (id, user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata, created_at)
+            SELECT id, user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata, created_at FROM wallet_transactions;
+            DROP TABLE wallet_transactions;
+            ALTER TABLE wallet_transactions_new RENAME TO wallet_transactions;
+            CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user ON wallet_transactions(user_id, status);
+        `);
+        console.log('🔄 Migrated wallet_transactions table to support adjustment and debit ledger types');
+    }
+
     // Auto-bootstrap default admin if none exists
     const adminCheck = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
     if (!adminCheck) {

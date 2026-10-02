@@ -11,6 +11,7 @@ const adminState = {
   orders: [],
   disputes: [],
   users: [],
+  admins: [],
   ledger: [],
   selectedOrderId: null,
   selectedDisputeId: null
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadOrders();
   await loadDisputes();
   await loadUsers();
+  await loadAdmins();
   await loadLedger();
 });
 
@@ -81,6 +83,7 @@ async function handleAdminLogin(e) {
       await loadOrders();
       await loadDisputes();
       await loadUsers();
+      await loadAdmins();
       await loadLedger();
     } else {
       showAdminToast(data.error || 'Invalid credentials', 'error');
@@ -132,9 +135,15 @@ function switchTab(tabKey, el = null) {
     orders: 'Orders Inspector',
     disputes: 'Dispute Resolution Queue',
     users: 'Registered User Directory',
+    admins: 'Administrator & Staff Console',
     ledger: 'Financial Ledger Audit'
   };
   document.getElementById('pageTitle').textContent = titles[tabKey] || 'Operations';
+
+  // Dynamic reload when switching to certain tabs
+  if (tabKey === 'users') loadUsers();
+  if (tabKey === 'admins') loadAdmins();
+  if (tabKey === 'ledger') loadLedger();
 
   // Mobile drawer close if open
   toggleMobileSidebar(false);
@@ -839,11 +848,15 @@ function renderUsersTable(users) {
   const tbody = document.getElementById('adminUsersTableBody');
   if (!tbody) return;
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-faint);">No users found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:2rem; color:var(--text-faint);">No users found.</td></tr>`;
     return;
   }
   tbody.innerHTML = users.map(u => {
     const bal = u.walletBalance != null ? u.walletBalance : (u.balance != null ? u.balance : 0);
+    const statusPill = u.is_banned
+      ? '<span class="pill pill-danger"><span class="dot"></span>Suspended</span>'
+      : '<span class="pill pill-teal"><span class="dot"></span>Active</span>';
+
     return `
       <tr>
         <td class="mono">#${u.id}</td>
@@ -851,10 +864,409 @@ function renderUsersTable(users) {
         <td class="mono">${escapeHtml(u.email)}</td>
         <td><span class="pill ${u.role === 'admin' ? 'pill-gold' : 'pill-teal'}"><span class="dot"></span>${u.role}</span></td>
         <td style="font-weight:700; color:var(--teal);">₦${bal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td>${statusPill}</td>
         <td class="mono">${new Date(u.created_at).toLocaleDateString()}</td>
+        <td style="text-align:right;">
+          <div style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-teal btn-xs" onclick="openBalanceModal(${u.id})" title="Alter user balance">⚡ Alter Balance</button>
+            ${u.role !== 'admin' ? `
+              <button class="btn ${u.is_banned ? 'btn-teal' : 'btn-outline'} btn-xs" onclick="toggleUserBan(${u.id}, '${escapeHtml(u.email)}')" title="${u.is_banned ? 'Reactivate User' : 'Suspend User'}">
+                ${u.is_banned ? 'Reactivate' : 'Suspend'}
+              </button>
+            ` : ''}
+          </div>
+        </td>
       </tr>
     `;
   }).join('');
+}
+
+// ----------------------------------------------------------------------------
+// Balance Alteration Handlers
+// ----------------------------------------------------------------------------
+
+function openBalanceModal(userId) {
+  const user = adminState.users.find(u => u.id === userId);
+  if (!user) return;
+  const bal = user.walletBalance != null ? user.walletBalance : (user.balance != null ? user.balance : 0);
+
+  document.getElementById('admBalanceUserId').value = user.id;
+  document.getElementById('admBalanceUserName').textContent = user.full_name || 'Customer';
+  document.getElementById('admBalanceUserTag').textContent = `#${user.id}`;
+  document.getElementById('admBalanceUserEmail').textContent = user.email;
+  document.getElementById('admBalanceCurrentBal').textContent = `₦${bal.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('admBalanceAction').value = 'credit';
+  document.getElementById('admBalanceAmount').value = '';
+  document.getElementById('admBalanceReason').value = '';
+  onBalanceActionChange();
+  updateBalancePreview();
+  openAdminModal('admBalanceModal');
+}
+
+function onBalanceActionChange() {
+  const action = document.getElementById('admBalanceAction').value;
+  const label = document.getElementById('admBalanceAmountLabel');
+  const input = document.getElementById('admBalanceAmount');
+  if (action === 'credit') {
+    label.textContent = 'Amount to Add (₦) *';
+    input.placeholder = 'e.g. 5000';
+  } else if (action === 'debit') {
+    label.textContent = 'Amount to Deduct (₦) *';
+    input.placeholder = 'e.g. 2000';
+  } else {
+    label.textContent = 'New Total Target Balance (₦) *';
+    input.placeholder = 'e.g. 10000';
+  }
+  updateBalancePreview();
+}
+
+function updateBalancePreview() {
+  const userId = parseInt(document.getElementById('admBalanceUserId').value, 10);
+  const user = adminState.users.find(u => u.id === userId);
+  const currentBal = user ? (user.walletBalance != null ? user.walletBalance : (user.balance != null ? user.balance : 0)) : 0;
+  const action = document.getElementById('admBalanceAction').value;
+  const val = parseFloat(document.getElementById('admBalanceAmount').value) || 0;
+  const previewEl = document.getElementById('admBalancePreview');
+
+  let result = currentBal;
+  if (action === 'credit') {
+    result = currentBal + val;
+  } else if (action === 'debit') {
+    result = Math.max(0, currentBal - val);
+  } else if (action === 'set') {
+    result = Math.max(0, val);
+  }
+
+  previewEl.textContent = `₦${result.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+async function submitBalanceAdjustment() {
+  const userId = parseInt(document.getElementById('admBalanceUserId').value, 10);
+  const action = document.getElementById('admBalanceAction').value;
+  const amountVal = parseFloat(document.getElementById('admBalanceAmount').value);
+  const reason = (document.getElementById('admBalanceReason').value || '').trim();
+  const btn = document.getElementById('btnSubmitBalance');
+
+  if (isNaN(amountVal) || amountVal < 0) {
+    showAdminToast('Please specify a valid numeric amount', 'error');
+    return;
+  }
+  if (!reason) {
+    showAdminToast('Please provide an audit note/reason for this balance adjustment', 'error');
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Applying...';
+
+    const payload = {
+      action,
+      amount: amountVal,
+      newBalance: action === 'set' ? amountVal : undefined,
+      reason
+    };
+
+    const res = await fetch(`/api/admin/users/${userId}/adjust-balance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Balance updated successfully!', 'success');
+      closeAdminModal('admBalanceModal');
+      await loadUsers();
+      await loadLedger();
+      await loadMetrics();
+    } else {
+      showAdminToast(data.error || 'Failed to adjust balance', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error updating balance', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply Adjustment ⚡';
+  }
+}
+
+async function toggleUserBan(userId, email) {
+  const user = adminState.users.find(u => u.id === userId);
+  if (!user) return;
+  const actionName = user.is_banned ? 'reactivate' : 'suspend';
+  if (!confirm(`Are you sure you want to ${actionName} user account ${email}?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/toggle-ban`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showAdminToast(data.message || `User account ${actionName}d`, 'success');
+      await loadUsers();
+    } else {
+      showAdminToast(data.error || 'Action failed', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error updating user status', 'error');
+  }
+}
+
+// ============================================================================
+// Administrator & Staff Management
+// ============================================================================
+
+async function loadAdmins() {
+  try {
+    const res = await fetch('/api/admin/administrators');
+    const data = await res.json();
+    if (data.success && data.administrators) {
+      adminState.admins = data.administrators;
+      renderAdminsTable(data.administrators);
+    }
+  } catch (err) {
+    console.error('Failed to load administrators:', err);
+  }
+}
+
+function renderAdminsTable(admins) {
+  const tbody = document.getElementById('adminAdminsTableBody');
+  if (!tbody) return;
+  if (!admins.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-faint);">No administrators found.</td></tr>`;
+    return;
+  }
+
+  const currentAdminId = adminState.user ? adminState.user.id : null;
+
+  tbody.innerHTML = admins.map(a => {
+    const isSelf = a.id === currentAdminId;
+    const isSuperAdmin = a.role === 'admin';
+    const rolePill = isSuperAdmin
+      ? '<span class="pill pill-gold"><span class="dot"></span>Super Admin</span>'
+      : '<span class="pill pill-teal"><span class="dot"></span>Support</span>';
+
+    const statusPill = a.is_banned
+      ? '<span class="pill pill-danger"><span class="dot"></span>Suspended</span>'
+      : '<span class="pill pill-teal"><span class="dot"></span>Active</span>';
+
+    return `
+      <tr>
+        <td class="mono">#${a.id}</td>
+        <td style="font-weight:600;">
+          ${escapeHtml(a.full_name)}
+          ${isSelf ? '<span style="font-size:10.5px; background:rgba(217,163,35,0.15); color:var(--gold); border:1px solid rgba(217,163,35,0.3); border-radius:4px; padding:1px 6px; margin-left:6px; font-weight:700;">YOU</span>' : ''}
+        </td>
+        <td class="mono">${escapeHtml(a.email)}</td>
+        <td>${rolePill}</td>
+        <td>${statusPill}</td>
+        <td class="mono">${new Date(a.created_at).toLocaleDateString()}</td>
+        <td style="text-align:right;">
+          <div style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-xs" onclick="openResetAdminPasswordModal(${a.id})" title="Reset Password">🔑 Password</button>
+            <button class="btn btn-outline btn-xs" onclick="openEditAdminModal(${a.id})" title="Edit Details">✏️ Edit</button>
+            ${!isSelf ? `
+              <button class="btn ${a.is_banned ? 'btn-teal' : 'btn-outline'} btn-xs" onclick="toggleAdminStatus(${a.id}, '${escapeHtml(a.email)}')" title="${a.is_banned ? 'Reactivate' : 'Suspend'}">
+                ${a.is_banned ? 'Reactivate' : 'Suspend'}
+              </button>
+              <button class="btn btn-danger btn-xs" onclick="deleteAdminAccount(${a.id}, '${escapeHtml(a.email)}')" title="Delete Admin">🗑️</button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openCreateAdminModal() {
+  document.getElementById('admNewAdminName').value = '';
+  document.getElementById('admNewAdminEmail').value = '';
+  document.getElementById('admNewAdminPhone').value = '';
+  document.getElementById('admNewAdminRole').value = 'admin';
+  document.getElementById('admNewAdminPassword').value = '';
+  openAdminModal('admCreateAdminModal');
+}
+
+async function submitCreateAdmin() {
+  const fullName = (document.getElementById('admNewAdminName').value || '').trim();
+  const email = (document.getElementById('admNewAdminEmail').value || '').trim();
+  const phone = (document.getElementById('admNewAdminPhone').value || '').trim();
+  const role = document.getElementById('admNewAdminRole').value;
+  const password = document.getElementById('admNewAdminPassword').value;
+  const btn = document.getElementById('btnSubmitCreateAdmin');
+
+  if (!fullName || !email || !password) {
+    showAdminToast('Please fill in Name, Email, and Password', 'error');
+    return;
+  }
+  if (password.length < 6) {
+    showAdminToast('Password must be at least 6 characters', 'error');
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    const res = await fetch('/api/admin/administrators', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, email, phone, role, password })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Administrator created successfully!', 'success');
+      closeAdminModal('admCreateAdminModal');
+      await loadAdmins();
+    } else {
+      showAdminToast(data.error || 'Failed to create administrator', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error creating administrator', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Administrator 🛡️';
+  }
+}
+
+function openResetAdminPasswordModal(id) {
+  const admin = adminState.admins.find(a => a.id === id);
+  if (!admin) return;
+
+  document.getElementById('admResetAdminId').value = admin.id;
+  document.getElementById('admResetAdminTarget').textContent = `${admin.full_name} (${admin.email})`;
+  document.getElementById('admResetAdminPass').value = '';
+  document.getElementById('admResetAdminPassConfirm').value = '';
+  openAdminModal('admResetAdminPasswordModal');
+}
+
+async function submitResetAdminPassword() {
+  const id = parseInt(document.getElementById('admResetAdminId').value, 10);
+  const newPassword = document.getElementById('admResetAdminPass').value;
+  const confirmPassword = document.getElementById('admResetAdminPassConfirm').value;
+  const btn = document.getElementById('btnSubmitResetPass');
+
+  if (!newPassword || newPassword.length < 6) {
+    showAdminToast('Password must be at least 6 characters long', 'error');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    showAdminToast('Passwords do not match', 'error');
+    return;
+  }
+
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
+
+    const res = await fetch(`/api/admin/administrators/${id}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Password updated successfully!', 'success');
+      closeAdminModal('admResetAdminPasswordModal');
+    } else {
+      showAdminToast(data.error || 'Failed to reset password', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error resetting password', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Update Password';
+  }
+}
+
+function openEditAdminModal(id) {
+  const admin = adminState.admins.find(a => a.id === id);
+  if (!admin) return;
+
+  document.getElementById('admEditAdminId').value = admin.id;
+  document.getElementById('admEditAdminEmail').value = admin.email;
+  document.getElementById('admEditAdminName').value = admin.full_name;
+  document.getElementById('admEditAdminPhone').value = admin.phone || '';
+  document.getElementById('admEditAdminRole').value = admin.role;
+  openAdminModal('admEditAdminModal');
+}
+
+async function submitEditAdmin() {
+  const id = parseInt(document.getElementById('admEditAdminId').value, 10);
+  const fullName = (document.getElementById('admEditAdminName').value || '').trim();
+  const phone = (document.getElementById('admEditAdminPhone').value || '').trim();
+  const role = document.getElementById('admEditAdminRole').value;
+
+  if (!fullName) {
+    showAdminToast('Full Name is required', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/administrators/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, phone, role })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Administrator updated successfully!', 'success');
+      closeAdminModal('admEditAdminModal');
+      await loadAdmins();
+    } else {
+      showAdminToast(data.error || 'Failed to update administrator', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error updating administrator', 'error');
+  }
+}
+
+async function toggleAdminStatus(id, email) {
+  const admin = adminState.admins.find(a => a.id === id);
+  if (!admin) return;
+  const actionName = admin.is_banned ? 'reactivate' : 'suspend';
+
+  if (!confirm(`Are you sure you want to ${actionName} administrator ${email}?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/administrators/${id}/toggle-status`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || `Administrator ${actionName}d!`, 'success');
+      await loadAdmins();
+    } else {
+      showAdminToast(data.error || 'Failed to toggle status', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error toggling status', 'error');
+  }
+}
+
+async function deleteAdminAccount(id, email) {
+  if (!confirm(`Are you sure you want to PERMANENTLY DELETE administrator account ${email}? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/administrators/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Administrator deleted', 'success');
+      await loadAdmins();
+    } else {
+      showAdminToast(data.error || 'Failed to delete administrator', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error deleting administrator', 'error');
+  }
 }
 
 async function loadLedger() {
@@ -878,18 +1290,18 @@ function renderLedgerTable(transactions) {
     return;
   }
   tbody.innerHTML = transactions.slice(0, 100).map(t => {
-    const isCredit = t.type === 'deposit' || t.type === 'refund';
+    const isCredit = t.type === 'funding' || t.type === 'refund' || t.type === 'credit' || t.type === 'deposit';
     const color = isCredit ? 'var(--teal)' : 'var(--text)';
     const prefix = isCredit ? '+' : '-';
     return `
       <tr>
         <td class="mono">#${t.id}</td>
-        <td>${t.user_email}</td>
+        <td>${escapeHtml(t.user_email || t.description || 'User')}</td>
         <td><span class="pill ${isCredit ? 'pill-teal' : 'pill-muted'}"><span class="dot"></span>${t.type}</span></td>
         <td style="font-weight:700; color:${color};">${prefix}₦${t.amount.toLocaleString()}</td>
         <td class="mono">₦${t.balance_before.toLocaleString()}</td>
         <td class="mono">₦${t.balance_after.toLocaleString()}</td>
-        <td class="mono">${t.reference}</td>
+        <td class="mono">${escapeHtml(t.reference)}</td>
         <td class="mono">${new Date(t.created_at).toLocaleString()}</td>
       </tr>
     `;
