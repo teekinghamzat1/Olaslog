@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateCartUI();
     window.addEventListener('popstate', handleRouting);
     window.addEventListener('hashchange', handleRouting);
+    initLiveOrderFeed();
 });
 
 async function checkAuth() {
@@ -2071,4 +2072,161 @@ function escapeHtml(text) {
 function escapeCredential(text) {
     if (!text) return '';
     return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ============================================================================
+// Live Order Feed Ticker
+// ============================================================================
+
+const LiveOrderFeed = (() => {
+    const TICKER_ID        = 'liveFeedTicker';
+    const DISPLAY_MS       = 7000;   // how long each card is visible
+    const INTERVAL_MS      = 9000;   // gap between cards
+    const REFRESH_MS       = 120000; // re-fetch from API every 2 minutes
+    const SESSION_KEY      = 'olf_dismissed'; // sessionStorage key
+
+    // Fallback demo entries shown when the DB has no orders yet
+    const DEMO_FEED = [
+        { product_name: 'CLONE INSTAGRAM US | FULL 2FA', quantity: 1, category_icon: '📸', created_at: new Date(Date.now() - 3 * 60000).toISOString() },
+        { product_name: 'AVAST VPN',                    quantity: 2, category_icon: '🛡️', created_at: new Date(Date.now() - 8 * 60000).toISOString() },
+        { product_name: 'Google Voice PVA',             quantity: 1, category_icon: '📞', created_at: new Date(Date.now() - 14 * 60000).toISOString() },
+        { product_name: 'CLONE TIKTOK US | Full 2FA',   quantity: 3, category_icon: '🎵', created_at: new Date(Date.now() - 22 * 60000).toISOString() },
+        { product_name: 'NordVPN Premium 1-Month',      quantity: 1, category_icon: '🛡️', created_at: new Date(Date.now() - 31 * 60000).toISOString() },
+    ];
+
+    let feed     = [];
+    let cursor   = 0;
+    let loopTimer   = null;
+    let refreshTimer = null;
+    let dismissed  = false;
+
+    function timeAgo(isoString) {
+        const diffMs  = Date.now() - new Date(isoString).getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+        const diffHr  = Math.floor(diffMin / 60);
+        if (diffMin < 1)  return 'just now';
+        if (diffMin < 60) return `${diffMin} min ago`;
+        if (diffHr  < 24) return `${diffHr}h ago`;
+        return `${Math.floor(diffHr / 24)}d ago`;
+    }
+
+    function truncate(name, maxLen = 36) {
+        return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
+    }
+
+    async function fetchFeed() {
+        try {
+            const res  = await fetch('/api/orders/feed');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.feed) && data.feed.length > 0) {
+                feed   = data.feed;
+                cursor = 0;
+            } else if (feed.length === 0) {
+                // Empty DB — use demo data so the ticker always shows
+                feed   = DEMO_FEED;
+                cursor = 0;
+            }
+        } catch (_) {
+            if (feed.length === 0) {
+                feed   = DEMO_FEED;
+                cursor = 0;
+            }
+        }
+    }
+
+    function showNext() {
+        if (dismissed) return;
+        if (feed.length === 0) return;
+
+        const mount = document.getElementById(TICKER_ID);
+        if (!mount) return;
+
+        // Remove any existing card
+        const existing = mount.querySelector('.lf-card');
+        if (existing) {
+            existing.classList.add('lf-exit');
+            setTimeout(() => existing.remove(), 380);
+        }
+
+        // Delay slightly so exit animation runs first
+        setTimeout(() => {
+            if (dismissed) return;
+
+            const item = feed[cursor % feed.length];
+            cursor++;
+
+            const qty     = item.quantity > 1 ? `${item.quantity}x ` : '';
+            const icon    = item.category_icon || '🛍️';
+            const name    = truncate(item.product_name);
+            const when    = timeAgo(item.created_at);
+
+            const card = document.createElement('div');
+            card.className = 'lf-card';
+            card.setAttribute('role', 'status');
+            card.innerHTML = `
+                <div class="lf-emoji">${icon}</div>
+                <div class="lf-body">
+                    <div class="lf-label">
+                        <span class="lf-dot"></span>
+                        Live Sale
+                    </div>
+                    <div class="lf-product">Someone just bought ${qty}${escapeHtml(name)}</div>
+                    <div class="lf-meta">${when}</div>
+                </div>
+                <button class="lf-close" title="Dismiss" onclick="LiveOrderFeed.dismiss()" aria-label="Close live feed">✕</button>
+            `;
+
+            mount.innerHTML = '';
+            mount.appendChild(card);
+        }, existing ? 400 : 0);
+    }
+
+    function start() {
+        if (dismissed) return;
+        showNext();
+        loopTimer = setInterval(showNext, INTERVAL_MS);
+    }
+
+    function stop() {
+        clearInterval(loopTimer);
+        clearInterval(refreshTimer);
+        loopTimer = null;
+        refreshTimer = null;
+    }
+
+    function dismiss() {
+        dismissed = true;
+        stop();
+        try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (_) {}
+        const mount = document.getElementById(TICKER_ID);
+        if (!mount) return;
+        const card = mount.querySelector('.lf-card');
+        if (card) {
+            card.classList.add('lf-exit');
+            setTimeout(() => { mount.innerHTML = ''; }, 380);
+        } else {
+            mount.innerHTML = '';
+        }
+    }
+
+    async function init() {
+        // Respect session-level dismiss
+        try { if (sessionStorage.getItem(SESSION_KEY)) { dismissed = true; return; } } catch (_) {}
+
+        await fetchFeed();
+
+        // Small delay after page load before first card appears
+        setTimeout(start, 3500);
+
+        // Periodically refresh the feed list from the API
+        refreshTimer = setInterval(async () => {
+            await fetchFeed();
+        }, REFRESH_MS);
+    }
+
+    return { init, dismiss };
+})();
+
+function initLiveOrderFeed() {
+    LiveOrderFeed.init();
 }

@@ -2736,4 +2736,167 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
 }
 
 
+/* ==========================================================================
+   Live Order Feed Ticker
+   ========================================================================== */
+
+#liveFeedTicker {
+    position: fixed;
+    bottom: 5.5rem; /* above bottom-nav on mobile */
+    left: 1.25rem;
+    z-index: 8800;
+    width: 290px;
+    pointer-events: none;
+}
+
+@media (min-width: 768px) {
+    #liveFeedTicker {
+        bottom: 1.75rem;
+        width: 320px;
+    }
+}
+
+/* The individual toast card */
+.lf-card {
+    position: relative;
+    background: var(--bg-surface-elevated, #102D20);
+    border: 1px solid rgba(91, 217, 165, 0.22);
+    border-radius: 14px;
+    padding: 0.85rem 1rem 0.85rem 0.9rem;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255,255,255,0.04) inset;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    pointer-events: auto;
+    cursor: default;
+    user-select: none;
+    animation: lfSlideIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.lf-card.lf-exit {
+    animation: lfSlideOut 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Emoji / icon column */
+.lf-emoji {
+    font-size: 1.45rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 1px;
+    filter: drop-shadow(0 0 6px rgba(91, 217, 165, 0.3));
+}
+
+/* Text column */
+.lf-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.lf-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--teal, #5BD9A5);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 3px;
+}
+
+/* Pulsing live dot */
+.lf-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal, #5BD9A5);
+    display: inline-block;
+    flex-shrink: 0;
+    animation: lfPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes lfPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+.lf-product {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: var(--text-primary, #FFFFFF);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.35;
+}
+
+.lf-meta {
+    font-size: 0.72rem;
+    color: var(--text-secondary, #94A3B8);
+    margin-top: 2px;
+}
+
+/* Close button */
+.lf-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-secondary, #64748B);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    pointer-events: auto;
+}
+.lf-close:hover { opacity: 1; }
+
+/* Animations */
+@keyframes lfSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-110%) scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes lfSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-110%) scale(0.92);
+    }
+}
+
+/* Light theme overrides */
+:root[data-theme="light"] .lf-card {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(30, 155, 68, 0.25);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 1px 0 rgba(255,255,255,0.8) inset;
+}
+:root[data-theme="light"] .lf-product {
+    color: #0B2E22;
+}
+:root[data-theme="light"] .lf-meta {
+    color: #475569;
+}
+:root[data-theme="light"] .lf-close {
+    color: #64748B;
+}
 

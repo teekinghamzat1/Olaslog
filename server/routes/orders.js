@@ -30,6 +30,36 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB max
 });
 
+// ─── Public Live Order Feed (no auth required) ───────────────────────────────
+// GET /api/orders/feed
+// Returns the last 20 completed orders, fully anonymized — safe for public display.
+router.get('/feed', (req, res) => {
+    try {
+        const feed = db.prepare(`
+            SELECT
+                o.id,
+                o.created_at,
+                oi.quantity,
+                p.name  AS product_name,
+                p.price AS unit_price,
+                c.icon  AS category_icon,
+                c.name  AS category_name
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            JOIN products    p  ON p.id = oi.product_id
+            JOIN product_categories c ON c.id = p.category_id
+            WHERE o.status = 'completed'
+            ORDER BY o.created_at DESC
+            LIMIT 20
+        `).all();
+
+        return res.json({ success: true, feed });
+    } catch (err) {
+        console.error('Order feed error:', err);
+        return res.status(500).json({ success: false, feed: [] });
+    }
+});
+
 // List User Orders
 router.get('/', authenticate, (req, res) => {
     try {
