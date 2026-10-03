@@ -74,7 +74,8 @@ async function checkoutCart(userId, items) {
             // Place order with Sujan Logs Marketplace API
             const sujanRes = await sujanService.placeOrder({
                 productId: targetSujanId,
-                quantity: valItem.quantity
+                quantity: valItem.quantity,
+                inventoryItemIds: valItem.inventoryItemIds
             });
 
             const sujanOrderData = sujanRes.data || sujanRes;

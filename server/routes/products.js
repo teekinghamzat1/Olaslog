@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const sujanService = require('../services/sujan');
@@ -65,30 +65,30 @@ router.get('/', async (req, res) => {
 
         const products = db.prepare(query).all(...params);
 
-        // Fetch live catalog from Rakib API to sync stock counts
-        let rakibProductsMap = new Map();
+        // Fetch live catalog from Sujan API to sync stock counts
+        let sujanProductsMap = new Map();
         try {
-            const rakibCatalog = await sujanService.getAllProducts();
-            if (Array.isArray(rakibCatalog)) {
-                for (const rp of rakibCatalog) {
-                    rakibProductsMap.set(Number(rp.id), rp);
-                }
+            const sujanCatalogRes = await sujanService.getAllProducts();
+            const sujanCatalog = Array.isArray(sujanCatalogRes?.data) ? sujanCatalogRes.data : (Array.isArray(sujanCatalogRes) ? sujanCatalogRes : []);
+            for (const sp of sujanCatalog) {
+                sujanProductsMap.set(Number(sp.id), sp);
             }
         } catch (e) {
-            console.warn('Could not fetch Rakib catalog for stock count overlay:', e.message);
+            console.warn('Could not fetch Sujan catalog for stock count overlay:', e.message);
         }
 
         const enrichedProducts = products.map(p => {
             let stockCount = 0;
             let isAutoFulfilled = false;
             let inStock = false;
-            const targetRakibId = p.rakib_product_id || p.sujan_product_id || p.id;
-            const rakibItem = rakibProductsMap.get(Number(targetRakibId));
+            const targetSujanId = p.sujan_product_id || p.rakib_product_id || p.id;
+            const sujanItem = sujanProductsMap.get(Number(targetSujanId));
 
-            if (rakibItem) {
-                stockCount = parseInt(rakibItem.stock, 10);
+            if (sujanItem) {
+                stockCount = parseInt(sujanItem.available_stock ?? sujanItem.stock, 10);
                 if (isNaN(stockCount)) stockCount = 0;
-                inStock = rakibItem.in_stock !== false && (stockCount > 0);
+                inStock = sujanItem.in_stock !== false && (stockCount > 0);
+                isAutoFulfilled = sujanItem.fulfillment_type === 'external_auto' || sujanItem.fulfillment_type === 'api';
             } else {
                 // Fallback to local stock count
                 const localStock = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(p.id);
@@ -98,8 +98,8 @@ router.get('/', async (req, res) => {
 
             return {
                 id: p.id,
-                rakibProductId: targetRakibId,
-                sujanProductId: targetRakibId, // backwards compatibility
+                rakibProductId: targetSujanId,
+                sujanProductId: targetSujanId, // backwards compatibility
                 name: p.name,
                 slug: p.slug,
                 description: p.description,
@@ -110,9 +110,9 @@ router.get('/', async (req, res) => {
                 minQty: p.min_order_qty || 1,
                 maxQty: p.max_order_qty || 50,
                 stockCount,
-                isAutoFulfilled: false,
+                isAutoFulfilled,
                 inStock,
-                hasOptions: false,
+                hasOptions: sujanItem?.fulfillment_type === 'local',
                 category: {
                     id: p.category_id,
                     name: p.category_name,
@@ -148,10 +148,10 @@ router.get('/:id/stock', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetRakibId = product.rakib_product_id || product.sujan_product_id || product.id;
+        const targetSujanId = product.sujan_product_id || product.rakib_product_id || product.id;
         let stockData = null;
         try {
-            stockData = await sujanService.getProductStock(targetRakibId);
+            stockData = await sujanService.getProductStock(targetSujanId);
         } catch (_) {}
 
         let stockCount = 0;
@@ -168,18 +168,21 @@ router.get('/:id/stock', async (req, res) => {
             inStock = stockCount > 0;
         }
 
+        const options = Array.isArray(stockData?.data?.options) ? stockData.data.options : [];
+        const fulfillmentType = stockData?.data?.fulfillment_type || (product.sujan_product_id ? 'external_auto' : 'instant_key');
+
         return res.json({
             success: true,
             stock: {
                 productId: product.id,
                 productName: product.name,
                 unitPrice: product.price,
-                fulfillmentType: 'instant_key',
-                isAutoFulfilled: false,
+                fulfillmentType,
+                isAutoFulfilled: fulfillmentType === 'external_auto' || fulfillmentType === 'api',
                 availableStock: stockCount,
                 inStock,
-                hasOptions: false,
-                options: []
+                hasOptions: options.length > 0,
+                options
             }
         });
     } catch (err) {

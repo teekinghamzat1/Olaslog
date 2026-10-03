@@ -6,6 +6,8 @@ const multer = require('multer');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { getOrderWithCredentials } = require('../services/order');
+const { encrypt } = require('../services/crypto');
+const sujanService = require('../services/sujan');
 
 // Setup multer storage for dispute screenshots/proof
 const uploadDir = path.resolve(__dirname, '../../uploads/disputes');
@@ -116,6 +118,91 @@ router.post('/:id/dispute', authenticate, upload.single('proofImage'), (req, res
     } catch (err) {
         console.error('Dispute submission error:', err);
         return res.status(500).json({ success: false, error: 'Failed to submit dispute report' });
+    }
+});
+
+// Sujan Logs Marketplace Webhook Handler (order.completed)
+// POST /api/orders/webhook
+router.post('/webhook', async (req, res) => {
+    try {
+        const rawBody = JSON.stringify(req.body);
+        const signature = req.headers['x-sujan-signature'] || req.headers['x-signature'] || req.headers['signature'];
+        const webhookSecret = process.env.SUJAN_WEBHOOK_SECRET;
+
+        // If webhook secret is configured, enforce signature verification
+        if (webhookSecret && signature) {
+            const isValid = sujanService.verifyWebhookSignature(rawBody, signature, webhookSecret);
+            if (!isValid) {
+                return res.status(400).json({ success: false, error: 'Invalid webhook signature' });
+            }
+        }
+
+        const event = req.body;
+        // Handle order.completed event
+        if (event && (event.event === 'order.completed' || event.data?.status === 'completed')) {
+            const orderData = event.data || event;
+            const sujanOrderId = String(orderData.id || orderData.order_id || '');
+
+            if (sujanOrderId) {
+                // Find matching order in DB
+                const localOrder = db.prepare(`
+                    SELECT id FROM orders 
+                    WHERE sujan_order_id = ? OR rakib_order_id = ?
+                `).get(sujanOrderId, sujanOrderId);
+
+                if (localOrder && Array.isArray(orderData.items) && orderData.items.length > 0) {
+                    const orderId = localOrder.id;
+
+                    // Ensure items have credentials recorded
+                    for (const item of orderData.items) {
+                        const rawCred = item.credential || item.key;
+                        if (!rawCred) continue;
+
+                        // Check if already stored
+                        const existingCred = db.prepare(`
+                            SELECT id FROM delivered_credentials
+                            WHERE order_id = ? AND (sujan_item_id = ? OR sujan_item_id = ?)
+                        `).get(orderId, String(item.id || ''), String(sujanOrderId));
+
+                        if (!existingCred) {
+                            const enc = encrypt(rawCred);
+                            const publicData = item.public_data || `Account #${item.id || 'AUTO'}`;
+
+                            // Find order_item_id for this product
+                            const orderItem = db.prepare(`
+                                SELECT oi.id FROM order_items oi
+                                JOIN products p ON oi.product_id = p.id
+                                WHERE oi.order_id = ? AND (p.sujan_product_id = ? OR p.rakib_product_id = ?)
+                                LIMIT 1
+                            `).get(orderId, item.product_id, item.product_id);
+
+                            db.prepare(`
+                                INSERT INTO delivered_credentials
+                                (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
+                                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
+                            `).run(
+                                orderId,
+                                orderItem ? orderItem.id : null,
+                                orderItem ? orderItem.product_id : null,
+                                item.id || sujanOrderId,
+                                publicData,
+                                enc.encrypted,
+                                enc.iv,
+                                enc.authTag
+                            );
+                        }
+                    }
+
+                    // Update order status to completed
+                    db.prepare(`UPDATE orders SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(orderId);
+                }
+            }
+        }
+
+        return res.status(200).json({ success: true, message: 'Webhook processed successfully' });
+    } catch (err) {
+        console.error('Sujan Webhook processing error:', err);
+        return res.status(500).json({ success: false, error: 'Internal webhook error' });
     }
 });
 
