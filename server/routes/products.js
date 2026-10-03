@@ -7,19 +7,32 @@ function isValidImageUrl(url) {
     return Boolean(url && !url.includes('clearbit') && !url.includes('unsplash'));
 }
 
-// List Categories
+// List Categories (Texting App first, then by most sold)
 router.get('/categories', (req, res) => {
     try {
         const categories = db.prepare(`
-            SELECT c.*, COUNT(p.id) as product_count
+            SELECT 
+                c.*, 
+                COUNT(DISTINCT p.id) as product_count,
+                COALESCE(SUM(CASE WHEN o.status = 'completed' THEN oi.quantity ELSE 0 END), 0) as total_sold
             FROM product_categories c
             LEFT JOIN products p ON p.category_id = c.id AND p.is_active = 1
+            LEFT JOIN order_items oi ON oi.product_id = p.id
+            LEFT JOIN orders o ON o.id = oi.order_id
             GROUP BY c.id
-            ORDER BY c.name ASC
+            ORDER BY 
+                CASE 
+                    WHEN LOWER(c.name) LIKE '%texting%' OR LOWER(c.slug) LIKE '%texting%' THEN 0 
+                    ELSE 1 
+                END ASC,
+                total_sold DESC,
+                product_count DESC,
+                c.name ASC
         `).all();
 
         return res.json({ success: true, categories });
     } catch (err) {
+        console.error('Fetch categories error:', err);
         return res.status(500).json({ success: false, error: 'Failed to fetch categories' });
     }
 });
@@ -48,9 +61,24 @@ router.get('/', async (req, res) => {
                 c.name as category_name,
                 c.slug as category_slug,
                 c.icon as category_icon,
-                c.rules_guide_markdown
+                c.rules_guide_markdown,
+                COALESCE(cat_sales.category_sold, 0) as category_sold,
+                COALESCE(prod_sales.product_sold, 0) as product_sold
             FROM products p
             JOIN product_categories c ON p.category_id = c.id
+            LEFT JOIN (
+                SELECT p2.category_id, SUM(oi2.quantity) as category_sold
+                FROM order_items oi2
+                JOIN orders o2 ON o2.id = oi2.order_id AND o2.status = 'completed'
+                JOIN products p2 ON p2.id = oi2.product_id
+                GROUP BY p2.category_id
+            ) cat_sales ON cat_sales.category_id = c.id
+            LEFT JOIN (
+                SELECT oi3.product_id, SUM(oi3.quantity) as product_sold
+                FROM order_items oi3
+                JOIN orders o3 ON o3.id = oi3.order_id AND o3.status = 'completed'
+                GROUP BY oi3.product_id
+            ) prod_sales ON prod_sales.product_id = p.id
             WHERE p.is_active = 1
         `;
 
@@ -65,7 +93,14 @@ router.get('/', async (req, res) => {
             params.push(`%${search}%`, `%${search}%`);
         }
 
-        query += ` ORDER BY p.id ASC`;
+        query += ` ORDER BY 
+            CASE 
+                WHEN LOWER(c.name) LIKE '%texting%' OR LOWER(c.slug) LIKE '%texting%' THEN 0 
+                ELSE 1 
+            END ASC,
+            category_sold DESC,
+            product_sold DESC,
+            p.id ASC`;
 
         const products = db.prepare(query).all(...params);
 
@@ -131,6 +166,8 @@ router.get('/', async (req, res) => {
                 isAutoFulfilled,
                 inStock,
                 hasOptions: sujanItem?.fulfillment_type === 'local',
+                categorySold: p.category_sold || 0,
+                productSold: p.product_sold || 0,
                 category: {
                     id: p.category_id,
                     name: p.category_name,
@@ -139,6 +176,30 @@ router.get('/', async (req, res) => {
                     rulesGuide: p.rules_guide_markdown
                 }
             };
+        });
+
+        // Ensure sorting: Texting App category first, then most sold categories;
+        // within each category, in-stock products first, followed by sales volume
+        enrichedProducts.sort((a, b) => {
+            const aIsTexting = /texting/i.test(a.category?.name || '') || /texting/i.test(a.category?.slug || '');
+            const bIsTexting = /texting/i.test(b.category?.name || '') || /texting/i.test(b.category?.slug || '');
+            if (aIsTexting !== bIsTexting) return aIsTexting ? -1 : 1;
+
+            if (b.categorySold !== a.categorySold) {
+                return (b.categorySold || 0) - (a.categorySold || 0);
+            }
+
+            // In-stock products prioritized within category
+            const aInStock = a.inStock ? 1 : 0;
+            const bInStock = b.inStock ? 1 : 0;
+            if (bInStock !== aInStock) return bInStock - aInStock;
+
+            // Product sales volume
+            if (b.productSold !== a.productSold) {
+                return (b.productSold || 0) - (a.productSold || 0);
+            }
+
+            return a.id - b.id;
         });
 
         return res.json({

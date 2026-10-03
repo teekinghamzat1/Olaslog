@@ -437,8 +437,19 @@ function renderCategoryTabs(categories) {
     const container = document.getElementById('categoryTabsContainer');
     if (!container) return;
 
+    // Ensure Texting App category is always pinned first, followed by most sold categories
+    const sortedCategories = [...categories].sort((a, b) => {
+        const aIsTexting = /texting/i.test(a.name) || /texting/i.test(a.slug);
+        const bIsTexting = /texting/i.test(b.name) || /texting/i.test(b.slug);
+        if (aIsTexting !== bIsTexting) return aIsTexting ? -1 : 1;
+        if ((b.total_sold || 0) !== (a.total_sold || 0)) {
+            return (b.total_sold || 0) - (a.total_sold || 0);
+        }
+        return 0;
+    });
+
     let html = `<button class="category-tab active" onclick="filterCategory('all', this)">All Categories</button>`;
-    for (const cat of categories) {
+    for (const cat of sortedCategories) {
         html += `<button class="category-tab" onclick="filterCategory('${cat.slug}', this)">${cat.icon || '📦'} ${cat.name}</button>`;
     }
     container.innerHTML = html;
@@ -472,13 +483,22 @@ function renderProductGrid(products) {
     for (const p of products) {
         const catName = (p.category && p.category.name) || 'Other';
         const catIcon = (p.category && p.category.icon) || '📦';
+        const catSlug = (p.category && p.category.slug) || '';
         const key = catName;
-        if (!grouped.has(key)) grouped.set(key, { icon: catIcon, name: catName, items: [] });
+        if (!grouped.has(key)) grouped.set(key, { icon: catIcon, name: catName, slug: catSlug, items: [] });
         grouped.get(key).items.push(p);
     }
 
+    // Sort category sections: Texting App always first, followed by most-sold
+    const sortedGroups = Array.from(grouped.values()).sort((a, b) => {
+        const aIsTexting = /texting/i.test(a.name) || /texting/i.test(a.slug);
+        const bIsTexting = /texting/i.test(b.name) || /texting/i.test(b.slug);
+        if (aIsTexting !== bIsTexting) return aIsTexting ? -1 : 1;
+        return 0; // preserve incoming sales-ordered flow from backend
+    });
+
     let html = '';
-    for (const [, group] of grouped) {
+    for (const group of sortedGroups) {
         html += `
             <div style="grid-column: 1/-1; display: flex; align-items: center; gap: 10px; margin: 1.5rem 0 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--edge);">
                 <span style="font-size: 1.3rem;">${group.icon}</span>
