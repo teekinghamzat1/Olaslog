@@ -2227,6 +2227,9 @@ const LiveOrderFeed = (() => {
     return { init, dismiss };
 })();
 
+window.LiveOrderFeed = LiveOrderFeed;
+
 function initLiveOrderFeed() {
     LiveOrderFeed.init();
 }
+

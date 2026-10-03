@@ -42,12 +42,12 @@ router.get('/feed', (req, res) => {
                 oi.quantity,
                 p.name  AS product_name,
                 p.price AS unit_price,
-                c.icon  AS category_icon,
-                c.name  AS category_name
+                COALESCE(c.icon, '🛍️')  AS category_icon,
+                COALESCE(c.name, 'Digital')  AS category_name
             FROM orders o
             JOIN order_items oi ON oi.order_id = o.id
             JOIN products    p  ON p.id = oi.product_id
-            JOIN product_categories c ON c.id = p.category_id
+            LEFT JOIN product_categories c ON c.id = p.category_id
             WHERE o.status = 'completed'
             ORDER BY o.created_at DESC
             LIMIT 20
