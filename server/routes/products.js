@@ -1,7 +1,7 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const rakibService = require('../services/rakib');
+const sujanService = require('../services/sujan');
 
 // List Categories
 router.get('/categories', (req, res) => {
@@ -68,7 +68,7 @@ router.get('/', async (req, res) => {
         // Fetch live catalog from Rakib API to sync stock counts
         let rakibProductsMap = new Map();
         try {
-            const rakibCatalog = await rakibService.getAllProducts();
+            const rakibCatalog = await sujanService.getAllProducts();
             if (Array.isArray(rakibCatalog)) {
                 for (const rp of rakibCatalog) {
                     rakibProductsMap.set(Number(rp.id), rp);
@@ -106,7 +106,7 @@ router.get('/', async (req, res) => {
                 price: p.price,
                 imageUrl: (p.image_url && !p.image_url.includes('clearbit') && !p.image_url.includes('unsplash'))
                     ? p.image_url
-                    : rakibService.resolveProductLogoUrl(p.name, p.category_name),
+                    : sujanService.resolveProductLogoUrl(p.name, p.category_name),
                 minQty: p.min_order_qty || 1,
                 maxQty: p.max_order_qty || 50,
                 stockCount,
@@ -151,7 +151,7 @@ router.get('/:id/stock', async (req, res) => {
         const targetRakibId = product.rakib_product_id || product.sujan_product_id || product.id;
         let stockData = null;
         try {
-            stockData = await rakibService.getProductStock(targetRakibId);
+            stockData = await sujanService.getProductStock(targetRakibId);
         } catch (_) {}
 
         let stockCount = 0;
@@ -202,7 +202,7 @@ router.get('/:id/rules', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const fallbackMarkdown = `### ⚠️ Important Usage Rules for ${product.name}\n- **Immediate Testing**: Inspect and test credentials immediately upon automated delivery.\n- **Recommended Proxies**: Always log in through residential proxies matching the assigned region/country.\n- **Security**: Update recovery factors following initial login.\n- **Support**: In the event of an authentication issue upon delivery, report via the Orders section within 24 hours.`;
+        const fallbackMarkdown = `### âš ï¸ Important Usage Rules for ${product.name}\n- **Immediate Testing**: Inspect and test credentials immediately upon automated delivery.\n- **Recommended Proxies**: Always log in through residential proxies matching the assigned region/country.\n- **Security**: Update recovery factors following initial login.\n- **Support**: In the event of an authentication issue upon delivery, report via the Orders section within 24 hours.`;
 
         return res.json({
             success: true,
@@ -244,7 +244,7 @@ router.get('/:id', async (req, res) => {
         let inStock = true;
 
         try {
-            const stockRes = await rakibService.getProductStock(targetRakibId);
+            const stockRes = await sujanService.getProductStock(targetRakibId);
             if (stockRes && stockRes.data) {
                 stockCount = stockRes.data.available_stock || 0;
                 inStock = stockRes.data.in_stock ?? (stockCount > 0);
@@ -267,7 +267,7 @@ router.get('/:id', async (req, res) => {
                 price: product.price,
                 imageUrl: (product.image_url && !product.image_url.includes('clearbit') && !product.image_url.includes('unsplash'))
                     ? product.image_url
-                    : rakibService.resolveProductLogoUrl(product.name, product.category_name),
+                    : sujanService.resolveProductLogoUrl(product.name, product.category_name),
                 minQty: product.min_order_qty || 1,
                 maxQty: product.max_order_qty || 50,
                 stockCount: stockCount,
@@ -287,3 +287,4 @@ router.get('/:id', async (req, res) => {
 });
 
 module.exports = router;
+

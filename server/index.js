@@ -7,7 +7,7 @@ require('dotenv').config();
 // Ensure DB is initialized
 require('./db');
 
-const rakibService = require('./services/rakib');
+const sujanService = require('./services/sujan');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
@@ -68,12 +68,12 @@ app.listen(PORT, async () => {
     console.log(`👉 http://localhost:${PORT}`);
     console.log(`====================================================`);
 
-    // Auto-sync catalog and prices from Rakib Socials on startup
+    // Auto-sync catalog and prices from Sujan Logs Marketplace on startup
     try {
-        const syncRes = await rakibService.syncCatalogFromRakib();
-        console.log(`📦 Auto-synced Rakib Socials catalog: ${syncRes.productsSynced} products in ${syncRes.categoriesSynced} categories.`);
+        const syncRes = await sujanService.syncCatalogFromSujan();
+        console.log(`📦 Auto-synced Sujan catalog: ${syncRes.productsSynced} products in ${syncRes.categoriesSynced} categories.`);
     } catch (e) {
-        console.warn('Initial Rakib catalog sync notice:', e.message);
+        console.warn('Initial Sujan catalog sync notice:', e.message);
     }
 });
 

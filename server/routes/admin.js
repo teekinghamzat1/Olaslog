@@ -6,7 +6,7 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../services/crypto');
 const { recordRefund, getWalletBalance, adjustUserBalance } = require('../services/wallet');
 const { getOrderWithCredentials } = require('../services/order');
-const rakibService = require('../services/rakib');
+const sujanService = require('../services/sujan');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -33,10 +33,10 @@ router.get('/metrics', async (req, res) => {
         
         let rakibBalance = null;
         try {
-            const balRes = await rakibService.getBalance();
+            const balRes = await sujanService.getBalance();
             rakibBalance = balRes.data;
         } catch (e) {
-            console.warn('Admin metrics: could not fetch Rakib balance', e.message);
+            console.warn('Admin metrics: could not fetch Sujan balance', e.message);
         }
 
         const stockStats = db.prepare(`
@@ -78,15 +78,15 @@ router.get('/metrics', async (req, res) => {
     }
 });
 
-// Rakib API Health & Balance (with Sujan status alias)
+// Sujan API Health & Balance
 router.get(['/rakib/status', '/rakib-status', '/sujan/status', '/sujan-status'], async (req, res) => {
     try {
-        const balanceData = await rakibService.getBalance();
+        const balanceData = await sujanService.getBalance();
         return res.json({
             success: true,
             status: {
-                isLive: !rakibService.isPlaceholderKey,
-                baseUrl: process.env.RAKIB_API_BASE_URL || 'https://www.rakibsocials.com/api/v1',
+                isLive: !sujanService.isPlaceholderKey,
+                baseUrl: process.env.SUJAN_API_BASE_URL || 'https://api.sujanlogsmarketplace.com/v1',
                 balance: balanceData.data,
                 isSandbox: balanceData.is_sandbox
             },
@@ -94,7 +94,7 @@ router.get(['/rakib/status', '/rakib-status', '/sujan/status', '/sujan-status'],
             balance: balanceData.data
         });
     } catch (err) {
-        return res.status(500).json({ success: false, error: 'Failed to fetch Rakib API status' });
+        return res.status(500).json({ success: false, error: 'Failed to fetch Sujan API status' });
     }
 });
 
@@ -119,15 +119,15 @@ router.get('/products', (req, res) => {
     }
 });
 
-// Trigger catalog sync from Rakib API on demand
+// Trigger catalog sync from Sujan API on demand
 router.post(['/products/sync-rakib', '/products/sync-sujan'], async (req, res) => {
     try {
-        const syncResult = await rakibService.syncCatalogFromRakib();
-        logAudit(req.user.id, 'SYNC_RAKIB_CATALOG', 'CATALOG', 0, `Synced ${syncResult.productsSynced} products from Rakib Socials`);
-        return res.json({ success: true, result: syncResult, message: `Synced ${syncResult.productsSynced} products from Rakib Socials` });
+        const syncResult = await sujanService.syncCatalogFromSujan();
+        logAudit(req.user.id, 'SYNC_SUJAN_CATALOG', 'CATALOG', 0, `Synced ${syncResult.productsSynced} products from Sujan Logs Marketplace`);
+        return res.json({ success: true, result: syncResult, message: `Synced ${syncResult.productsSynced} products from Sujan Logs Marketplace` });
     } catch (err) {
-        console.error('Rakib sync error:', err);
-        return res.status(500).json({ success: false, error: err.message || 'Failed to sync from Rakib Socials API' });
+        console.error('Sujan sync error:', err);
+        return res.status(500).json({ success: false, error: err.message || 'Failed to sync from Sujan Logs Marketplace' });
     }
 });
 
