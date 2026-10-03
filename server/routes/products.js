@@ -133,7 +133,7 @@ router.get('/', async (req, res) => {
                 // The Sujan API does not return an `in_stock` boolean — derive it:
                 // For auto-fulfilled products (external_auto/api), available_stock=999 means always in stock.
                 // For regular products, trust available_stock > 0.
-                inStock = isAutoFulfilled ? true : (sujanItem.in_stock !== false && stockCount > 0);
+                inStock = isAutoFulfilled || (sujanItem.in_stock !== false && stockCount > 0);
             } else if (p.sujan_product_id) {
                 // Product has a Sujan ID but API overlay missed it (API down or ID mismatch).
                 // If the Sujan API returned data for other products but not this one, it's a real mismatch.

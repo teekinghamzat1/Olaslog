@@ -104,28 +104,28 @@ function updateAuthUI() {
         const displayName = state.currentUser.fullName || state.currentUser.email;
         const balFormatted = (state.currentUser.balance || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 });
 
-        const navName = document.getElementById('navUserName');
-        if (navName) navName.textContent = displayName;
+        const navNameEl = document.getElementById('navUserName');
+        if (navNameEl) navNameEl.textContent = displayName;
 
-        const navBal = document.getElementById('navWalletBalance');
-        if (navBal) navBal.textContent = balFormatted;
+        const navBalEl = document.getElementById('navWalletBalance');
+        if (navBalEl) navBalEl.textContent = balFormatted;
 
-        const mobName = document.getElementById('mobUserName');
-        if (mobName) mobName.textContent = displayName;
+        const mobNameEl = document.getElementById('mobUserName');
+        if (mobNameEl) mobNameEl.textContent = displayName;
 
-        const mobBal = document.getElementById('mobUserBalance');
-        if (mobBal) mobBal.textContent = balFormatted;
+        const mobBalEl = document.getElementById('mobUserBalance');
+        if (mobBalEl) mobBalEl.textContent = balFormatted;
 
-        const mobAvatar = document.getElementById('mobUserAvatar');
-        if (mobAvatar) {
+        const mobAvatarEl = document.getElementById('mobUserAvatar');
+        if (mobAvatarEl) {
             const initials = (state.currentUser.fullName || 'User').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-            mobAvatar.textContent = initials;
+            mobAvatarEl.textContent = initials;
         }
 
-        const dashBal = document.getElementById('dashWalletBalance');
-        if (dashBal) dashBal.textContent = balFormatted;
-        const wallBal = document.getElementById('walletPageBalance');
-        if (wallBal) wallBal.textContent = balFormatted;
+        const dashBalEl = document.getElementById('dashWalletBalance');
+        if (dashBalEl) dashBalEl.textContent = balFormatted;
+        const wallBalEl = document.getElementById('walletPageBalance');
+        if (wallBalEl) wallBalEl.textContent = balFormatted;
         const nameEl = document.getElementById('dashCustomerName');
         if (nameEl) nameEl.textContent = displayName;
     }
@@ -595,7 +595,7 @@ function createProductCardHTML(p) {
                 <div class="pcard-actions">
                     <button class="btn btn-outline btn-sm" onclick="openAccountPreviewModal(${p.id})">🔍 Preview</button>
                     <button class="btn btn-outline btn-sm" onclick="openProductRulesModal(${p.id})">Rules</button>
-                    <button class="btn btn-primary btn-sm" ${!inStock ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} onclick="quickAddToCart(${p.id})">
+                    <button class="btn btn-primary btn-sm" ${inStock ? '' : 'disabled style="opacity:0.5;cursor:not-allowed;"'} onclick="quickAddToCart(${p.id})">
                         ${inStock ? '+ Cart' : 'Sold Out'}
                     </button>
                 </div>
@@ -724,8 +724,7 @@ async function openAccountPreviewModal(productId) {
         currentPreviewStock = data.stock;
         currentPreviewStock.unitPrice = product.price;
 
-        const stockNum = currentPreviewStock.availableStock;
-        const isAutoFulfilled = currentPreviewStock.isAutoFulfilled;
+        const { availableStock: stockNum, isAutoFulfilled } = currentPreviewStock;
         const stockDisplay = isAutoFulfilled
             ? '⚡ Available — Instant Delivery'
             : (stockNum !== null && stockNum !== undefined ? `⚡ ${stockNum} in stock` : '⚡ In Stock');
@@ -2120,7 +2119,7 @@ const LiveOrderFeed = (() => {
     let refreshTimer = null;
     let dismissed  = false;
 
-    function timeAgo(isoString) {
+    const timeAgo = (isoString) => {
         const diffMs  = Date.now() - new Date(isoString).getTime();
         const diffMin = Math.floor(diffMs / 60000);
         const diffHr  = Math.floor(diffMin / 60);
@@ -2128,13 +2127,13 @@ const LiveOrderFeed = (() => {
         if (diffMin < 60) return `${diffMin} min ago`;
         if (diffHr  < 24) return `${diffHr}h ago`;
         return `${Math.floor(diffHr / 24)}d ago`;
-    }
+    };
 
-    function truncate(name, maxLen = 36) {
+    const truncate = (name, maxLen = 36) => {
         return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
-    }
+    };
 
-    async function fetchFeed() {
+    const fetchFeed = async () => {
         try {
             const res  = await fetch('/api/orders/feed');
             const data = await res.json();
@@ -2152,9 +2151,9 @@ const LiveOrderFeed = (() => {
                 cursor = 0;
             }
         }
-    }
+    };
 
-    function showNext() {
+    const showNext = () => {
         if (dismissed) return;
         if (feed.length === 0) return;
 
@@ -2199,22 +2198,22 @@ const LiveOrderFeed = (() => {
             mount.innerHTML = '';
             mount.appendChild(card);
         }, existing ? 400 : 0);
-    }
+    };
 
-    function start() {
+    const start = () => {
         if (dismissed) return;
         showNext();
         loopTimer = setInterval(showNext, INTERVAL_MS);
-    }
+    };
 
-    function stop() {
+    const stop = () => {
         clearInterval(loopTimer);
         clearInterval(refreshTimer);
         loopTimer = null;
         refreshTimer = null;
-    }
+    };
 
-    function dismiss() {
+    const dismiss = () => {
         dismissed = true;
         stop();
         try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (_) {}
@@ -2227,9 +2226,9 @@ const LiveOrderFeed = (() => {
         } else {
             mount.innerHTML = '';
         }
-    }
+    };
 
-    async function init() {
+    const init = async () => {
         // Respect session-level dismiss
         try { if (sessionStorage.getItem(SESSION_KEY)) { dismissed = true; return; } } catch (_) {}
 
