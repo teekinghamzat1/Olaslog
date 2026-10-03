@@ -3,6 +3,10 @@ const router = express.Router();
 const db = require('../db');
 const sujanService = require('../services/sujan');
 
+function isValidImageUrl(url) {
+    return Boolean(url && !url.includes('clearbit') && !url.includes('unsplash'));
+}
+
 // List Categories
 router.get('/categories', (req, res) => {
     try {
@@ -104,7 +108,7 @@ router.get('/', async (req, res) => {
                 slug: p.slug,
                 description: p.description,
                 price: p.price,
-                imageUrl: (p.image_url && !p.image_url.includes('clearbit') && !p.image_url.includes('unsplash'))
+                imageUrl: isValidImageUrl(p.image_url)
                     ? p.image_url
                     : sujanService.resolveProductLogoUrl(p.name, p.category_name),
                 minQty: p.min_order_qty || 1,
@@ -242,13 +246,13 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetRakibId = product.rakib_product_id || product.sujan_product_id || product.id;
+        const targetSujanId = product.sujan_product_id || product.rakib_product_id || product.id;
         let stockCount = 10;
         let inStock = true;
 
         try {
-            const stockRes = await sujanService.getProductStock(targetRakibId);
-            if (stockRes && stockRes.data) {
+            const stockRes = await sujanService.getProductStock(targetSujanId);
+            if (stockRes?.data) {
                 stockCount = stockRes.data.available_stock || 0;
                 inStock = stockRes.data.in_stock ?? (stockCount > 0);
             }
@@ -262,19 +266,19 @@ router.get('/:id', async (req, res) => {
             success: true,
             product: {
                 id: product.id,
-                rakibProductId: targetRakibId,
-                sujanProductId: targetRakibId,
+                rakibProductId: targetSujanId,
+                sujanProductId: targetSujanId,
                 name: product.name,
                 slug: product.slug,
                 description: product.description,
                 price: product.price,
-                imageUrl: (product.image_url && !product.image_url.includes('clearbit') && !product.image_url.includes('unsplash'))
+                imageUrl: isValidImageUrl(product.image_url)
                     ? product.image_url
                     : sujanService.resolveProductLogoUrl(product.name, product.category_name),
                 minQty: product.min_order_qty || 1,
                 maxQty: product.max_order_qty || 50,
-                stockCount: stockCount,
-                inStock: inStock,
+                stockCount,
+                inStock,
                 category: {
                     id: product.category_id,
                     name: product.category_name,

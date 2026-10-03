@@ -94,10 +94,7 @@ router.post('/:id/dispute', authenticate, upload.single('proofImage'), (req, res
             });
         }
 
-        let proofImagePath = null;
-        if (req.file) {
-            proofImagePath = `/uploads/disputes/${req.file.filename}`;
-        }
+        const proofImagePath = req.file ? `/uploads/disputes/${req.file.filename}` : null;
 
         const result = db.prepare(`
             INSERT INTO disputes (order_id, user_id, reason, proof_image_path, status)
@@ -126,7 +123,7 @@ router.post('/:id/dispute', authenticate, upload.single('proofImage'), (req, res
 router.post('/webhook', async (req, res) => {
     try {
         const rawBody = JSON.stringify(req.body);
-        const signature = req.headers['x-sujan-signature'] || req.headers['x-signature'] || req.headers['signature'];
+        const signature = req.headers['x-sujan-signature'] ?? req.headers['x-signature'] ?? req.headers['signature'];
         const webhookSecret = process.env.SUJAN_WEBHOOK_SECRET;
 
         // If webhook secret is configured, enforce signature verification
@@ -139,9 +136,9 @@ router.post('/webhook', async (req, res) => {
 
         const event = req.body;
         // Handle order.completed event
-        if (event && (event.event === 'order.completed' || event.data?.status === 'completed')) {
+        if (event?.event === 'order.completed' || event?.data?.status === 'completed') {
             const orderData = event.data || event;
-            const sujanOrderId = String(orderData.id || orderData.order_id || '');
+            const sujanOrderId = String(orderData?.id ?? orderData?.order_id ?? '');
 
             if (sujanOrderId) {
                 // Find matching order in DB

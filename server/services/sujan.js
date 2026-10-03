@@ -435,11 +435,10 @@ async function placeOrder({ productId, quantity, inventoryItemIds }) {
     }
 
     try {
-        const res = await sujanFetch('/orders', {
+        return await sujanFetch('/orders', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
-        return res;
     } catch (err) {
         console.error('Sujan API placeOrder error:', err.message);
         throw err;
@@ -579,6 +578,41 @@ function resolveProductLogoUrl(name, categoryName) {
     return '/assets/logos/google.png';
 }
 
+// ─── Description sanitizer ──────────────────────────────────────────────────
+// Supplier descriptions are often raw internal notes (e.g. "User/Password/2FA",
+// "Only Redem Code", "Synced from supplier API") that must never reach customers.
+const INTERNAL_DESC_PATTERNS = [
+    /synced from (supplier|provider|api)/i,
+    /^(user|username|email)\/(password|pass)\/(2fa|hotmail|outlook)/i,
+    /^(email|username|user)\|(password|pass)\|(2fa)/i,
+    /only redem(ption)? code/i,
+    /only redeem code/i,
+    /^email\/password(\/\w+)?$/i,
+    /^user\/password(\/\w+)?$/i,
+    /^(connect|use) hma vpn/i,
+    /iphone not working/i,
+    /^username\|password\|/i,
+];
+
+function isInternalDesc(desc) {
+    if (!desc || desc.trim().length < 10) return true;
+    return INTERNAL_DESC_PATTERNS.some(p => p.test(desc.trim()));
+}
+
+function generateFriendlyDesc(name) {
+    const n = name.toUpperCase();
+    if (n.includes('VPN')) return 'Premium VPN subscription credentials. Instant automated delivery upon purchase. Follow the usage guide for activation instructions.';
+    if (n.includes('TIKTOK')) return 'Verified TikTok account with full 2FA access. Instant automated delivery. Follow the usage guide for setup and login instructions.';
+    if (n.includes('INSTAGRAM')) return 'Verified Instagram account with full 2FA access. Instant automated delivery. Follow usage guidelines for safe login.';
+    if (n.includes('FACEBOOK') || n.includes(' FB ')) return 'Verified Facebook account with login credentials. Instant automated delivery. Use the recommended VPN for first login.';
+    if (n.includes('TWITTER') || n.includes(' X ')) return 'Verified X (Twitter) account with full 2FA access. Instant automated delivery upon payment.';
+    if (n.includes('GMAIL')) return 'Aged Gmail account with login credentials. Instant automated delivery. Comes with email, password and 2FA details.';
+    if (n.includes('GOOGLE VOICE')) return 'US Google Voice account with real phone number. Instant automated delivery. Follow login instructions carefully for best results.';
+    if (n.includes('PROXY') || n.includes('PROXIES')) return 'Residential proxy package with fast and anonymous IPs. Instant automated delivery of connection details upon payment.';
+    if (n.includes('TEXTPLUS') || n.includes('NEXTPLUS') || n.includes('TEXTING')) return 'US texting app account with a real US phone number. Instant automated delivery. Follow the included login guide.';
+    return 'Verified digital account credentials with instant automated delivery upon successful purchase. Follow the usage guide for best results.';
+}
+
 /**
  * Synchronize all categories and products from Sujan Logs Marketplace
  * - Imports all categories from Sujan API
@@ -594,42 +628,6 @@ async function syncCatalogFromSujan() {
     if (!Array.isArray(sujanProducts) || !sujanProducts.length) {
         return { success: false, message: 'No products returned from provider' };
     }
-
-    // ─── Description sanitizer ──────────────────────────────────────────────────
-    // Supplier descriptions are often raw internal notes (e.g. "User/Password/2FA",
-    // "Only Redem Code", "Synced from supplier API") that must never reach customers.
-    const INTERNAL_DESC_PATTERNS = [
-        /synced from (supplier|provider|api)/i,
-        /^(user|username|email)\/(password|pass)\/(2fa|hotmail|outlook)/i,
-        /^(email|username|user)\|(password|pass)\|(2fa)/i,
-        /only redem(ption)? code/i,
-        /only redeem code/i,
-        /^email\/password(\/\w+)?$/i,
-        /^user\/password(\/\w+)?$/i,
-        /^(connect|use) hma vpn/i,
-        /iphone not working/i,
-        /^username\|password\|/i,
-    ];
-
-    function isInternalDesc(desc) {
-        if (!desc || desc.trim().length < 10) return true;
-        return INTERNAL_DESC_PATTERNS.some(p => p.test(desc.trim()));
-    }
-
-    function generateFriendlyDesc(name) {
-        const n = name.toUpperCase();
-        if (n.includes('VPN')) return 'Premium VPN subscription credentials. Instant automated delivery upon purchase. Follow the usage guide for activation instructions.';
-        if (n.includes('TIKTOK')) return 'Verified TikTok account with full 2FA access. Instant automated delivery. Follow the usage guide for setup and login instructions.';
-        if (n.includes('INSTAGRAM')) return 'Verified Instagram account with full 2FA access. Instant automated delivery. Follow usage guidelines for safe login.';
-        if (n.includes('FACEBOOK') || n.includes(' FB ')) return 'Verified Facebook account with login credentials. Instant automated delivery. Use the recommended VPN for first login.';
-        if (n.includes('TWITTER') || n.includes(' X ')) return 'Verified X (Twitter) account with full 2FA access. Instant automated delivery upon payment.';
-        if (n.includes('GMAIL')) return 'Aged Gmail account with login credentials. Instant automated delivery. Comes with email, password and 2FA details.';
-        if (n.includes('GOOGLE VOICE')) return 'US Google Voice account with real phone number. Instant automated delivery. Follow login instructions carefully for best results.';
-        if (n.includes('PROXY') || n.includes('PROXIES')) return 'Residential proxy package with fast and anonymous IPs. Instant automated delivery of connection details upon payment.';
-        if (n.includes('TEXTPLUS') || n.includes('NEXTPLUS') || n.includes('TEXTING')) return 'US texting app account with a real US phone number. Instant automated delivery. Follow the included login guide.';
-        return 'Verified digital account credentials with instant automated delivery upon successful purchase. Follow the usage guide for best results.';
-    }
-    // ────────────────────────────────────────────────────────────────────────────
 
     let categoriesSynced = 0;
     let productsSynced = 0;
