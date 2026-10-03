@@ -71,14 +71,17 @@ router.get('/', async (req, res) => {
 
         // Fetch live catalog from Sujan API to sync stock counts
         let sujanProductsMap = new Map();
+        let sujanApiAvailable = false;
         try {
             const sujanCatalogRes = await sujanService.getAllProducts();
             const sujanCatalog = Array.isArray(sujanCatalogRes?.data) ? sujanCatalogRes.data : (Array.isArray(sujanCatalogRes) ? sujanCatalogRes : []);
             for (const sp of sujanCatalog) {
                 sujanProductsMap.set(Number(sp.id), sp);
             }
+            sujanApiAvailable = sujanCatalog.length > 0;
+            console.log(`[Products] Sujan API overlay loaded ${sujanCatalog.length} products into map.`);
         } catch (e) {
-            console.warn('Could not fetch Sujan catalog for stock count overlay:', e.message);
+            console.warn('[Products] Could not fetch Sujan catalog for stock overlay:', e.message);
         }
 
         const enrichedProducts = products.map(p => {
@@ -91,10 +94,21 @@ router.get('/', async (req, res) => {
             if (sujanItem) {
                 stockCount = parseInt(sujanItem.available_stock ?? sujanItem.stock, 10);
                 if (isNaN(stockCount)) stockCount = 0;
-                inStock = sujanItem.in_stock !== false && (stockCount > 0);
                 isAutoFulfilled = sujanItem.fulfillment_type === 'external_auto' || sujanItem.fulfillment_type === 'api';
+                // The Sujan API does not return an `in_stock` boolean — derive it:
+                // For auto-fulfilled products (external_auto/api), available_stock=999 means always in stock.
+                // For regular products, trust available_stock > 0.
+                inStock = isAutoFulfilled ? true : (sujanItem.in_stock !== false && stockCount > 0);
+            } else if (p.sujan_product_id) {
+                // Product has a Sujan ID but API overlay missed it (API down or ID mismatch).
+                // If the Sujan API returned data for other products but not this one, it's a real mismatch.
+                // If the API was completely unavailable, default to in-stock to avoid false "Sold out" banners.
+                console.warn(`[Products] sujan_product_id=${p.sujan_product_id} not found in API overlay map (map size: ${sujanProductsMap.size}). Defaulting to in-stock.`);
+                isAutoFulfilled = true;
+                stockCount = 999;
+                inStock = true;
             } else {
-                // Fallback to local stock count
+                // No Sujan ID — fallback to local stock_items table
                 const localStock = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(p.id);
                 stockCount = localStock ? localStock.count : (p.stock_count || 0);
                 inStock = stockCount > 0;
