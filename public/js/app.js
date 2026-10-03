@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCatalog();
     handleRouting();
     updateCartUI();
+    window.addEventListener('popstate', handleRouting);
     window.addEventListener('hashchange', handleRouting);
 });
 
@@ -259,12 +260,36 @@ function toggleMobileDrawer(forceOpen = null) {
 }
 
 // ============================================================================
-// Routing & Navigation
+// Routing & Navigation (Clean HTML5 History API)
 // ============================================================================
 
+function getViewFromUrl() {
+    // 1. Intercept legacy hash navigation (e.g. https://olaslog.com/#shop) and clean it to /shop
+    if (window.location.hash) {
+        const hashClean = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+        if (hashClean) {
+            const cleanPath = (hashClean === 'home' || !hashClean) ? '/' : `/${hashClean}`;
+            const search = window.location.search || '';
+            if (window.history.replaceState) {
+                window.history.replaceState(null, '', cleanPath + search);
+            }
+            return hashClean;
+        }
+    }
+
+    // 2. Read from pathname (e.g. /shop, /orders, /wallet, /dashboard)
+    const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '');
+    const firstSegment = pathname.split('/')[0];
+
+    if (!firstSegment || firstSegment === 'index.html' || firstSegment === 'home') {
+        return 'home';
+    }
+
+    return firstSegment;
+}
+
 function handleRouting() {
-    const rawHash = window.location.hash.replace('#', '') || 'home';
-    const viewName = rawHash.split('?')[0];
+    const viewName = getViewFromUrl();
 
     // Intercept modal & auth routes so page is NEVER blank
     if (viewName === 'authModal' || viewName === 'login') {
@@ -310,9 +335,20 @@ function handleRouting() {
     switchView(viewName);
 }
 
-function navigateTo(viewName) {
+function navigateTo(viewName, replace = false) {
     toggleMobileDrawer(false);
-    window.location.hash = viewName;
+    const targetPath = (viewName === 'home' || !viewName) ? '/' : `/${viewName}`;
+    const currentPath = window.location.pathname;
+
+    if (window.history.pushState) {
+        if (window.location.hash || replace) {
+            window.history.replaceState(null, '', targetPath);
+        } else if (currentPath !== targetPath) {
+            window.history.pushState(null, '', targetPath);
+        }
+    }
+
+    handleRouting();
 }
 
 function switchView(viewName) {
@@ -1369,9 +1405,9 @@ async function checkUrlPaymentVerification() {
         } catch (e) {
             console.warn('Verify error:', e);
         }
-        // Clean URL parameter
+        // Clean URL parameter and keep user on /wallet
         if (window.history.replaceState) {
-            window.history.replaceState(null, '', window.location.pathname + '#wallet');
+            window.history.replaceState(null, '', '/wallet');
         }
     }
 }
