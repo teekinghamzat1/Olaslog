@@ -3,10 +3,17 @@ const db = require('../db');
 const { getWalletBalance, recordFunding, completeFunding } = require('./wallet');
 require('dotenv').config();
 
-const BILLSTACK_SECRET_KEY = process.env.BILLSTACK_SECRET_KEY || '';
 const BILLSTACK_BASE_URL = 'https://api.billstack.co/v2/thirdparty';
 
-const isMock = !BILLSTACK_SECRET_KEY || BILLSTACK_SECRET_KEY.includes('mock') || BILLSTACK_SECRET_KEY === 'your_billstack_secret_key_here';
+/** Re-read env at call time so adding a key + restarting always works. */
+function getSecretKey() {
+    return process.env.BILLSTACK_SECRET_KEY || '';
+}
+
+function isMock() {
+    const key = getSecretKey();
+    return !key || key.includes('mock') || key === 'your_billstack_secret_key_here';
+}
 
 /**
  * Supported banks for BillStack virtual account generation.
@@ -65,7 +72,7 @@ async function billstackFetch(endpoint, body) {
     const response = await fetch(url, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${BILLSTACK_SECRET_KEY}`,
+            'Authorization': `Bearer ${getSecretKey()}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(body)
@@ -112,8 +119,10 @@ function deleteVirtualAccount(userId, accountId) {
  * @param {boolean} [params.forceNew] - If true, replaces existing account
  */
 async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumber, forceNew = false } = {}) {
-    // Automatically purge invalid mock accounts if user now has a real key
-    if (!isMock) {
+    const mock = isMock();
+
+    // Automatically purge stale mock accounts whenever a real key is now present
+    if (!mock) {
         db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ? AND is_mock = 1`).run(userId);
     }
 
@@ -123,10 +132,10 @@ async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumb
     if (forceNew) {
         db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ? AND (bank_code = ? OR is_mock = 1)`).run(userId, selectedBank);
     } else {
-        // Return existing non-mock account if one already exists for this bank or generally
+        // Return existing real (non-mock) account if one exists
         const existingForBank = db.prepare(`
             SELECT * FROM user_virtual_accounts 
-            WHERE user_id = ? AND bank_code = ?
+            WHERE user_id = ? AND bank_code = ? AND is_mock = 0
             ORDER BY created_at DESC LIMIT 1
         `).get(userId, selectedBank);
 
@@ -162,7 +171,7 @@ async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumb
     const accountReference = `OLAS-VBA-${userId}-${Date.now()}`;
 
     // 5. Live API call
-    if (!isMock && process.env.NODE_ENV !== 'test') {
+    if (!mock && process.env.NODE_ENV !== 'test') {
         try {
             const payload = {
                 reference: accountReference,
