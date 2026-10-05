@@ -7,7 +7,7 @@ require('dotenv').config();
 // Ensure DB is initialized
 require('./db');
 
-const sujanService = require('./services/sujan');
+const syncScheduler = require('./services/syncScheduler');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
@@ -62,19 +62,32 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, error: 'Internal server error occurred' });
 });
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`🚀 Olaslog Marketplace Server running on port ${PORT}`);
     console.log(`👉 http://localhost:${PORT}`);
     console.log(`====================================================`);
 
-    // Auto-sync catalog and prices from Sujan Logs Marketplace on startup
-    try {
-        const syncRes = await sujanService.syncCatalogFromSujan();
-        console.log(`📦 Auto-synced Sujan catalog: ${syncRes.productsSynced} products in ${syncRes.categoriesSynced} categories.`);
-    } catch (e) {
-        console.warn('Initial Sujan catalog sync notice:', e.message);
-    }
+    // Start automated recurring catalog sync from Sujan Logs Marketplace
+    const job = syncScheduler.startSyncJob();
+    console.log(`📦 Catalog sync scheduler started — running every ${job.intervalMinutes} min. Next: ${job.nextSyncAt}`);
+});
+
+// Graceful shutdown — stop the sync scheduler before exiting
+process.on('SIGTERM', () => {
+    syncScheduler.stopSyncJob();
+    server.close(() => {
+        console.log('[Server] Gracefully shut down.');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    syncScheduler.stopSyncJob();
+    server.close(() => {
+        console.log('[Server] Gracefully shut down (SIGINT).');
+        process.exit(0);
+    });
 });
 
 module.exports = app;

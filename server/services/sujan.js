@@ -630,7 +630,8 @@ async function syncCatalogFromSujan() {
     }
 
     let categoriesSynced = 0;
-    let productsSynced = 0;
+    let productsAdded = 0;
+    let productsUpdated = 0;
 
     const findCategoryStmt = db.prepare(`SELECT id FROM product_categories WHERE slug = ? OR name = ?`);
     const insertCategoryStmt = db.prepare(`
@@ -706,7 +707,7 @@ async function syncCatalogFromSujan() {
                 sujanBasePrice,
                 imageUrl
             );
-            productsSynced++;
+            productsAdded++;
         } else {
             // Sanitize incoming description — preserve existing clean DB description if new one is internal/blank
             const rawDesc = sp.description || '';
@@ -746,14 +747,16 @@ async function syncCatalogFromSujan() {
                     existingProd.id
                 );
             }
-            productsSynced++;
+            productsUpdated++;
         }
     }
 
     return {
         success: true,
         categoriesSynced,
-        productsSynced,
+        productsSynced: productsAdded + productsUpdated,
+        productsAdded,
+        productsUpdated,
         totalCatalogCount: sujanProducts.length
     };
 }

@@ -7,6 +7,7 @@ const { encrypt, decrypt } = require('../services/crypto');
 const { recordRefund, getWalletBalance, adjustUserBalance } = require('../services/wallet');
 const { getOrderWithCredentials } = require('../services/order');
 const sujanService = require('../services/sujan');
+const syncScheduler = require('../services/syncScheduler');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -941,6 +942,90 @@ router.delete('/administrators/:id', (req, res) => {
         });
     } catch (err) {
         return res.status(500).json({ success: false, error: 'Failed to delete administrator' });
+    }
+});
+
+
+// ─── Catalog Sync Scheduler Admin Routes ─────────────────────────────────────
+
+/**
+ * GET /api/admin/sync/status
+ * Returns current sync scheduler state, last run stats and next scheduled run.
+ */
+router.get('/sync/status', (req, res) => {
+    try {
+        const status = syncScheduler.getSyncStatus();
+        return res.json({ success: true, sync: status });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to fetch sync status' });
+    }
+});
+
+/**
+ * POST /api/admin/sync/trigger
+ * Immediately triggers a full catalog sync from the provider API.
+ * If a sync is already running, returns 409 Conflict.
+ */
+router.post('/sync/trigger', async (req, res) => {
+    try {
+        const result = await syncScheduler.runCatalogSync('manual', req.user.id);
+
+        if (result.in_progress) {
+            return res.status(409).json({
+                success: false,
+                message: result.message || 'A catalog sync is already running'
+            });
+        }
+
+        logAudit(
+            req.user.id,
+            'manual_catalog_sync',
+            'products',
+            'provider_api',
+            JSON.stringify({
+                triggered_by: 'admin_dashboard',
+                duration_ms: result.durationMs,
+                status: result.success ? 'success' : 'failed',
+                stats: result.stats
+            })
+        );
+
+        return res.json({
+            success: result.success,
+            message: result.success
+                ? `Catalog sync completed in ${result.durationMs}ms`
+                : `Sync completed with notice: ${result.error || 'unknown'}`,
+            result
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to trigger catalog sync' });
+    }
+});
+
+/**
+ * POST /api/admin/sync/stop
+ * Stops the recurring background sync scheduler.
+ * Body: { restart: true } optionally restarts it.
+ */
+router.post('/sync/stop', (req, res) => {
+    try {
+        const { restart, intervalMinutes } = req.body || {};
+
+        syncScheduler.stopSyncJob();
+
+        if (restart) {
+            const interval = parseInt(intervalMinutes, 10);
+            const job = syncScheduler.startSyncJob((!isNaN(interval) && interval >= 1) ? interval : null);
+            return res.json({
+                success: true,
+                message: `Sync scheduler restarted (every ${job.intervalMinutes} min)`,
+                job
+            });
+        }
+
+        return res.json({ success: true, message: 'Sync scheduler stopped' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to stop sync scheduler' });
     }
 });
 
