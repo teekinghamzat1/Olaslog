@@ -162,6 +162,74 @@ try {
         `).run(adminPasswordHash);
         console.log('🛡️ Auto-initialized default admin account (admin@olaslog.com)');
     }
+
+    // Initialize email_settings & email_templates tables
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS email_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS email_templates (
+            template_key TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            headline TEXT NOT NULL,
+            body TEXT NOT NULL,
+            extra_data TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // Seed default email templates if missing
+    const defaultTemplates = [
+        {
+            key: 'welcome',
+            name: 'Registration Successful (Welcome Email)',
+            subject: 'Welcome to Olaslog, {first_name}! 🎉',
+            headline: 'Welcome to Olaslog! 🎉',
+            body: "Your account has been created successfully. You now have access to Nigeria's fastest digital accounts & subscriptions marketplace — Google Voice, TextPlus, VPN keys, and more, delivered instantly.",
+            extra: JSON.stringify({
+                step1: 'Fund your wallet via your dedicated virtual bank account',
+                step2: 'Browse our catalogue of verified digital products',
+                step3: 'Checkout instantly — credentials delivered in seconds',
+                buttonText: 'Go to My Wallet →',
+                footerNote: 'If you did not create this account, you can safely ignore this email.'
+            })
+        },
+        {
+            key: 'wallet_funded',
+            name: 'Wallet Funding Successful',
+            subject: 'Your wallet has been credited with {amount} 💚',
+            headline: 'Wallet Funded Successfully 💚',
+            body: 'Your Olaslog wallet has been credited. You can now use your balance to purchase any digital product on our marketplace.',
+            extra: JSON.stringify({
+                buttonText: 'Shop Now →',
+                footerNote: "Didn't make this deposit? Contact our support team immediately."
+            })
+        },
+        {
+            key: 'purchase',
+            name: 'Order Delivery & Credentials Confirmation',
+            subject: 'Order {order_number} delivered — Your credentials are ready ✅',
+            headline: 'Order Delivered! ✅',
+            body: 'Your purchase was successful and your digital credentials are ready below. Please save them safely.',
+            extra: JSON.stringify({
+                sectionTitle: '📦 Delivered Credentials',
+                buttonText: 'View My Orders →',
+                footerNote: 'Issue with your order? Open a dispute and our team will assist you within 24 hours.'
+            })
+        }
+    ];
+
+    const insertTemplate = db.prepare(`
+        INSERT OR IGNORE INTO email_templates (template_key, name, subject, headline, body, extra_data)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    for (const t of defaultTemplates) {
+        insertTemplate.run(t.key, t.name, t.subject, t.headline, t.body, t.extra);
+    }
 } catch (migErr) {
     console.warn('DB Migration notice:', migErr.message);
 }

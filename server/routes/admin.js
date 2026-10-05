@@ -8,6 +8,7 @@ const { recordRefund, getWalletBalance, adjustUserBalance } = require('../servic
 const { getOrderWithCredentials } = require('../services/order');
 const sujanService = require('../services/sujan');
 const syncScheduler = require('../services/syncScheduler');
+const emailService = require('../services/email');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -1026,6 +1027,185 @@ router.post('/sync/stop', (req, res) => {
         return res.json({ success: true, message: 'Sync scheduler stopped' });
     } catch (err) {
         return res.status(500).json({ success: false, error: 'Failed to stop sync scheduler' });
+    }
+});
+
+// ─── Email & SMTP Management ──────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/email/settings
+ * Returns current SMTP configuration and list of templates
+ */
+router.get('/email/settings', (req, res) => {
+    try {
+        const settings = emailService.getEmailSettings();
+        const templates = emailService.getAllTemplates();
+
+        // Return settings with password masked if set
+        const safeSettings = {
+            ...settings,
+            pass: settings.pass ? '••••••••' : '',
+            hasPass: Boolean(settings.pass)
+        };
+
+        return res.json({
+            success: true,
+            settings: safeSettings,
+            templates
+        });
+    } catch (err) {
+        console.error('[Admin] Failed to fetch email settings:', err);
+        return res.status(500).json({ success: false, error: 'Failed to fetch email settings' });
+    }
+});
+
+/**
+ * PUT /api/admin/email/settings
+ * Updates SMTP configuration
+ */
+router.put('/email/settings', (req, res) => {
+    try {
+        const { host, port, secure, user, pass, from, fromName } = req.body;
+
+        const updated = emailService.saveEmailSettings({
+            smtp_host: host,
+            smtp_port: port,
+            smtp_secure: secure,
+            smtp_user: user,
+            smtp_pass: pass,
+            email_from: from,
+            email_from_name: fromName
+        });
+
+        logAudit(
+            req.user.id,
+            'update_smtp_settings',
+            'email_settings',
+            'smtp',
+            `Updated SMTP host: ${host || 'cleared'}, user: ${user || 'cleared'}`
+        );
+
+        return res.json({
+            success: true,
+            message: 'Email & SMTP settings saved successfully',
+            settings: {
+                ...updated,
+                pass: updated.pass ? '••••••••' : '',
+                hasPass: Boolean(updated.pass)
+            }
+        });
+    } catch (err) {
+        console.error('[Admin] Failed to save email settings:', err);
+        return res.status(500).json({ success: false, error: 'Failed to save email settings: ' + err.message });
+    }
+});
+
+/**
+ * GET /api/admin/email/templates
+ * Returns all email templates
+ */
+router.get('/email/templates', (req, res) => {
+    try {
+        const templates = emailService.getAllTemplates();
+        return res.json({ success: true, templates });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: 'Failed to fetch email templates' });
+    }
+});
+
+/**
+ * PUT /api/admin/email/templates/:key
+ * Updates the customizable content of an email template
+ */
+router.put('/email/templates/:key', (req, res) => {
+    try {
+        const { key } = req.params;
+        const { subject, headline, body, extra } = req.body;
+
+        const updated = emailService.saveTemplate(key, { subject, headline, body, extra });
+
+        logAudit(
+            req.user.id,
+            'update_email_template',
+            'email_templates',
+            key,
+            `Updated content for template: ${key}`
+        );
+
+        return res.json({
+            success: true,
+            message: `Template "${updated.name}" updated successfully`,
+            template: updated
+        });
+    } catch (err) {
+        console.error('[Admin] Failed to save email template:', err);
+        return res.status(500).json({ success: false, error: err.message || 'Failed to update template' });
+    }
+});
+
+/**
+ * POST /api/admin/email/templates/:key/reset
+ * Resets a template back to factory defaults
+ */
+router.post('/email/templates/:key/reset', (req, res) => {
+    try {
+        const { key } = req.params;
+        const reset = emailService.resetTemplateToDefault(key);
+
+        logAudit(
+            req.user.id,
+            'reset_email_template',
+            'email_templates',
+            key,
+            `Reset template to default: ${key}`
+        );
+
+        return res.json({
+            success: true,
+            message: `Template "${reset.name}" reset to factory default`,
+            template: reset
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message || 'Failed to reset template' });
+    }
+});
+
+/**
+ * POST /api/admin/email/test
+ * Sends a live test email for any template to verify SMTP and inbox appearance
+ */
+router.post('/email/test', async (req, res) => {
+    try {
+        const { templateKey, recipientEmail } = req.body;
+
+        if (!templateKey) {
+            return res.status(400).json({ success: false, error: 'Template key is required (welcome, wallet_funded, or purchase)' });
+        }
+        if (!recipientEmail || !recipientEmail.includes('@')) {
+            return res.status(400).json({ success: false, error: 'A valid recipient email address is required' });
+        }
+
+        const result = await emailService.sendTestEmail(templateKey, recipientEmail.trim());
+
+        logAudit(
+            req.user.id,
+            'send_test_email',
+            'email',
+            templateKey,
+            `Sent test email to: ${recipientEmail}`
+        );
+
+        return res.json({
+            success: true,
+            message: `Test email (${templateKey}) successfully delivered to ${recipientEmail}! Check your inbox.`,
+            result
+        });
+    } catch (err) {
+        console.error('[Admin] Test email error:', err);
+        return res.status(400).json({
+            success: false,
+            error: err.message || 'Failed to send test email. Check your SMTP configuration.'
+        });
     }
 });
 

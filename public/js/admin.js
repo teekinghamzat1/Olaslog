@@ -13,6 +13,9 @@ const adminState = {
   users: [],
   admins: [],
   ledger: [],
+  emailSettings: null,
+  emailTemplates: {},
+  currentEmailTemplateKey: 'welcome',
   selectedOrderId: null,
   selectedDisputeId: null
 };
@@ -27,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadUsers();
   await loadAdmins();
   await loadLedger();
+  await loadEmailSettings();
 });
 
 async function verifyAdminAuth() {
@@ -136,7 +140,8 @@ function switchTab(tabKey, el = null) {
     disputes: 'Dispute Resolution Queue',
     users: 'Registered User Directory',
     admins: 'Administrator & Staff Console',
-    ledger: 'Financial Ledger Audit'
+    ledger: 'Financial Ledger Audit',
+    email: 'Email & SMTP Operations'
   };
   document.getElementById('pageTitle').textContent = titles[tabKey] || 'Operations';
 
@@ -144,6 +149,7 @@ function switchTab(tabKey, el = null) {
   if (tabKey === 'users') loadUsers();
   if (tabKey === 'admins') loadAdmins();
   if (tabKey === 'ledger') loadLedger();
+  if (tabKey === 'email') loadEmailSettings();
 
   // Mobile drawer close if open
   toggleMobileSidebar(false);
@@ -1352,3 +1358,469 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ─── Email & SMTP Management ──────────────────────────────────────────────────
+
+async function loadEmailSettings() {
+  try {
+    const res = await fetch('/api/admin/email/settings');
+    const data = await res.json();
+    if (!data.success) {
+      console.warn('Could not fetch email settings:', data.error);
+      return;
+    }
+
+    adminState.emailSettings = data.settings || {};
+
+    // Map templates into state dictionary
+    adminState.emailTemplates = {};
+    if (Array.isArray(data.templates)) {
+      data.templates.forEach(t => {
+        adminState.emailTemplates[t.key] = t;
+      });
+    }
+
+    // Populate SMTP Form
+    const s = adminState.emailSettings;
+    const hostEl = document.getElementById('admSmtpHost');
+    const portEl = document.getElementById('admSmtpPort');
+    const secureEl = document.getElementById('admSmtpSecure');
+    const userEl = document.getElementById('admSmtpUser');
+    const passEl = document.getElementById('admSmtpPass');
+    const fromEl = document.getElementById('admEmailFrom');
+    const fromNameEl = document.getElementById('admEmailFromName');
+
+    if (hostEl) hostEl.value = s.host || '';
+    if (portEl) portEl.value = s.port || 587;
+    if (secureEl) secureEl.value = s.secure ? 'true' : 'false';
+    if (userEl) userEl.value = s.user || '';
+    if (passEl) passEl.value = s.pass || '';
+    if (fromEl) fromEl.value = s.from || '';
+    if (fromNameEl) fromNameEl.value = s.fromName || 'Olaslog';
+
+    // Update Status Banner
+    updateEmailStatusBanner(s);
+
+    // Populate active template form
+    populateTemplateForm(adminState.currentEmailTemplateKey || 'welcome');
+  } catch (err) {
+    console.error('loadEmailSettings error:', err);
+  }
+}
+
+function updateEmailStatusBanner(s) {
+  const badge = document.getElementById('emailSmtpBadge');
+  const summary = document.getElementById('emailSmtpSummary');
+  if (!badge || !summary) return;
+
+  const isConfigured = Boolean(s.host && s.user && (s.hasPass || s.pass));
+  if (isConfigured) {
+    badge.className = 'pill pill-teal';
+    badge.innerHTML = '<span class="dot"></span> SMTP Configured';
+    summary.textContent = `Server: ${s.host}:${s.port} · Sender: "${s.fromName || 'Olaslog'}" <${s.from || s.user}>`;
+  } else {
+    badge.className = 'pill pill-danger';
+    badge.innerHTML = '<span class="dot"></span> SMTP Not Configured';
+    summary.textContent = 'Save your SMTP host, port, user & pass below to enable automated email delivery.';
+  }
+}
+
+function togglePassVisibility(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+async function saveSmtpSettings() {
+  const host = (document.getElementById('admSmtpHost')?.value || '').trim();
+  const port = parseInt(document.getElementById('admSmtpPort')?.value || '587', 10);
+  const secure = document.getElementById('admSmtpSecure')?.value === 'true';
+  const user = (document.getElementById('admSmtpUser')?.value || '').trim();
+  const pass = (document.getElementById('admSmtpPass')?.value || '').trim();
+  const from = (document.getElementById('admEmailFrom')?.value || '').trim();
+  const fromName = (document.getElementById('admEmailFromName')?.value || '').trim();
+
+  const btn = document.getElementById('btnSaveSmtp');
+  const btnTop = document.getElementById('btnSaveSmtpTop');
+  if (btn) btn.textContent = 'Saving... ⏳';
+  if (btnTop) btnTop.textContent = 'Saving... ⏳';
+
+  try {
+    const res = await fetch('/api/admin/email/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, secure, user, pass, from, fromName })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showAdminToast('SMTP Configuration saved successfully!', 'success');
+      await loadEmailSettings();
+    } else {
+      showAdminToast(data.error || 'Failed to save SMTP settings', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Error saving settings: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.textContent = 'Save SMTP';
+    if (btnTop) btnTop.textContent = '💾 Save SMTP Settings';
+  }
+}
+
+function selectTemplateTab(key) {
+  adminState.currentEmailTemplateKey = key;
+
+  // Highlight pill
+  ['welcome', 'wallet_funded', 'purchase'].forEach(k => {
+    const tab = document.getElementById(`tplTab-${k}`);
+    const form = document.getElementById(`tplForm-${k}`);
+    if (tab) tab.classList.toggle('active', k === key);
+    if (form) form.style.display = k === key ? 'block' : 'none';
+  });
+
+  populateTemplateForm(key);
+}
+
+function populateTemplateForm(key) {
+  const tpl = adminState.emailTemplates[key];
+  if (!tpl) return;
+  const extra = tpl.extra || {};
+
+  if (key === 'welcome') {
+    const sub = document.getElementById('tplWelcomeSubject');
+    const head = document.getElementById('tplWelcomeHeadline');
+    const body = document.getElementById('tplWelcomeBody');
+    const s1 = document.getElementById('tplWelcomeStep1');
+    const s2 = document.getElementById('tplWelcomeStep2');
+    const s3 = document.getElementById('tplWelcomeStep3');
+    const btn = document.getElementById('tplWelcomeBtnText');
+    const foot = document.getElementById('tplWelcomeFooterNote');
+
+    if (sub) sub.value = tpl.subject || '';
+    if (head) head.value = tpl.headline || '';
+    if (body) body.value = tpl.body || '';
+    if (s1) s1.value = extra.step1 || '';
+    if (s2) s2.value = extra.step2 || '';
+    if (s3) s3.value = extra.step3 || '';
+    if (btn) btn.value = extra.buttonText || '';
+    if (foot) foot.value = extra.footerNote || '';
+  } else if (key === 'wallet_funded') {
+    const sub = document.getElementById('tplWalletSubject');
+    const head = document.getElementById('tplWalletHeadline');
+    const body = document.getElementById('tplWalletBody');
+    const btn = document.getElementById('tplWalletBtnText');
+    const foot = document.getElementById('tplWalletFooterNote');
+
+    if (sub) sub.value = tpl.subject || '';
+    if (head) head.value = tpl.headline || '';
+    if (body) body.value = tpl.body || '';
+    if (btn) btn.value = extra.buttonText || '';
+    if (foot) foot.value = extra.footerNote || '';
+  } else if (key === 'purchase') {
+    const sub = document.getElementById('tplPurchaseSubject');
+    const head = document.getElementById('tplPurchaseHeadline');
+    const body = document.getElementById('tplPurchaseBody');
+    const sec = document.getElementById('tplPurchaseSectionTitle');
+    const btn = document.getElementById('tplPurchaseBtnText');
+    const foot = document.getElementById('tplPurchaseFooterNote');
+
+    if (sub) sub.value = tpl.subject || '';
+    if (head) head.value = tpl.headline || '';
+    if (body) body.value = tpl.body || '';
+    if (sec) sec.value = extra.sectionTitle || '';
+    if (btn) btn.value = extra.buttonText || '';
+    if (foot) foot.value = extra.footerNote || '';
+  }
+}
+
+async function saveCurrentTemplate() {
+  const key = adminState.currentEmailTemplateKey || 'welcome';
+  let payload = {};
+
+  if (key === 'welcome') {
+    payload = {
+      subject: document.getElementById('tplWelcomeSubject')?.value,
+      headline: document.getElementById('tplWelcomeHeadline')?.value,
+      body: document.getElementById('tplWelcomeBody')?.value,
+      extra: {
+        step1: document.getElementById('tplWelcomeStep1')?.value,
+        step2: document.getElementById('tplWelcomeStep2')?.value,
+        step3: document.getElementById('tplWelcomeStep3')?.value,
+        buttonText: document.getElementById('tplWelcomeBtnText')?.value,
+        footerNote: document.getElementById('tplWelcomeFooterNote')?.value
+      }
+    };
+  } else if (key === 'wallet_funded') {
+    payload = {
+      subject: document.getElementById('tplWalletSubject')?.value,
+      headline: document.getElementById('tplWalletHeadline')?.value,
+      body: document.getElementById('tplWalletBody')?.value,
+      extra: {
+        buttonText: document.getElementById('tplWalletBtnText')?.value,
+        footerNote: document.getElementById('tplWalletFooterNote')?.value
+      }
+    };
+  } else if (key === 'purchase') {
+    payload = {
+      subject: document.getElementById('tplPurchaseSubject')?.value,
+      headline: document.getElementById('tplPurchaseHeadline')?.value,
+      body: document.getElementById('tplPurchaseBody')?.value,
+      extra: {
+        sectionTitle: document.getElementById('tplPurchaseSectionTitle')?.value,
+        buttonText: document.getElementById('tplPurchaseBtnText')?.value,
+        footerNote: document.getElementById('tplPurchaseFooterNote')?.value
+      }
+    };
+  }
+
+  const btn = document.getElementById('btnSaveTemplate');
+  const btnBottom = document.getElementById('btnSaveTemplateBottom');
+  if (btn) btn.textContent = 'Saving...';
+  if (btnBottom) btnBottom.textContent = 'Saving...';
+
+  try {
+    const res = await fetch(`/api/admin/email/templates/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success && data.template) {
+      adminState.emailTemplates[key] = data.template;
+      showAdminToast(`Template saved successfully!`, 'success');
+      populateTemplateForm(key);
+    } else {
+      showAdminToast(data.error || 'Failed to save template', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Error saving template: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.textContent = 'Save Template';
+    if (btnBottom) btnBottom.textContent = '💾 Save Template Changes';
+  }
+}
+
+async function resetCurrentTemplate() {
+  const key = adminState.currentEmailTemplateKey || 'welcome';
+  const name = adminState.emailTemplates[key]?.name || key;
+  if (!confirm(`Are you sure you want to reset "${name}" back to factory default content?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/email/templates/${key}/reset`, {
+      method: 'POST'
+    });
+    const data = await res.json();
+    if (data.success && data.template) {
+      adminState.emailTemplates[key] = data.template;
+      populateTemplateForm(key);
+      showAdminToast(`"${name}" reset to factory default`, 'success');
+    } else {
+      showAdminToast(data.error || 'Failed to reset template', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Error resetting template: ' + err.message, 'error');
+  }
+}
+
+function openTestEmailModal(defaultKey = null) {
+  const key = defaultKey || adminState.currentEmailTemplateKey || 'welcome';
+  const select = document.getElementById('admTestTemplateSelect');
+  if (select) select.value = key;
+
+  const emailInput = document.getElementById('admTestRecipientEmail');
+  if (emailInput && !emailInput.value) {
+    emailInput.value = adminState.user?.email || '';
+  }
+
+  const resultBox = document.getElementById('admTestEmailResult');
+  if (resultBox) {
+    resultBox.style.display = 'none';
+    resultBox.innerHTML = '';
+  }
+
+  openAdminModal('admTestEmailModal');
+}
+
+async function executeSendTestEmail() {
+  const select = document.getElementById('admTestTemplateSelect');
+  const emailInput = document.getElementById('admTestRecipientEmail');
+  const resultBox = document.getElementById('admTestEmailResult');
+  const btn = document.getElementById('btnExecuteSendTest');
+
+  const templateKey = select?.value;
+  const recipientEmail = (emailInput?.value || '').trim();
+
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    showAdminToast('Please provide a valid recipient email address', 'error');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending Test Email... ⏳';
+  }
+  if (resultBox) {
+    resultBox.style.display = 'none';
+  }
+
+  try {
+    const res = await fetch('/api/admin/email/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateKey, recipientEmail })
+    });
+    const data = await res.json();
+
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      if (data.success) {
+        resultBox.style.background = 'rgba(99, 211, 138, 0.12)';
+        resultBox.style.border = '1px solid rgba(99, 211, 138, 0.3)';
+        resultBox.style.color = '#63d38a';
+        resultBox.innerHTML = `
+          <strong>✅ Test Email Dispatched!</strong><br/>
+          Delivered <strong>${templateKey}</strong> email to <strong>${recipientEmail}</strong>.<br/>
+          <span style="font-size: 11px; opacity: 0.85;">Message ID: ${data.result?.messageId || 'SENT'}</span>
+        `;
+        showAdminToast('Test email sent successfully! Check your inbox.', 'success');
+      } else {
+        resultBox.style.background = 'rgba(226, 105, 94, 0.12)';
+        resultBox.style.border = '1px solid rgba(226, 105, 94, 0.3)';
+        resultBox.style.color = '#E2695E';
+        resultBox.innerHTML = `
+          <strong>❌ Delivery Error:</strong><br/>
+          ${escapeHtml(data.error || 'Failed to send test email')}<br/>
+          <span style="font-size: 11px; opacity: 0.85;">Please verify your SMTP Host, Port, User, and Password in the settings.</span>
+        `;
+        showAdminToast(data.error || 'Delivery failed', 'error');
+      }
+    }
+  } catch (err) {
+    if (resultBox) {
+      resultBox.style.display = 'block';
+      resultBox.style.background = 'rgba(226, 105, 94, 0.12)';
+      resultBox.style.border = '1px solid rgba(226, 105, 94, 0.3)';
+      resultBox.style.color = '#E2695E';
+      resultBox.textContent = 'Network error: ' + err.message;
+    }
+    showAdminToast('Network error: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Send Test Message 🚀';
+    }
+  }
+}
+
+function previewCurrentTemplate() {
+  const key = adminState.currentEmailTemplateKey || 'welcome';
+  const logoUrl = '/assets/olaslog-logo-primary.png';
+
+  let subject = '';
+  let headline = '';
+  let body = '';
+  let dynamicHtml = '';
+
+  if (key === 'welcome') {
+    subject = document.getElementById('tplWelcomeSubject')?.value || 'Welcome to Olaslog!';
+    headline = document.getElementById('tplWelcomeHeadline')?.value || 'Welcome to Olaslog! 🎉';
+    body = document.getElementById('tplWelcomeBody')?.value || '';
+    const s1 = document.getElementById('tplWelcomeStep1')?.value;
+    const s2 = document.getElementById('tplWelcomeStep2')?.value;
+    const s3 = document.getElementById('tplWelcomeStep3')?.value;
+    const btn = document.getElementById('tplWelcomeBtnText')?.value || 'Go to My Wallet →';
+    const foot = document.getElementById('tplWelcomeFooterNote')?.value || '';
+
+    const steps = [s1, s2, s3].filter(Boolean);
+    dynamicHtml = `
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"/>
+      <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:#d1d5db;">🚀 Get started in 3 steps:</p>
+      ${steps.map((s, i) => `
+        <div style="display:flex;gap:12px;margin-bottom:8px;font-size:13.5px;color:#9ca3af;">
+          <span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;background:rgba(99,211,138,0.15);color:#63d38a;border-radius:50%;font-weight:700;font-size:12px;">${i + 1}</span>
+          <span>${escapeHtml(s)}</span>
+        </div>
+      `).join('')}
+      <div style="margin:26px 0;">
+        <span style="display:inline-block;background:linear-gradient(135deg,#63d38a,#3fbf6a);padding:12px 28px;border-radius:8px;font-weight:700;color:#0f1117;font-size:14px;">${escapeHtml(btn)}</span>
+      </div>
+      <p style="margin:0;font-size:12.5px;color:#6b7280;">${escapeHtml(foot)}</p>
+    `;
+  } else if (key === 'wallet_funded') {
+    subject = document.getElementById('tplWalletSubject')?.value || 'Your wallet has been credited 💚';
+    headline = document.getElementById('tplWalletHeadline')?.value || 'Wallet Funded Successfully 💚';
+    body = document.getElementById('tplWalletBody')?.value || '';
+    const btn = document.getElementById('tplWalletBtnText')?.value || 'Shop Now →';
+    const foot = document.getElementById('tplWalletFooterNote')?.value || '';
+
+    dynamicHtml = `
+      <div style="background:#0f1117;border:1px solid rgba(99,211,138,0.25);border-radius:12px;padding:18px 22px;margin:20px 0;">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Amount Credited</div>
+        <div style="font-size:26px;font-weight:800;color:#63d38a;margin-top:2px;">₦10,000.00</div>
+      </div>
+      <div style="margin:26px 0;">
+        <span style="display:inline-block;background:linear-gradient(135deg,#63d38a,#3fbf6a);padding:12px 28px;border-radius:8px;font-weight:700;color:#0f1117;font-size:14px;">${escapeHtml(btn)}</span>
+      </div>
+      <p style="margin:0;font-size:12.5px;color:#6b7280;">${escapeHtml(foot)}</p>
+    `;
+  } else if (key === 'purchase') {
+    subject = document.getElementById('tplPurchaseSubject')?.value || 'Order Delivered ✅';
+    headline = document.getElementById('tplPurchaseHeadline')?.value || 'Order Delivered! ✅';
+    body = document.getElementById('tplPurchaseBody')?.value || '';
+    const sec = document.getElementById('tplPurchaseSectionTitle')?.value || '📦 Delivered Credentials';
+    const btn = document.getElementById('tplPurchaseBtnText')?.value || 'View My Orders →';
+    const foot = document.getElementById('tplPurchaseFooterNote')?.value || '';
+
+    dynamicHtml = `
+      <div style="background:#0f1117;border:1px solid rgba(99,211,138,0.25);border-radius:12px;padding:18px 22px;margin:20px 0;">
+        <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Total Charged</div>
+        <div style="font-size:26px;font-weight:800;color:#63d38a;margin-top:2px;">₦4,500.00</div>
+      </div>
+      <div style="margin:20px 0;">
+        <div style="font-size:13.5px;font-weight:700;color:#f9fafb;margin-bottom:10px;">${escapeHtml(sec)}</div>
+        <div style="background:#0f1117;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
+          <strong style="color:#f9fafb;font-size:13px;">Google Voice US (Aged 2023)</strong>
+          <div style="margin:6px 0;"><code style="color:#63d38a;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:4px;font-family:monospace;font-size:12px;">user@gmail.com:StrongPassword123:recovery@olaslog.com</code></div>
+          <div style="font-size:11px;color:#6b7280;">Account #10928</div>
+        </div>
+      </div>
+      <div style="margin:26px 0;">
+        <span style="display:inline-block;background:linear-gradient(135deg,#63d38a,#3fbf6a);padding:12px 28px;border-radius:8px;font-weight:700;color:#0f1117;font-size:14px;">${escapeHtml(btn)}</span>
+      </div>
+      <p style="margin:0;font-size:12.5px;color:#6b7280;">${escapeHtml(foot)}</p>
+    `;
+  }
+
+  const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+</head>
+<body style="margin:0;padding:24px 16px;background:#0f1117;font-family:'Segoe UI',Arial,sans-serif;color:#d1d5db;">
+  <div style="max-width:540px;margin:0 auto;background:#161b27;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.5);">
+    <div style="background:linear-gradient(135deg,#1a2236,#0f1117);padding:24px 32px;border-bottom:1px solid rgba(99,211,138,0.15);">
+      <img src="${logoUrl}" alt="Olaslog" width="130" style="display:block;max-height:42px;"/>
+    </div>
+    <div style="padding:32px 30px;">
+      <p style="margin:0 0 16px;font-size:15px;color:#d1d5db;">Hi <strong style="color:#f9fafb;">Alex</strong>,</p>
+      <h1 style="margin:0 0 14px;font-size:22px;font-weight:800;color:#f9fafb;line-height:1.3;">${escapeHtml(headline)}</h1>
+      <p style="margin:0 0 16px;font-size:14.5px;color:#9ca3af;line-height:1.7;">${escapeHtml(body)}</p>
+      ${dynamicHtml}
+    </div>
+    <div style="background:#0f1117;padding:20px 30px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:#4b5563;">
+      © ${new Date().getFullYear()} Olaslog · Instant Digital Products Marketplace
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const subjectEl = document.getElementById('admEmailPreviewSubject');
+  const frame = document.getElementById('admEmailPreviewFrame');
+  if (subjectEl) subjectEl.textContent = subject;
+  if (frame) frame.srcdoc = fullHtml;
+
+  openAdminModal('admEmailPreviewModal');
+}
+

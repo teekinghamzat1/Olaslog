@@ -184,3 +184,21 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_disputes_order ON disputes(order_id);
 CREATE INDEX IF NOT EXISTS idx_vba_account_number ON user_virtual_accounts(account_number);
 CREATE INDEX IF NOT EXISTS idx_vba_account_reference ON user_virtual_accounts(account_reference);
+
+-- System & Email Settings
+CREATE TABLE IF NOT EXISTS email_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Email Templates (Customizable Content)
+CREATE TABLE IF NOT EXISTS email_templates (
+    template_key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    body TEXT NOT NULL,
+    extra_data TEXT, -- JSON string
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

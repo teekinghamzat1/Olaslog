@@ -96,6 +96,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           System Ledger
         </div>
+        <div class="sb-item" data-screen="email" onclick="switchTab('email', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Email &amp; SMTP
+        </div>
       </nav>
 
       <div class="sb-foot">
@@ -134,6 +138,7 @@
         <button class="adm-tab-pill" data-screen="users" onclick="switchTab('users')">User Directory</button>
         <button class="adm-tab-pill" data-screen="admins" onclick="switchTab('admins')">Manage Admins</button>
         <button class="adm-tab-pill" data-screen="ledger" onclick="switchTab('ledger')">System Ledger</button>
+        <button class="adm-tab-pill" data-screen="email" onclick="switchTab('email')">Email &amp; SMTP</button>
       </nav>
 
       <div class="content">
@@ -465,6 +470,268 @@
           </div>
         </section>
 
+        <!-- ==============================================================
+             PANEL 9: EMAIL & SMTP DELIVERY
+             ============================================================== -->
+        <section class="screen-panel" id="panel-email">
+          <!-- Top summary row -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+            <div>
+              <div style="font-family: var(--display); font-size: 20px; font-weight: 700; margin-bottom: 6px;">Email &amp; SMTP Operations</div>
+              <div style="font-size: 13px; color: var(--text-dim); max-width: 680px; line-height: 1.5;">
+                Configure your SMTP mail server, customize the messaging content for customer notifications, and send live test emails to verify your inbox delivery.
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn btn-outline btn-sm" onclick="openTestEmailModal()">
+                ⚡ Send Test Email
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="saveSmtpSettings()" id="btnSaveSmtpTop">
+                💾 Save SMTP Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick status banner -->
+          <div id="emailSmtpStatusBanner" style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="emailSmtpBadge" class="pill pill-muted"><span class="dot"></span> Checking SMTP...</div>
+              <span id="emailSmtpSummary" style="font-size: 12.5px; color: var(--text-dim);">Checking email server configuration...</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-faint);">
+              ✨ Brand Logo &amp; Responsive Dark Layout are automatically injected
+            </div>
+          </div>
+
+          <!-- Section 1: SMTP Settings Form -->
+          <div class="panel" style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 14px; padding: 22px; margin-bottom: 28px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+              <div>
+                <div style="font-size: 15px; font-weight: 700;">📡 SMTP Mail Server Configuration</div>
+                <div style="font-size: 12px; color: var(--text-faint); margin-top: 2px;">Credentials for sending registration, payment, and delivery emails</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="saveSmtpSettings()" id="btnSaveSmtp">Save SMTP</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+              <div class="form-group">
+                <label class="form-label">SMTP Host *</label>
+                <input type="text" id="admSmtpHost" class="form-control" placeholder="e.g. smtp.gmail.com or smtp-relay.brevo.com">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">SMTP Port *</label>
+                <input type="number" id="admSmtpPort" class="form-control" placeholder="587" value="587">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Connection Security</label>
+                <select id="admSmtpSecure" class="form-control">
+                  <option value="false">STARTTLS (Port 587 or 25) - Standard</option>
+                  <option value="true">SSL / TLS (Port 465) - Direct Secure</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">SMTP Username / Email *</label>
+                <input type="text" id="admSmtpUser" class="form-control" placeholder="e.g. user@olaslog.com">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">SMTP Password *</label>
+                <div style="position: relative;">
+                  <input type="password" id="admSmtpPass" class="form-control" placeholder="••••••••" style="padding-right: 40px;">
+                  <button type="button" onclick="togglePassVisibility('admSmtpPass')" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-faint); font-size: 14px; cursor: pointer; padding: 4px;">👁️</button>
+                </div>
+                <span style="font-size: 11px; color: var(--text-faint); margin-top: 4px; display: block;">Leave blank if not changing existing password</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Sender Email Address (From)</label>
+                <input type="email" id="admEmailFrom" class="form-control" placeholder="noreply@olaslog.com">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Sender Display Name</label>
+                <input type="text" id="admEmailFromName" class="form-control" placeholder="Olaslog" value="Olaslog">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Email Content Templates Customizer -->
+          <div class="panel" style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 14px; padding: 22px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+              <div>
+                <div style="font-size: 15px; font-weight: 700;">✍️ Email Content Templates</div>
+                <div style="font-size: 12.5px; color: var(--text-faint); margin-top: 3px;">
+                  Customize the headline, messaging, instructions, and button text for each transactional email. The Olaslog logo, dark-mode layout, and styling are preserved automatically.
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn btn-outline btn-sm" onclick="previewCurrentTemplate()">
+                  👁️ Preview Email
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="resetCurrentTemplate()">
+                  ↺ Reset to Default
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="saveCurrentTemplate()" id="btnSaveTemplate">
+                  Save Template
+                </button>
+              </div>
+            </div>
+
+            <!-- Template Selector Tabs -->
+            <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--edge); padding-bottom: 12px; margin-bottom: 20px; overflow-x: auto;">
+              <button class="adm-tab-pill active" id="tplTab-welcome" onclick="selectTemplateTab('welcome')">
+                🎉 Registration Welcome
+              </button>
+              <button class="adm-tab-pill" id="tplTab-wallet_funded" onclick="selectTemplateTab('wallet_funded')">
+                💚 Wallet Funded
+              </button>
+              <button class="adm-tab-pill" id="tplTab-purchase" onclick="selectTemplateTab('purchase')">
+                ✅ Order Delivered &amp; Credentials
+              </button>
+            </div>
+
+            <!-- Form: Registration Welcome Template -->
+            <div class="email-tpl-form" id="tplForm-welcome">
+              <div style="background: var(--panel-3); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: var(--text-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span>💡 Available Dynamic Tokens:</span>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{first_name}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{full_name}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{email}</code>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Subject Line *</label>
+                <input type="text" id="tplWelcomeSubject" class="form-control" placeholder="Welcome to Olaslog, {first_name}! 🎉">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Headline / Banner Title *</label>
+                <input type="text" id="tplWelcomeHeadline" class="form-control" placeholder="Welcome to Olaslog! 🎉">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Greeting &amp; Introduction Message *</label>
+                <textarea id="tplWelcomeBody" class="form-control" rows="3" placeholder="Your account has been created successfully..."></textarea>
+              </div>
+
+              <div style="margin-top: 16px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--teal);">
+                🚀 Getting Started Steps (Numbered 1 - 3)
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px;">
+                <div class="form-group">
+                  <label class="form-label">Step 1</label>
+                  <input type="text" id="tplWelcomeStep1" class="form-control" placeholder="Fund your wallet via your dedicated virtual bank account">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Step 2</label>
+                  <input type="text" id="tplWelcomeStep2" class="form-control" placeholder="Browse our catalogue of verified digital products">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Step 3</label>
+                  <input type="text" id="tplWelcomeStep3" class="form-control" placeholder="Checkout instantly — credentials delivered in seconds">
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div class="form-group">
+                  <label class="form-label">Action Button Text</label>
+                  <input type="text" id="tplWelcomeBtnText" class="form-control" placeholder="Go to My Wallet →">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Footer Note / Subtext</label>
+                  <input type="text" id="tplWelcomeFooterNote" class="form-control" placeholder="If you did not create this account, you can safely ignore this email.">
+                </div>
+              </div>
+            </div>
+
+            <!-- Form: Wallet Funded Template -->
+            <div class="email-tpl-form" id="tplForm-wallet_funded" style="display: none;">
+              <div style="background: var(--panel-3); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: var(--text-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span>💡 Available Dynamic Tokens:</span>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{amount}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{new_balance}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{reference}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{first_name}</code>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Subject Line *</label>
+                <input type="text" id="tplWalletSubject" class="form-control" placeholder="Your wallet has been credited with {amount} 💚">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Headline / Banner Title *</label>
+                <input type="text" id="tplWalletHeadline" class="form-control" placeholder="Wallet Funded Successfully 💚">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Body / Confirmation Message *</label>
+                <textarea id="tplWalletBody" class="form-control" rows="3" placeholder="Your Olaslog wallet has been credited..."></textarea>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div class="form-group">
+                  <label class="form-label">Action Button Text</label>
+                  <input type="text" id="tplWalletBtnText" class="form-control" placeholder="Shop Now →">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Security Notice / Footer Note</label>
+                  <input type="text" id="tplWalletFooterNote" class="form-control" placeholder="Didn't make this deposit? Contact our support team immediately.">
+                </div>
+              </div>
+            </div>
+
+            <!-- Form: Order Delivered Template -->
+            <div class="email-tpl-form" id="tplForm-purchase" style="display: none;">
+              <div style="background: var(--panel-3); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: var(--text-dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span>💡 Available Dynamic Tokens:</span>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{order_number}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{total_amount}</code>
+                <code style="color: var(--teal); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">{first_name}</code>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Subject Line *</label>
+                <input type="text" id="tplPurchaseSubject" class="form-control" placeholder="Order {order_number} delivered — Your credentials are ready ✅">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Headline / Banner Title *</label>
+                <input type="text" id="tplPurchaseHeadline" class="form-control" placeholder="Order Delivered! ✅">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Body / Delivery Message *</label>
+                <textarea id="tplPurchaseBody" class="form-control" rows="3" placeholder="Your purchase was successful and your digital credentials are ready below. Please save them safely."></textarea>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+                <div class="form-group">
+                  <label class="form-label">Credentials Box Header</label>
+                  <input type="text" id="tplPurchaseSectionTitle" class="form-control" placeholder="📦 Delivered Credentials">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Action Button Text</label>
+                  <input type="text" id="tplPurchaseBtnText" class="form-control" placeholder="View My Orders →">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Dispute Note / Footer Notice</label>
+                  <input type="text" id="tplPurchaseFooterNote" class="form-control" placeholder="Issue with your order? Open a dispute and our team will assist you within 24 hours.">
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Save Bar -->
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--edge);">
+              <button class="btn btn-outline btn-sm" onclick="resetCurrentTemplate()">↺ Reset to Factory Default</button>
+              <button class="btn btn-primary btn-sm" onclick="saveCurrentTemplate()" id="btnSaveTemplateBottom">💾 Save Template Changes</button>
+            </div>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>
@@ -770,6 +1037,55 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admEditAdminModal')">Cancel</button>
         <button class="btn btn-primary btn-sm" onclick="submitEditAdmin()">Save Changes</button>
+      </div>
+    </div>
+  <!-- Test Email Dispatcher Modal -->
+  <div class="modal-overlay" id="admTestEmailModal">
+    <div class="modal-dialog" style="max-width: 480px;">
+      <div class="modal-title">⚡ Send Test Email</div>
+      <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5;">
+        Send a real transactional test email using your configured SMTP credentials to verify inbox delivery, brand logo rendering, and formatting.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">Select Template to Test *</label>
+        <select id="admTestTemplateSelect" class="form-control">
+          <option value="welcome">🎉 Registration Welcome (New User)</option>
+          <option value="wallet_funded">💚 Wallet Funded (Payment Credited)</option>
+          <option value="purchase">✅ Order Delivered (Credentials Included)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Recipient Email Address *</label>
+        <input type="email" id="admTestRecipientEmail" class="form-control" placeholder="your-email@example.com" required>
+        <span style="font-size: 11px; color: var(--text-faint); margin-top: 4px; display: block;">The test email will be sent directly to this inbox.</span>
+      </div>
+
+      <div id="admTestEmailResult" style="display: none; padding: 12px 14px; border-radius: 8px; font-size: 12.5px; margin-top: 14px; line-height: 1.5;"></div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admTestEmailModal')">Close</button>
+        <button class="btn btn-teal btn-sm" onclick="executeSendTestEmail()" id="btnExecuteSendTest">Send Test Message 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Email Preview Modal -->
+  <div class="modal-overlay" id="admEmailPreviewModal">
+    <div class="modal-dialog" style="max-width: 660px; width: 95%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div class="modal-title" style="margin: 0;">Email Preview</div>
+        <button class="btn btn-outline btn-xs" onclick="closeAdminModal('admEmailPreviewModal')">✕</button>
+      </div>
+      <div style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; font-size: 12px;">
+        <strong>Subject:</strong> <span id="admEmailPreviewSubject" style="color: var(--teal);">-</span>
+      </div>
+      <div style="border-radius: 12px; overflow: hidden; border: 1px solid var(--edge); max-height: 520px; overflow-y: auto; background: #0f1117;">
+        <iframe id="admEmailPreviewFrame" style="width: 100%; height: 480px; border: none; display: block; background: #0f1117;"></iframe>
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+        <button class="btn btn-outline btn-sm" onclick="closeAdminModal('admEmailPreviewModal')">Close Preview</button>
       </div>
     </div>
   </div>
