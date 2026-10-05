@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const db = require('../db');
 const { authenticate } = require('../middleware/auth');
 const { getWalletBalance, getTransactions } = require('../services/wallet');
 
 const billstackService = require('../services/billstack');
+const emailService = require('../services/email');
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
@@ -224,6 +226,23 @@ router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
                 const result = await billstackService.processIncomingPayment(event.data);
                 console.log('[BillStack Webhook] Payment processed:', result.message,
                     '| User:', result.user?.id, '| Balance:', result.balance);
+
+                // Send wallet funded email (non-blocking)
+                if (!result.alreadyProcessed && result.user?.id) {
+                    const userRow = db.prepare(`SELECT email, full_name FROM users WHERE id = ?`).get(result.user.id);
+                    if (userRow) {
+                        const amount = parseFloat(event.data.amount) || 0;
+                        emailService.sendWalletFundedEmail(
+                            { email: userRow.email, fullName: userRow.full_name },
+                            {
+                                amount,
+                                newBalance: result.balance,
+                                reference: event.data.wiaxy_ref || event.data.transaction_ref || event.data.reference,
+                                channel: 'virtual_bank_account'
+                            }
+                        ).catch(() => {});
+                    }
+                }
             } else {
                 console.log('[BillStack Webhook] Unhandled event type:', event?.event);
             }

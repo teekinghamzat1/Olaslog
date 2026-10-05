@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { authenticate, generateToken } = require('../middleware/auth');
 const { getWalletBalance } = require('../services/wallet');
+const emailService = require('../services/email');
 
 // Register
 router.post('/register', (req, res) => {
@@ -38,6 +39,9 @@ router.post('/register', (req, res) => {
 
         const token = generateToken(newUser);
         res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+        // Fire welcome email (non-blocking)
+        emailService.sendWelcomeEmail({ email: newUser.email, fullName: newUser.full_name }).catch(() => {});
 
         return res.status(201).json({
             success: true,

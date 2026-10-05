@@ -2,6 +2,7 @@ const db = require('../db');
 const { getWalletBalance } = require('./wallet');
 const { encrypt, decrypt } = require('./crypto');
 const sujanService = require('./sujan');
+const emailService = require('./email');
 
 /**
  * Performs atomic checkout for a cart with Rakib Socials API integration
@@ -275,7 +276,29 @@ async function checkoutCart(userId, items) {
         };
     });
 
-    return executeCheckoutTransaction();
+    const result = executeCheckoutTransaction();
+
+    // Send purchase confirmation email (non-blocking)
+    try {
+        const userRow = db.prepare('SELECT email, full_name FROM users WHERE id = ?').get(userId);
+        if (userRow) {
+            emailService.sendPurchaseEmail(
+                { email: userRow.email, fullName: userRow.full_name },
+                {
+                    orderNumber: result.orderNumber,
+                    totalAmount: result.totalAmount,
+                    remainingBalance: result.remainingBalance,
+                    items: result.deliveredCredentials
+                }
+            ).catch(err => {
+                console.error('[Order] Failed to send purchase email:', err.message);
+            });
+        }
+    } catch (emailErr) {
+        console.error('[Order] Error triggering purchase email:', emailErr.message);
+    }
+
+    return result;
 }
 
 /**
