@@ -1416,148 +1416,293 @@ async function loadVirtualAccount() {
     const container = document.getElementById('vbaContainer');
     if (!container) return;
 
-    // Check for incoming payment return
-    await checkUrlPaymentVerification();
-
-    // Render Standard Checkout form (Cards, Bank Transfer, USSD - no CAC/BVN needed)
-    renderKorapayFundingForm();
-}
-
-async function checkUrlPaymentVerification() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const reference = urlParams.get('reference') || hashParams.get('reference') || urlParams.get('trxref') || hashParams.get('trxref');
-
-    if (reference) {
-        showToast('Verifying your payment...', 'info');
-        try {
-            const res = await fetch(`/api/wallet/verify/${encodeURIComponent(reference)}`);
-            const data = await res.json();
-            if (data.success && data.status === 'successful') {
-                showToast('🎉 Payment verified! Your wallet has been credited.', 'success');
-            } else if (data.status === 'pending') {
-                showToast('Payment is processing. Your balance will update shortly.', 'info');
-            }
-        } catch (e) {
-            console.warn('Verify error:', e);
+    // Clean URL parameter if any left from previous links
+    if (window.history.replaceState) {
+        const url = new URL(window.location);
+        if (url.searchParams.has('reference') || url.searchParams.has('trxref')) {
+            url.searchParams.delete('reference');
+            url.searchParams.delete('trxref');
+            window.history.replaceState(null, '', url.pathname + url.hash);
         }
-        // Clean URL parameter and keep user on /wallet
-        if (window.history.replaceState) {
-            window.history.replaceState(null, '', '/wallet');
+    }
+
+    container.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
+            <div>Loading virtual account details...</div>
+        </div>
+    `;
+
+    try {
+        const res = await fetch('/api/wallet/virtual-account');
+        const data = await res.json();
+
+        if (data.success && data.hasAccount && data.account) {
+            state.userVirtualAccount = data.account;
+            renderActiveVirtualAccount(data.account, data.accounts || [data.account]);
+        } else {
+            state.userVirtualAccount = null;
+            await renderBillStackAccountForm();
         }
+    } catch (err) {
+        console.error('Error fetching virtual account:', err);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--danger);">
+                <div style="font-weight: 700; margin-bottom: 0.5rem;">⚠️ Failed to load virtual account</div>
+                <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem;">${escapeHtml(err.message || 'Network error')}</div>
+                <button class="btn btn-outline btn-sm" onclick="loadVirtualAccount()">Retry</button>
+            </div>
+        `;
     }
 }
 
-function setFundingAmount(amt) {
-    const input = document.getElementById('fundAmountInput');
-    if (input) {
-        input.value = amt;
-        input.focus();
-    }
-}
-
-function renderKorapayFundingForm() {
+async function renderBillStackAccountForm() {
     const container = document.getElementById('vbaContainer');
     if (!container) return;
 
+    let banks = [
+        { id: '9PSB', name: '9PSB Bank' },
+        { id: 'SAFEHAVEN', name: 'Safehaven MFB' },
+        { id: 'PROVIDUS', name: 'Providus Bank' },
+        { id: 'PALMPAY', name: 'PalmPay Bank' }
+    ];
+    let defaultBank = '9PSB';
+
+    try {
+        const res = await fetch('/api/wallet/banks');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.banks)) {
+            banks = data.banks;
+            if (data.defaultBank) defaultBank = data.defaultBank;
+        }
+    } catch (_) {}
+
+    const userPhone = (state.currentUser && state.currentUser.phone) ? state.currentUser.phone : '';
+
     container.innerHTML = `
-        <div id="korapayFundingSection">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+        <div id="vbaPromptSection">
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--teal-soft); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-                    💳
+                    🏦
                 </div>
                 <div>
-                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Fund Your Wallet</h3>
-                    <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">Instant Bank Transfer, Debit Card & USSD</p>
+                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Dedicated Virtual Bank Account</h3>
+                    <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">Instant Automated Bank Transfer via BillStack</p>
                 </div>
             </div>
 
-            <!-- Payment Channels Banner -->
+            <!-- Features Banner -->
             <div style="background: rgba(91, 217, 165, 0.08); border: 1px solid rgba(91, 217, 165, 0.25); border-radius: var(--radius-md); padding: 0.9rem 1.1rem; margin-bottom: 1.25rem;">
                 <div style="font-size: 0.85rem; font-weight: 700; color: var(--teal); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
-                    ⚡ Instant Automated Credit
+                    ⚡ Instant Automated Wallet Credit
                 </div>
                 <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.5;">
-                    Pay using <strong>Bank Transfer</strong> (instant temporary account) or any <strong>Mastercard / Visa / Verve</strong> card. Your wallet is updated automatically upon confirmation.
+                    Generate your permanent dedicated virtual bank account. <strong>No BVN is required</strong> for 9PSB, SafeHaven, or Providus! Any transfer to this account credits your wallet automatically in seconds.
                 </div>
             </div>
 
-            <!-- Quick Preset Buttons -->
-            <div style="margin-bottom: 1rem;">
-                <label class="form-label" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">Quick Select Amount</label>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(500)">₦500</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(1000)">₦1,000</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(2500)">₦2,500</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(5000)">₦5,000</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(10000)">₦10,000</button>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="setFundingAmount(20000)">₦20,000</button>
-                </div>
-            </div>
-
-            <form id="korapayFundingForm" onsubmit="handleKorapayCheckout(event)">
-                <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 700; font-size: 0.85rem;">
-                        Amount to Deposit (₦) <span style="color: var(--danger);">*</span>
+            <form id="vbaCreateForm" onsubmit="handleCreateVirtualAccount(event)">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-size: 0.85rem; font-weight: 700;">
+                        Preferred Bank Provider <span style="color: var(--danger);">*</span>
                     </label>
-                    <div style="position: relative;">
-                        <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--teal); font-size: 1.1rem;">₦</span>
-                        <input type="number" id="fundAmountInput" class="form-control" min="100" step="100" placeholder="e.g. 2500" required style="padding-left: 2rem; font-family: var(--mono); font-size: 1.15rem; font-weight: 700;">
-                    </div>
-                    <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; display: block;">Minimum funding is ₦100.</small>
+                    <select id="vbaBankSelect" class="form-control" style="cursor: pointer;" onchange="handleBankSelectChange(this.value)">
+                        ${banks.map(b => `<option value="${b.id}" ${b.id === defaultBank ? 'selected' : ''}>${escapeHtml(b.name)}${b.id === defaultBank ? ' (Default - No BVN)' : ''}</option>`).join('')}
+                    </select>
                 </div>
 
-                <button type="submit" id="fundSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-weight: 700; font-size: 1rem;">
-                    Proceed to Secure Payment 🔒
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-size: 0.85rem; font-weight: 700;">
+                        Phone Number <span style="color: var(--danger);">*</span>
+                    </label>
+                    <input type="tel" id="vbaPhoneInput" class="form-control" placeholder="e.g. 08012345678" value="${escapeHtml(userPhone)}" required style="font-family: var(--mono); font-size: 1rem;">
+                    <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; display: block;">Required for account registration and confirmation.</small>
+                </div>
+
+                <!-- PalmPay Specific ID Fields -->
+                <div id="palmpayFields" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem;">
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--teal); margin-bottom: 0.5rem;">PalmPay Verification Requirement:</div>
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.8rem;">ID Type</label>
+                            <select id="vbaIdType" class="form-control" style="font-size: 0.85rem;">
+                                <option value="nin">NIN</option>
+                                <option value="bvn">BVN</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: 0.8rem;">ID Number</label>
+                            <input type="text" id="vbaIdNumber" class="form-control" placeholder="11-digit number" maxlength="11" style="font-family: var(--mono); font-size: 0.85rem;">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="vbaSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-weight: 700; font-size: 1rem;">
+                    Generate My Dedicated Bank Account 🏦
                 </button>
             </form>
         </div>
     `;
 }
 
-async function handleKorapayCheckout(event) {
-    event.preventDefault();
-    const input = document.getElementById('fundAmountInput');
-    const submitBtn = document.getElementById('fundSubmitBtn');
-    const amount = parseFloat(input?.value);
+function handleBankSelectChange(bankId) {
+    const palmpayFields = document.getElementById('palmpayFields');
+    if (!palmpayFields) return;
+    if (bankId === 'PALMPAY') {
+        palmpayFields.style.display = 'block';
+    } else {
+        palmpayFields.style.display = 'none';
+    }
+}
 
-    if (isNaN(amount) || amount < 100) {
-        showToast('Please enter an amount of at least ₦100', 'error');
+async function handleCreateVirtualAccount(event) {
+    event.preventDefault();
+    const bankSelect = document.getElementById('vbaBankSelect');
+    const phoneInput = document.getElementById('vbaPhoneInput');
+    const submitBtn = document.getElementById('vbaSubmitBtn');
+
+    const bankId = bankSelect ? bankSelect.value : '9PSB';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+
+    if (!phone || phone.length < 10) {
+        showToast('Please enter a valid phone number', 'error');
         return;
+    }
+
+    let idType = null;
+    let idNumber = null;
+    if (bankId === 'PALMPAY') {
+        idType = document.getElementById('vbaIdType')?.value;
+        idNumber = document.getElementById('vbaIdNumber')?.value.trim();
+        if (!idNumber || idNumber.length !== 11) {
+            showToast('Please enter a valid 11-digit NIN or BVN for PalmPay', 'error');
+            return;
+        }
     }
 
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Opening Secure Checkout...';
+        submitBtn.innerHTML = '⏳ Generating Dedicated Account...';
     }
 
     try {
-        const redirectUrl = `${window.location.origin}/#wallet`;
-        const res = await fetch('/api/wallet/fund', {
+        const res = await fetch('/api/wallet/virtual-account', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount, redirectUrl })
+            body: JSON.stringify({ bankId, phone, idType, idNumber })
         });
-
         const data = await res.json();
-        if (data.success && data.data?.checkoutUrl) {
-            showToast('Redirecting to secure checkout...', 'success');
-            window.location.href = data.data.checkoutUrl;
+
+        if (data.success && data.account) {
+            state.userVirtualAccount = data.account;
+            showToast('🎉 Dedicated Virtual Bank Account ready!', 'success');
+            renderActiveVirtualAccount(data.account, data.accounts || [data.account]);
         } else {
-            showToast(data.error || 'Failed to initialize payment. Please try again.', 'error');
+            showToast(data.error || 'Failed to generate virtual bank account', 'error');
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Proceed to Secure Payment 🔒';
+                submitBtn.innerHTML = 'Generate My Dedicated Bank Account 🏦';
             }
         }
     } catch (err) {
-        showToast('Network error initializing payment', 'error');
+        showToast('Network error while generating virtual bank account', 'error');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Proceed to Secure Payment 🔒';
+            submitBtn.innerHTML = 'Generate My Dedicated Bank Account 🏦';
         }
     }
 }
+
+function renderActiveVirtualAccount(acc, allAccounts = []) {
+    const container = document.getElementById('vbaContainer');
+    if (!container) return;
+
+    const rawNum = acc.accountNumber || '';
+    const formattedNum = rawNum.length === 10 ? `${rawNum.slice(0, 3)} ${rawNum.slice(3, 6)} ${rawNum.slice(6)}` : rawNum;
+
+    container.innerHTML = `
+        <div id="vbaActiveAccountSection">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <div>
+                    <span class="vba-status-pulse">
+                        <span class="vba-pulse-dot"></span> Active Dedicated Account
+                    </span>
+                    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">BillStack Automated Settlement · Permanent</div>
+                </div>
+                <div class="vba-card-chip" title="EMV Secured"></div>
+            </div>
+
+            <div class="vba-bank-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+                    <div style="font-size: 1.15rem; font-weight: 800; color: var(--text);">
+                        🏦 ${escapeHtml(acc.bankName || 'Virtual Bank')}
+                    </div>
+                    <span style="font-family: var(--mono); font-size: 0.78rem; color: var(--teal); background: rgba(91,217,165,0.14); padding: 2px 8px; border-radius: 4px; font-weight: 700;">
+                        ${escapeHtml(acc.currency || 'NGN')} ₦
+                    </span>
+                </div>
+
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; margin-bottom: 2px;">
+                    Account Name
+                </div>
+                <div style="font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.85rem;">
+                    ${escapeHtml(acc.accountName || 'Olaslog Customer')}
+                </div>
+
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; margin-bottom: 2px;">
+                    Account Number
+                </div>
+                <div class="vba-num-box">
+                    <span class="vba-account-digits" id="vbaDigits">${escapeHtml(formattedNum)}</span>
+                    <button type="button" class="vba-copy-btn" id="vbaCopyBtn" onclick="copyVirtualAccountNumber('${escapeHtml(rawNum)}')">
+                        📋 Copy Number
+                    </button>
+                </div>
+
+                <!-- Instructions -->
+                <div style="margin-top: 1.25rem; border-top: 1px solid var(--edge); padding-top: 1rem;">
+                    <div class="vba-instruction-step">
+                        <span class="vba-step-icon">1</span>
+                        <div>Open your mobile banking app (Kuda, OPay, GTBank, Zenith, PalmPay, etc.).</div>
+                    </div>
+                    <div class="vba-instruction-step">
+                        <span class="vba-step-icon">2</span>
+                        <div>Transfer your desired deposit amount to your <strong>${escapeHtml(acc.bankName || '9PSB Bank')}</strong> account number above.</div>
+                    </div>
+                    <div class="vba-instruction-step">
+                        <span class="vba-step-icon">3</span>
+                        <div>Your Olaslog wallet is credited automatically within seconds of transfer clearance!</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.75rem; color: var(--text-dim);">Need another bank?</span>
+                <button type="button" class="btn btn-outline btn-sm" onclick="renderBillStackAccountForm()">
+                    ➕ Generate Alternative Bank Account
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function copyVirtualAccountNumber(number) {
+    const numToCopy = number || (state.userVirtualAccount ? state.userVirtualAccount.accountNumber : '');
+    if (!numToCopy) return;
+
+    navigator.clipboard.writeText(numToCopy).then(() => {
+        showToast(`Account number ${numToCopy} copied to clipboard! 📋`, 'success');
+        const btn = document.getElementById('vbaCopyBtn');
+        if (btn) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '✓ Copied!';
+            setTimeout(() => { btn.innerHTML = orig; }, 2000);
+        }
+    }).catch(() => {
+        showToast(`Account Number: ${numToCopy}`, 'info');
+    });
+}
+
 
 
 
