@@ -141,26 +141,38 @@ router.get('/verify/:reference', authenticate, (req, res) => {
 // ─── Webhook (BillStack) ──────────────────────────────────────────────────────
 
 /**
+ * GET /api/wallet/webhook
+ * Reachability check for BillStack dashboard and browsers
+ */
+router.get('/webhook', (req, res) => {
+    return res.status(200).json({
+        status: true,
+        message: 'Olaslog BillStack webhook endpoint is live and reachable'
+    });
+});
+
+/**
  * POST /api/wallet/webhook
  *
  * BillStack sends PAYMENT_NOTIFICATION events when funds arrive in a virtual account.
  *
- * Signature verification uses the RAW request body (before JSON parsing) because
- * re-serialising with JSON.stringify() can change key order and break the HMAC.
- * The raw body is captured via the `verify` option in express.json() and stored on
- * req.rawBody — see server/index.js where the wallet webhook route is mounted
- * with rawBody capture enabled.
- *
  * Webhook MUST respond with 200 + { status: true, message: "successful" } quickly;
  * BillStack retries on any non-200 response.
  */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
     let rawBody;
     let event;
 
     try {
-        // express.raw() gives us the Buffer; convert to string for HMAC
-        rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body);
+        if (req.rawBody) {
+            rawBody = req.rawBody instanceof Buffer ? req.rawBody.toString('utf8') : String(req.rawBody);
+        } else if (req.body instanceof Buffer) {
+            rawBody = req.body.toString('utf8');
+        } else if (typeof req.body === 'string') {
+            rawBody = req.body;
+        } else {
+            rawBody = JSON.stringify(req.body || {});
+        }
 
         // Parse the event — we need this to decide what action to take
         event = JSON.parse(rawBody);

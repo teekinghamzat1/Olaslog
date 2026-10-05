@@ -24,13 +24,27 @@ app.set('trust proxy', 1);
 
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+    limit: '10mb',
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Static directories
 app.use(express.static(path.resolve(__dirname, '../public')));
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
+// Webhook route aliases for BillStack (supports /api/wallet/webhook, /api/webhook, and /webhook)
+app.get(['/api/webhook', '/webhook'], (req, res) => {
+    res.status(200).json({ status: true, message: 'Olaslog BillStack webhook endpoint is live and reachable' });
+});
+app.post(['/api/webhook', '/webhook'], (req, res, next) => {
+    req.url = '/webhook';
+    walletRoutes(req, res, next);
+});
 
 // Mount API Routes
 app.use('/api/auth', authRoutes);
