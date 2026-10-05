@@ -1,0 +1,21 @@
+# robots.txt for Olaslog Marketplace (https://olaslog.com)
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /assets/
+Allow: /css/
+Allow: /js/
+
+# Disallow admin back-office and operations console
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin/*
+
+# Disallow authenticated private routes and internal API
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /orders
+Disallow: /wallet
+
+Host: https://olaslog.com
+Sitemap: https://olaslog.com/sitemap.xml

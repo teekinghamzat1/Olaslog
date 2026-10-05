@@ -380,6 +380,18 @@ function switchView(viewName) {
         bottomTab.classList.add('active');
     }
 
+    // Dynamic Title Update for SEO & Tab history
+    const viewTitles = {
+        home: 'Olaslog | Instant Digital Accounts, Virtual Numbers & Subscriptions Marketplace',
+        shop: 'Shop Catalog — Verified Accounts & Services | Olaslog',
+        dashboard: 'Client Dashboard & Vault | Olaslog',
+        orders: 'Order History & Credentials | Olaslog',
+        wallet: 'Fund Wallet — Dedicated Virtual Bank Accounts | Olaslog'
+    };
+    if (viewTitles[viewName]) {
+        document.title = viewTitles[viewName];
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Load view data
