@@ -1343,7 +1343,7 @@ async function submitDispute() {
 }
 
 // ============================================================================
-// Wallet & Korapay Dedicated Virtual Bank Account Funding
+// Wallet & Dedicated Virtual Bank Account Funding
 // ============================================================================
 
 function openFundModalShortcut() {
@@ -1416,10 +1416,10 @@ async function loadVirtualAccount() {
     const container = document.getElementById('vbaContainer');
     if (!container) return;
 
-    // Check for incoming payment return from Korapay
+    // Check for incoming payment return
     await checkUrlPaymentVerification();
 
-    // Render Korapay Standard Checkout form (Cards, Bank Transfer, USSD - no CAC/BVN needed)
+    // Render Standard Checkout form (Cards, Bank Transfer, USSD - no CAC/BVN needed)
     renderKorapayFundingForm();
 }
 
@@ -1429,7 +1429,7 @@ async function checkUrlPaymentVerification() {
     const reference = urlParams.get('reference') || hashParams.get('reference') || urlParams.get('trxref') || hashParams.get('trxref');
 
     if (reference) {
-        showToast('Verifying payment with Korapay...', 'info');
+        showToast('Verifying your payment...', 'info');
         try {
             const res = await fetch(`/api/wallet/verify/${encodeURIComponent(reference)}`);
             const data = await res.json();
@@ -1467,7 +1467,7 @@ function renderKorapayFundingForm() {
                     💳
                 </div>
                 <div>
-                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Fund Wallet via Korapay</h3>
+                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: var(--text);">Fund Your Wallet</h3>
                     <p style="font-size: 0.82rem; color: var(--text-dim); margin: 0;">Instant Bank Transfer, Debit Card & USSD</p>
                 </div>
             </div>
@@ -1528,7 +1528,7 @@ async function handleKorapayCheckout(event) {
 
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Opening Korapay Checkout...';
+        submitBtn.innerHTML = '⏳ Opening Secure Checkout...';
     }
 
     try {
@@ -1541,10 +1541,10 @@ async function handleKorapayCheckout(event) {
 
         const data = await res.json();
         if (data.success && data.data?.checkoutUrl) {
-            showToast('Redirecting to Korapay secure checkout...', 'success');
+            showToast('Redirecting to secure checkout...', 'success');
             window.location.href = data.data.checkoutUrl;
         } else {
-            showToast(data.error || 'Failed to initialize payment with Korapay', 'error');
+            showToast(data.error || 'Failed to initialize payment. Please try again.', 'error');
             if (submitBtn) {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = 'Proceed to Secure Payment 🔒';

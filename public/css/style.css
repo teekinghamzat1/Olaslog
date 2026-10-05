@@ -2590,7 +2590,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
 }
 
 /* ==========================================================================
-   Korapay Virtual Bank Account & KYC Styling
+   Virtual Bank Account & KYC Styling
    ========================================================================== */
 .vba-bank-card {
     background: radial-gradient(140px 100px at 90% 10%, rgba(91, 217, 165, 0.12), transparent 70%),
