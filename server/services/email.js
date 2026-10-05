@@ -1,6 +1,11 @@
 'use strict';
 
-const nodemailer = require('nodemailer');
+let nodemailer = null;
+try {
+    nodemailer = require('nodemailer');
+} catch (e) {
+    console.warn('[Email] Warning: "nodemailer" package not found. Run "npm install" on the server to enable email delivery.');
+}
 const db = require('../db');
 require('dotenv').config();
 
@@ -192,6 +197,10 @@ function resetTemplateToDefault(key) {
 // ─── Transport Factory ────────────────────────────────────────────────────────
 
 function createTransport() {
+    if (!nodemailer) {
+        console.warn('[Email] nodemailer is not installed. Run "npm install" on the server.');
+        return null;
+    }
     const cfg = getEmailSettings();
     if (!cfg.host || !cfg.user || !cfg.pass) {
         return null;
@@ -601,6 +610,9 @@ async function sendTestEmail(templateKey, recipientEmail) {
     }
 
     const transporter = createTransport();
+    if (!transporter) {
+        throw new Error('SMTP transport could not be initialized. Ensure nodemailer is installed ("npm install") and SMTP settings are saved.');
+    }
     const info = await transporter.sendMail({
         from: `"${cfg.fromName}" <${cfg.from}>`,
         to: recipientEmail,
