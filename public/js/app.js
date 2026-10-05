@@ -2255,154 +2255,106 @@ function escapeCredential(text) {
 }
 
 // ============================================================================
-// Live Order Feed Ticker
+// Live Order Feed Ticker — bottom marquee bar
 // ============================================================================
 
 const LiveOrderFeed = (() => {
-    const TICKER_ID        = 'liveFeedTicker';
-    const DISPLAY_MS       = 7000;   // how long each card is visible
-    const INTERVAL_MS      = 9000;   // gap between cards
-    const REFRESH_MS       = 120000; // re-fetch from API every 2 minutes
-    const SESSION_KEY      = 'olf_dismissed'; // sessionStorage key
+    const TICKER_ID  = 'liveFeedTicker';
+    const REFRESH_MS = 120000; // re-fetch from API every 2 minutes
 
     // Fallback demo entries shown when the DB has no orders yet
     const DEMO_FEED = [
-        { product_name: 'CLONE INSTAGRAM US | FULL 2FA', quantity: 1, category_icon: '📸', created_at: new Date(Date.now() - 3 * 60000).toISOString() },
-        { product_name: 'AVAST VPN',                    quantity: 2, category_icon: '🛡️', created_at: new Date(Date.now() - 8 * 60000).toISOString() },
-        { product_name: 'Google Voice PVA',             quantity: 1, category_icon: '📞', created_at: new Date(Date.now() - 14 * 60000).toISOString() },
-        { product_name: 'CLONE TIKTOK US | Full 2FA',   quantity: 3, category_icon: '🎵', created_at: new Date(Date.now() - 22 * 60000).toISOString() },
-        { product_name: 'NordVPN Premium 1-Month',      quantity: 1, category_icon: '🛡️', created_at: new Date(Date.now() - 31 * 60000).toISOString() },
+        { product_name: 'CLONE INSTAGRAM US | FULL 2FA', quantity: 1, category_icon: '📸', created_at: new Date(Date.now() - 3  * 60000).toISOString() },
+        { product_name: 'AVAST VPN',                     quantity: 2, category_icon: '🛡️', created_at: new Date(Date.now() - 8  * 60000).toISOString() },
+        { product_name: 'Google Voice PVA',              quantity: 1, category_icon: '📞', created_at: new Date(Date.now() - 14 * 60000).toISOString() },
+        { product_name: 'CLONE TIKTOK US | Full 2FA',    quantity: 3, category_icon: '🎵', created_at: new Date(Date.now() - 22 * 60000).toISOString() },
+        { product_name: 'NordVPN Premium 1-Month',       quantity: 1, category_icon: '🛡️', created_at: new Date(Date.now() - 31 * 60000).toISOString() },
+        { product_name: 'Spotify Premium 12-Month',      quantity: 1, category_icon: '🎵', created_at: new Date(Date.now() - 45 * 60000).toISOString() },
+        { product_name: 'Facebook Aged Account 2018',    quantity: 2, category_icon: '📘', created_at: new Date(Date.now() - 55 * 60000).toISOString() },
     ];
 
-    let feed     = [];
-    let cursor   = 0;
-    let loopTimer   = null;
+    let feed         = [];
     let refreshTimer = null;
-    let dismissed  = false;
 
     const timeAgo = (isoString) => {
         const diffMs  = Date.now() - new Date(isoString).getTime();
         const diffMin = Math.floor(diffMs / 60000);
         const diffHr  = Math.floor(diffMin / 60);
         if (diffMin < 1)  return 'just now';
-        if (diffMin < 60) return `${diffMin} min ago`;
+        if (diffMin < 60) return `${diffMin}m ago`;
         if (diffHr  < 24) return `${diffHr}h ago`;
         return `${Math.floor(diffHr / 24)}d ago`;
     };
 
-    const truncate = (name, maxLen = 36) => {
-        return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
-    };
+    const truncate = (name, maxLen = 40) =>
+        name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
 
     const fetchFeed = async () => {
         try {
             const res  = await fetch('/api/orders/feed');
             const data = await res.json();
             if (data.success && Array.isArray(data.feed) && data.feed.length > 0) {
-                feed   = data.feed;
-                cursor = 0;
+                feed = data.feed;
             } else if (feed.length === 0) {
-                // Empty DB — use demo data so the ticker always shows
-                feed   = DEMO_FEED;
-                cursor = 0;
+                feed = DEMO_FEED;
             }
         } catch (_) {
-            if (feed.length === 0) {
-                feed   = DEMO_FEED;
-                cursor = 0;
-            }
+            if (feed.length === 0) feed = DEMO_FEED;
         }
     };
 
-    const showNext = () => {
-        if (dismissed) return;
-        if (feed.length === 0) return;
+    const buildItems = (items) => items.map(item => {
+        const qty  = item.quantity > 1 ? `${item.quantity}× ` : '';
+        const icon = item.category_icon || '🛍️';
+        const name = truncate(item.product_name);
+        const when = timeAgo(item.created_at);
+        return `<span class="lf-item">` +
+               `<span class="lf-item-emoji">${icon}</span>` +
+               `<span>Someone just bought <span class="lf-item-name">${qty}${escapeHtml(name)}</span></span>` +
+               `<span class="lf-item-time">${when}</span>` +
+               `</span>`;
+    }).join('');
 
+    const renderBar = () => {
         const mount = document.getElementById(TICKER_ID);
-        if (!mount) return;
+        if (!mount || feed.length === 0) return;
 
-        // Remove any existing card
-        const existing = mount.querySelector('.lf-card');
-        if (existing) {
-            existing.classList.add('lf-exit');
-            setTimeout(() => existing.remove(), 380);
-        }
+        // Duplicate items for seamless infinite loop
+        const half = buildItems(feed);
 
-        // Delay slightly so exit animation runs first
-        setTimeout(() => {
-            if (dismissed) return;
+        mount.innerHTML =
+            `<div class="lf-bar">` +
+                `<div class="lf-badge">` +
+                    `<span class="lf-dot"></span>` +
+                    `<span class="lf-badge-text">Live</span>` +
+                `</div>` +
+                `<div class="lf-track-wrap">` +
+                    `<div class="lf-track">${half}${half}</div>` +
+                `</div>` +
+            `</div>`;
 
-            const item = feed[cursor % feed.length];
-            cursor++;
-
-            const qty     = item.quantity > 1 ? `${item.quantity}x ` : '';
-            const icon    = item.category_icon || '🛍️';
-            const name    = truncate(item.product_name);
-            const when    = timeAgo(item.created_at);
-
-            const card = document.createElement('div');
-            card.className = 'lf-card';
-            card.setAttribute('role', 'status');
-            card.innerHTML = `
-                <div class="lf-emoji">${icon}</div>
-                <div class="lf-body">
-                    <div class="lf-label">
-                        <span class="lf-dot"></span>
-                        Live Sale
-                    </div>
-                    <div class="lf-product">Someone just bought ${qty}${escapeHtml(name)}</div>
-                    <div class="lf-meta">${when}</div>
-                </div>
-                <button class="lf-close" title="Dismiss" onclick="LiveOrderFeed.dismiss()" aria-label="Close live feed">✕</button>
-            `;
-
-            mount.innerHTML = '';
-            mount.appendChild(card);
-        }, existing ? 400 : 0);
+        // Tune animation speed to content length (~40px/s baseline)
+        requestAnimationFrame(() => {
+            const track = mount.querySelector('.lf-track');
+            if (!track) return;
+            const halfWidth = track.scrollWidth / 2;
+            const duration  = Math.max(16, halfWidth / 40);
+            track.style.animationDuration = `${duration}s`;
+        });
     };
 
-    const start = () => {
-        if (dismissed) return;
-        showNext();
-        loopTimer = setInterval(showNext, INTERVAL_MS);
-    };
-
-    const stop = () => {
-        clearInterval(loopTimer);
-        clearInterval(refreshTimer);
-        loopTimer = null;
-        refreshTimer = null;
-    };
-
-    const dismiss = () => {
-        dismissed = true;
-        stop();
-        try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (_) {}
-        const mount = document.getElementById(TICKER_ID);
-        if (!mount) return;
-        const card = mount.querySelector('.lf-card');
-        if (card) {
-            card.classList.add('lf-exit');
-            setTimeout(() => { mount.innerHTML = ''; }, 380);
-        } else {
-            mount.innerHTML = '';
-        }
-    };
+    // Kept for API compatibility — bar is always visible, no dismiss needed
+    const dismiss = () => {};
 
     const init = async () => {
-        // Respect session-level dismiss
-        try { if (sessionStorage.getItem(SESSION_KEY)) { dismissed = true; return; } } catch (_) {}
-
         await fetchFeed();
+        setTimeout(renderBar, 2200); // slide up after brief page-load delay
 
-        // Small delay after page load before first card appears
-        setTimeout(start, 3500);
-
-        // Periodically refresh the feed list from the API
         refreshTimer = setInterval(async () => {
             await fetchFeed();
+            renderBar();
         }, REFRESH_MS);
-    }
+    };
 
     return { init, dismiss };
 })();
@@ -2412,4 +2364,5 @@ window.LiveOrderFeed = LiveOrderFeed;
 function initLiveOrderFeed() {
     LiveOrderFeed.init();
 }
+
 
