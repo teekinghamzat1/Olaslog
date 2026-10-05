@@ -60,8 +60,14 @@ router.get('/virtual-account', authenticate, (req, res) => {
  */
 router.post('/virtual-account', authenticate, async (req, res) => {
     try {
-        const { bankId, phone, idType, idNumber } = req.body;
-        const result = await billstackService.createOrGetVirtualAccount(req.user.id, { bankId, phone, idType, idNumber });
+        const { bankId, phone, idType, idNumber, forceNew } = req.body;
+        const result = await billstackService.createOrGetVirtualAccount(req.user.id, {
+            bankId,
+            phone,
+            idType,
+            idNumber,
+            forceNew: Boolean(forceNew)
+        });
 
         return res.json({
             success: true,
@@ -77,6 +83,24 @@ router.post('/virtual-account', authenticate, async (req, res) => {
         console.error('[Wallet] Create virtual account error:', err);
         const statusCode = err.code === 'PALMPAY_ID_REQUIRED' ? 422 : 400;
         return res.status(statusCode).json({ success: false, error: err.message || 'Failed to create virtual bank account' });
+    }
+});
+
+/**
+ * DELETE /api/wallet/virtual-account/:id?
+ * Removes one or all virtual accounts so the user can generate a fresh one.
+ */
+router.delete('/virtual-account/:id?', authenticate, (req, res) => {
+    try {
+        const accountId = req.params.id ? parseInt(req.params.id, 10) : null;
+        billstackService.deleteVirtualAccount(req.user.id, accountId);
+        return res.json({
+            success: true,
+            message: 'Virtual bank account removed successfully. You can now generate a fresh account.'
+        });
+    } catch (err) {
+        console.error('[Wallet] Delete virtual account error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to delete virtual account' });
     }
 });
 

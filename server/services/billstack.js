@@ -83,6 +83,18 @@ async function billstackFetch(endpoint, body) {
     return data;
 }
 
+/**
+ * Delete one or all virtual accounts for a user.
+ * @param {number} userId
+ * @param {number} [accountId]
+ */
+function deleteVirtualAccount(userId, accountId) {
+    if (accountId) {
+        return db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ? AND id = ?`).run(userId, accountId);
+    }
+    return db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ?`).run(userId);
+}
+
 // ─── Virtual Account ──────────────────────────────────────────────────────────
 
 /**
@@ -97,24 +109,41 @@ async function billstackFetch(endpoint, body) {
  * @param {string} [params.phone]     - Customer phone number (required)
  * @param {string} [params.idType]    - 'nin' or 'bvn' (required when bankId = PALMPAY)
  * @param {string} [params.idNumber]  - The NIN/BVN value (required when bankId = PALMPAY)
+ * @param {boolean} [params.forceNew] - If true, replaces existing account
  */
-async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumber } = {}) {
-    // 1. Return existing account if already created
-    const existing = getAllVirtualAccounts(userId);
-    if (existing.length > 0) {
-        return {
-            success: true,
-            isNew: false,
-            data: existing[0],
-            accounts: existing
-        };
+async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumber, forceNew = false } = {}) {
+    // Automatically purge invalid mock accounts if user now has a real key
+    if (!isMock) {
+        db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ? AND is_mock = 1`).run(userId);
+    }
+
+    const selectedBank = bankId || DEFAULT_BANK;
+
+    // If forceNew is requested, remove existing account for this user/bank first
+    if (forceNew) {
+        db.prepare(`DELETE FROM user_virtual_accounts WHERE user_id = ? AND (bank_code = ? OR is_mock = 1)`).run(userId, selectedBank);
+    } else {
+        // Return existing non-mock account if one already exists for this bank or generally
+        const existingForBank = db.prepare(`
+            SELECT * FROM user_virtual_accounts 
+            WHERE user_id = ? AND bank_code = ?
+            ORDER BY created_at DESC LIMIT 1
+        `).get(userId, selectedBank);
+
+        if (existingForBank) {
+            return {
+                success: true,
+                isNew: false,
+                data: existingForBank,
+                accounts: getAllVirtualAccounts(userId)
+            };
+        }
     }
 
     // 2. Fetch user info
     const user = db.prepare(`SELECT id, email, full_name, phone FROM users WHERE id = ?`).get(userId);
     if (!user) throw new Error('User not found');
 
-    const selectedBank = bankId || DEFAULT_BANK;
     const bankObj = SUPPORTED_BANKS.find(b => b.id === selectedBank) || SUPPORTED_BANKS[0];
 
     // 3. Validate PALMPAY-specific fields
@@ -364,6 +393,7 @@ module.exports = {
     getVirtualAccount,
     getAllVirtualAccounts,
     createOrGetVirtualAccount,
+    deleteVirtualAccount,
     verifyWebhookSignature,
     processIncomingPayment
 };
