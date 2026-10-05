@@ -112,6 +112,62 @@
           "paymentAccepted": "Cash, Bank Transfer, Virtual Bank Account, Korapay Wallet",
           "currenciesAccepted": "NGN",
           "priceRange": "₦₦"
+        },
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://olaslog.com/#breadcrumbs",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://olaslog.com/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Shop Catalog",
+              "item": "https://olaslog.com/shop"
+            }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://olaslog.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How fast is delivery after payment?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Fulfillment is 100% automated and instant. As soon as you click checkout from your wallet, our system decrypts your assigned credentials and displays them on your screen in under 3 seconds."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does wallet funding work?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "You can fund your wallet with any amount starting from ₦100 via your dedicated Korapay Virtual Bank Account. Simply transfer to your account number from any Nigerian bank app and your balance is credited automatically."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What is your replacement or refund policy?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Digital accounts do not carry perpetual warranties. However, if a credential is fundamentally defective upon delivery, you can use the 'Report an Issue' link in your Orders tab with an attached screenshot proof. Our admin team will inspect it and credit your wallet."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I view my past credentials again?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes! All your purchased credentials remain securely stored in your Orders & History section and can be revealed at any time."
+              }
+            }
+          ]
         }
       ]
     }
@@ -119,22 +175,26 @@
 </head>
 
 <body>
+    <!-- Accessibility Skip to Main Content Link -->
+    <a href="#main-content" class="skip-to-content"
+        style="position: absolute; left: -9999px; z-index: 9999; padding: 10px 18px; background: var(--teal); color: #06090e; font-weight: 700; text-decoration: none; border-radius: 8px; top: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.4);"
+        onfocus="this.style.left='12px'" onblur="this.style.left='-9999px'">Skip to main content</a>
 
     <!-- Main Navigation Bar -->
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Main Navigation">
         <div class="nav-container">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <button class="mobile-hamburger-btn" id="mobileHamburgerBtn" onclick="toggleMobileDrawer()"
-                    title="Open Navigation Menu">
+                    aria-label="Open Navigation Menu" title="Open Navigation Menu">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.2">
+                        stroke-width="2.2" aria-hidden="true">
                         <line x1="3" y1="6" x2="21" y2="6" />
                         <line x1="3" y1="12" x2="21" y2="12" />
                         <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
-                <div class="brand-logo" onclick="navigateTo('home')" title="Olaslog Home">
-                    <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Icon" class="brand-mark-img">
+                <div class="brand-logo" onclick="navigateTo('home')" title="Olaslog Home" role="link" tabindex="0" aria-label="Olaslog Home">
+                    <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Marketplace Logo" width="34" height="34" class="brand-mark-img">
                     <div>Olas<span class="brand-highlight">log</span></div>
                 </div>
             </div>
@@ -268,7 +328,7 @@
     </aside>
 
     <!-- App Views Container -->
-    <main class="main-container">
+    <main class="main-container" id="main-content">
 
         <!-- ================================================================
              VIEW: HOME (Public Landing Page)
@@ -283,13 +343,13 @@
                             <span>⚡ Instant Automated Delivery • Korapay Bank Transfer Secured</span>
                         </div>
                         <h1 class="hero-title">
-                            Digital Accounts &amp; Numbers <br>
-                            <span class="gradient-text">Delivered Instantly to Your Wallet</span>
+                            Buy Verified Digital Accounts &amp; Virtual Numbers <br>
+                            <span class="gradient-text">Instant Automated Delivery to Your Vault</span>
                         </h1>
                         <p class="hero-subtitle">
-                            Self-service verified accounts for Google Voice, TextPlus, Talkatone, and Premium VPNs.
-                            Pre-fund your wallet in Nigerian Naira (₦), purchase atomically, and receive your
-                            credentials immediately.
+                            Nigeria's trusted self-service marketplace for verified Google Voice, TextPlus, Talkatone, and
+                            premium VPN subscriptions. Pre-fund your wallet via dedicated Korapay virtual bank accounts in
+                            Naira (₦), purchase atomically, and receive credentials immediately.
                         </p>
 
                         <div class="hero-cta-group">
@@ -333,8 +393,10 @@
                     <div class="hero-visual">
                         <div class="hero-img-wrapper">
                             <div class="hero-img-glow"></div>
-                            <img src="/assets/hero_olaslog_person_dark.jpg" alt="Olaslog Branded Team Member"
-                                class="hero-person-img" id="heroPersonImg" loading="eager">
+                            <img src="/assets/hero_olaslog_person_dark.jpg"
+                                alt="Olaslog customer receiving verified digital accounts and instant credentials"
+                                width="540" height="540"
+                                class="hero-person-img" id="heroPersonImg" fetchpriority="high" decoding="async">
 
                             <!-- Top Floating Badge -->
                             <div class="hero-float-card float-card-top">
@@ -379,6 +441,104 @@
                     <div class="stat-label">Minimum Bank Transfer Deposit</div>
                 </div>
             </div>
+
+            <!-- Why Choose Olaslog (Keyword-rich trust, security & category authority) -->
+            <section class="card"
+                style="margin-bottom: 4rem; padding: 2.8rem 2rem; border: 1px solid var(--border-glass); background: radial-gradient(circle at 10% 10%, rgba(30, 155, 68, 0.08) 0%, transparent 60%);">
+                <div style="text-align: center; max-width: 760px; margin: 0 auto 2.5rem;">
+                    <span class="pill pill-teal"
+                        style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.8rem; display: inline-flex;">
+                        <span class="dot"></span> Why Choose Olaslog
+                    </span>
+                    <h2 style="font-size: 1.85rem; font-weight: 800; margin-bottom: 0.6rem; letter-spacing: -0.02em;">
+                        The Most Reliable Digital Products &amp; Accounts Marketplace
+                    </h2>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6;">
+                        Engineered specifically for business communication, digital marketing, privacy, and online security.
+                        Experience automated 24/7 fulfillment with dedicated Nigerian virtual bank accounts.
+                    </p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                    <!-- Card 1: Google Voice & US Numbers -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">🌐</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">Verified Google Voice &amp; Numbers</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            Aged, clean, and tested USA phone numbers with full recovery access. Perfect for customer support,
+                            international business calling, and receiving 2FA verification codes reliably.
+                        </p>
+                    </div>
+
+                    <!-- Card 2: High-Speed VPNs -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">🛡️</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">High-Speed Premium VPN Keys</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            Genuine subscriptions for ExpressVPN, NordVPN, and ProtonVPN. Secure your Internet connection with
+                            multi-gigabit servers, DNS leak prevention, and zero logs.
+                        </p>
+                    </div>
+
+                    <!-- Card 3: USA Texting Apps -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">💬</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">USA Texting Apps (TextPlus &amp; Talkatone)</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            Instant automated credentials for active TextPlus and Talkatone mobile applications. Complete with
+                            step-by-step setup guides to avoid account lockouts.
+                        </p>
+                    </div>
+
+                    <!-- Card 4: Dedicated Korapay Virtual Accounts -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">🏦</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">Dedicated Virtual Bank Accounts</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            Fund your wallet anytime from any Nigerian mobile bank app. Each registered user receives a
+                            permanent dedicated bank account number powered by Korapay with zero delay.
+                        </p>
+                    </div>
+
+                    <!-- Card 5: AES-256 Vault Encryption -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">🔐</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">Encrypted Vault &amp; Lifetime Access</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            All digital credentials and tokens are secured using AES-256-GCM encryption at rest. Revisit your past
+                            purchases and reveal account logins whenever you need them.
+                        </p>
+                    </div>
+
+                    <!-- Card 6: Fair Replacement Guarantee -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: 14px; padding: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 0.8rem;">
+                            <span style="font-size: 1.8rem;" aria-hidden="true">⚡</span>
+                            <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">Rapid Dispute Resolution &amp; Refunds</h3>
+                        </div>
+                        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin: 0;">
+                            Encounter a defective credential upon purchase? Submit a dispute ticket with screenshot proof right
+                            inside your Orders tab for prompt admin review and full wallet reimbursement.
+                        </p>
+                    </div>
+                </div>
+            </section>
 
             <!-- Featured Products Preview -->
             <div style="margin-bottom: 4rem;">
@@ -485,15 +645,105 @@
                 </div>
             </div>
 
-            <!-- Footer & Legal Disclaimers -->
-            <footer
-                style="border-top: 1px solid var(--border-glass); padding-top: 2.5rem; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
-                <p style="margin-bottom: 0.8rem;">
-                    <strong>Disclaimer:</strong> Olaslog is an independent digital products marketplace and is not
-                    affiliated with, endorsed by, or sponsored by Google Voice, TextPlus, Talkatone, NordVPN, or
-                    ExpressVPN.
-                </p>
-                <p>© 2026 Olaslog Marketplace. All rights reserved.</p>
+            <!-- Comprehensive SEO & Trust Footer -->
+            <footer class="seo-footer"
+                style="border-top: 1px solid var(--border-glass); padding: 3.5rem 0 2rem; margin-top: 4rem;">
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2.5rem; margin-bottom: 2.5rem; text-align: left;">
+                    <!-- Col 1: Brand & Overview -->
+                    <div>
+                        <div class="brand-logo" onclick="navigateTo('home')" title="Olaslog Home"
+                            style="margin-bottom: 0.8rem; cursor: pointer;">
+                            <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Marketplace Logo" width="32"
+                                height="32" class="brand-mark-img">
+                            <div>Olas<span class="brand-highlight">log</span></div>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.6; margin-bottom: 1.2rem;">
+                            Nigeria's leading automated marketplace for verified digital accounts, virtual phone numbers,
+                            and premium subscriptions with zero-wait delivery.
+                        </p>
+                        <div
+                            style="display: inline-flex; align-items: center; gap: 8px; background: rgba(30, 155, 68, 0.12); border: 1px solid rgba(30, 155, 68, 0.3); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; color: var(--teal); font-weight: 600;">
+                            <span>🔒</span> 256-Bit SSL Secured Platform
+                        </div>
+                    </div>
+
+                    <!-- Col 2: High Search Categories -->
+                    <div>
+                        <h4
+                            style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-primary); margin-bottom: 1rem;">
+                            Popular Categories</h4>
+                        <ul
+                            style="list-style: none; padding: 0; margin: 0; font-size: 0.88rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('usa-texting-app'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">USA Texting Apps (TextPlus, Talkatone)</a></li>
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('1-month-paid-vpn'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">1 Month Paid VPNs (ExpressVPN, NordVPN)</a></li>
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('usa-gmail'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">USA Gmail &amp; Google Voice Accounts</a></li>
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('clone-x-twitter'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">Twitter / X Accounts &amp; Clones</a></li>
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('instagram'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">Instagram &amp; TikTok Accounts</a></li>
+                            <li><a href="javascript:void(0)"
+                                    onclick="navigateTo('shop'); setTimeout(() => filterCategory('ip-proxy'), 100);"
+                                    style="color: var(--text-secondary); text-decoration: none;">IP Proxies &amp; Private Gateways</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Col 3: Quick Navigation -->
+                    <div>
+                        <h4
+                            style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-primary); margin-bottom: 1rem;">
+                            Platform Navigation</h4>
+                        <ul
+                            style="list-style: none; padding: 0; margin: 0; font-size: 0.88rem; display: flex; flex-direction: column; gap: 0.6rem;">
+                            <li><a href="javascript:void(0)" onclick="navigateTo('home')"
+                                    style="color: var(--text-secondary); text-decoration: none;">Marketplace Home</a></li>
+                            <li><a href="javascript:void(0)" onclick="navigateTo('shop')"
+                                    style="color: var(--text-secondary); text-decoration: none;">Browse Live Catalog</a></li>
+                            <li><a href="javascript:void(0)" onclick="navigateTo('wallet')"
+                                    style="color: var(--text-secondary); text-decoration: none;">Fund Wallet via Virtual Account</a></li>
+                            <li><a href="javascript:void(0)" onclick="navigateTo('orders')"
+                                    style="color: var(--text-secondary); text-decoration: none;">Orders &amp; Decrypted Credentials</a></li>
+                            <li><a href="#view-home"
+                                    onclick="document.querySelector('.faq-list')?.scrollIntoView({behavior: 'smooth'})"
+                                    style="color: var(--text-secondary); text-decoration: none;">Frequently Asked Questions</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Col 4: Trust & Payment Channels -->
+                    <div>
+                        <h4
+                            style="font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-primary); margin-bottom: 1rem;">
+                            Payments &amp; Guarantee</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.6; margin-bottom: 0.8rem;">
+                            Instant deposits from <strong>₦100</strong> supported via dedicated Korapay virtual bank accounts
+                            across all Nigerian commercial and microfinance banks.
+                        </p>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">
+                            ⚡ <strong>Zero Wait Time:</strong> Fully automated dispatch system immediately releases login
+                            credentials upon order completion.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legal Disclaimer & Copyright -->
+                <div
+                    style="border-top: 1px solid var(--border-glass); padding-top: 1.8rem; text-align: center; color: var(--text-muted); font-size: 0.82rem;">
+                    <p style="margin-bottom: 0.6rem; max-width: 800px; margin-left: auto; margin-right: auto;">
+                        <strong>Disclaimer:</strong> Olaslog is an independent digital products platform and is not
+                        affiliated, associated, authorized, endorsed by, or in any way officially connected with Google,
+                        Alphabet Inc., TextPlus, Talkatone, NordVPN, ExpressVPN, or Meta Platforms. All product names, logos,
+                        and brands are property of their respective owners.
+                    </p>
+                    <p style="margin: 0;">© 2026 Olaslog Marketplace. All rights reserved. • Built for automated speed and security.</p>
+                </div>
             </footer>
         </section>
 
@@ -504,7 +754,7 @@
         <section id="view-shop" class="app-view" style="display: none;">
             <div class="shop-header">
                 <div>
-                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Digital Products Catalog</h1>
+                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Digital Products Catalog</h2>
                     <p style="color: var(--text-secondary);">Browse stock accounts and instant subscription codes</p>
                 </div>
 
@@ -537,7 +787,7 @@
             <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
                 <div>
-                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Account Dashboard</h1>
+                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Account Dashboard</h2>
                     <p style="color: var(--text-secondary);">Welcome back, <span id="dashCustomerName"
                             style="color: var(--text-primary); font-weight: 700;">Customer</span></p>
                 </div>
@@ -628,7 +878,7 @@
             <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
                 <div>
-                    <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Order & Delivery History</h1>
+                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Order &amp; Delivery History</h2>
                     <p style="color: var(--text-secondary);">Access all your purchased credentials anytime</p>
                 </div>
                 <button class="btn btn-secondary" onclick="navigateTo('shop')">+ Buy More Products</button>
@@ -662,7 +912,7 @@
              ================================================================ -->
         <section id="view-wallet" class="app-view" style="display: none;">
             <div style="margin-bottom: 2rem;">
-                <h1 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Wallet & Funding</h1>
+                <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Wallet &amp; Funding</h2>
                 <p style="color: var(--text-secondary);">Fund your balance instantly via Korapay (Bank Transfer, Debit
                     Card & USSD)</p>
             </div>

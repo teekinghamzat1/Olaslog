@@ -581,6 +581,10 @@ function createProductCardHTML(p) {
         <img
             src="${logoSrc}"
             alt="${escapeHtml(p.name)} logo"
+            width="28"
+            height="28"
+            loading="lazy"
+            decoding="async"
             style="width: 28px; height: 28px; object-fit: contain; display: block;"
             onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
         /><span style="display:none; width:100%; height:100%; align-items:center; justify-content:center; font-weight:700; font-size:14px;">${initials}</span>
