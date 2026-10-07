@@ -78,7 +78,29 @@ router.get('/', authenticate, (req, res) => {
             ORDER BY o.created_at DESC
         `).all(req.user.id);
 
-        return res.json({ success: true, orders });
+        const enrichedOrders = orders.map(ord => {
+            const items = db.prepare(`
+                SELECT 
+                    oi.id as order_item_id,
+                    oi.product_id,
+                    oi.quantity,
+                    oi.unit_price,
+                    oi.subtotal,
+                    p.name as product_name,
+                    p.slug as product_slug,
+                    p.image_url,
+                    p.price as current_price,
+                    p.is_active,
+                    c.name as category_name
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                LEFT JOIN product_categories c ON p.category_id = c.id
+                WHERE oi.order_id = ?
+            `).all(ord.id);
+            return { ...ord, items };
+        });
+
+        return res.json({ success: true, orders: enrichedOrders });
     } catch (err) {
         console.error('Fetch orders error:', err);
         return res.status(500).json({ success: false, error: 'Failed to fetch order history' });

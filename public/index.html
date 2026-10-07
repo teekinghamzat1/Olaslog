@@ -875,33 +875,66 @@
              VIEW: ORDERS & PURCHASE HISTORY
              ================================================================ -->
         <section id="view-orders" class="app-view" style="display: none;">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
                 <div>
-                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Order &amp; Delivery History</h2>
-                    <p style="color: var(--text-secondary);">Access all your purchased credentials anytime</p>
+                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.3rem;">Order &amp; Purchase History</h2>
+                    <p style="color: var(--text-secondary);">Review all your purchased digital credentials, download keys, or re-order instantly</p>
                 </div>
-                <button class="btn btn-secondary" onclick="navigateTo('shop')">+ Buy More Products</button>
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="loadOrders()">🔄 Refresh</button>
+                    <button class="btn btn-primary" onclick="navigateTo('shop')">+ Buy More Products</button>
+                </div>
             </div>
 
-            <div class="card">
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Order Number</th>
-                                <th>Date & Time</th>
-                                <th>Items</th>
-                                <th>Total Paid</th>
-                                <th>Order Status</th>
-                                <th>Dispute Status</th>
-                                <th>Credentials & Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fullOrdersTableBody">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+            <!-- Purchase History KPI Summary Tiles -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+                <div class="card" style="padding: 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Total Orders</div>
+                    <div style="font-size: 1.85rem; font-weight: 800; color: var(--text); margin-top: 0.35rem;" id="userOrdersTotalCount">0</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Completed fulfillments</div>
+                </div>
+
+                <div class="card" style="padding: 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Total Spent</div>
+                    <div style="font-size: 1.85rem; font-weight: 800; color: var(--accent-emerald); margin-top: 0.35rem;" id="userOrdersTotalSpent">₦0</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Lifetime marketplace purchases</div>
+                </div>
+
+                <div class="card" style="padding: 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Credentials Delivered</div>
+                    <div style="font-size: 1.85rem; font-weight: 800; color: var(--primary); margin-top: 0.35rem;" id="userOrdersDeliveredCount">0</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Digital keys &amp; account items</div>
+                </div>
+
+                <div class="card" style="padding: 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Buyer Protections</div>
+                    <div style="font-size: 1.85rem; font-weight: 800; color: var(--gold, #f59e0b); margin-top: 0.35rem;" id="userOrdersDisputeCount">0</div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">Active dispute warranties</div>
+                </div>
+            </div>
+
+            <!-- Search and Filter Bar -->
+            <div class="card" style="margin-bottom: 1.75rem; padding: 1rem 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div style="position: relative; flex: 1; min-width: 240px;">
+                        <input type="text" id="userOrdersSearchInput" class="form-control" placeholder="Search by order number or product name..." oninput="handleUserOrdersSearch(this.value)" style="padding-left: 2.25rem;">
+                        <span style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.95rem;">🔍</span>
+                    </div>
+
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <span style="font-size: 0.82rem; color: var(--text-muted); margin-right: 0.25rem;">Filter:</span>
+                        <button class="btn btn-secondary btn-sm user-order-filter-pill active" onclick="setUserOrderFilter('all', this)">All</button>
+                        <button class="btn btn-secondary btn-sm user-order-filter-pill" onclick="setUserOrderFilter('completed', this)">Completed</button>
+                        <button class="btn btn-secondary btn-sm user-order-filter-pill" onclick="setUserOrderFilter('disputed', this)">Disputed</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dedicated Orders Card Stream -->
+            <div id="userOrdersCardsContainer" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <!-- Populated dynamically via loadOrders() in app.js -->
+                <div class="card" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    Loading your purchase history...
                 </div>
             </div>
         </section>
@@ -1264,7 +1297,10 @@
                             required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Password</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <label class="form-label" style="margin-bottom: 0;">Password</label>
+                            <a href="javascript:void(0)" onclick="switchAuthMode('forgot')" style="font-size: 0.8rem; color: var(--primary);">Forgot Password?</a>
+                        </div>
                         <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">Sign
@@ -1274,6 +1310,25 @@
                         style="margin-top: 1.25rem; font-size: 0.88rem; text-align: center; color: var(--text-secondary);">
                         Don't have an account? <a href="javascript:void(0)" onclick="switchAuthMode('register')"
                             style="color: var(--primary);">Register</a>
+                    </div>
+                </form>
+
+                <!-- Forgot Password Form -->
+                <form id="forgotPasswordForm" style="display: none;" onsubmit="handleForgotPassword(event)">
+                    <div style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.5;">
+                        Enter the email address registered with your account and we will send you a secure link to reset your password.
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="forgotEmail" class="form-control" placeholder="user@example.com" required>
+                    </div>
+                    <div id="forgotPasswordFeedback" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1rem; line-height: 1.4;"></div>
+                    <button type="submit" class="btn btn-primary" id="btnSendResetLink" style="width: 100%; margin-top: 0.5rem;">
+                        Send Password Reset Link
+                    </button>
+
+                    <div style="margin-top: 1.25rem; font-size: 0.88rem; text-align: center; color: var(--text-secondary);">
+                        Remember your password? <a href="javascript:void(0)" onclick="switchAuthMode('login')" style="color: var(--primary);">Sign In</a>
                     </div>
                 </form>
 
@@ -1303,6 +1358,38 @@
                         Already registered? <a href="javascript:void(0)" onclick="switchAuthMode('login')"
                             style="color: var(--primary);">Sign In</a>
                     </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         MODAL: RESET PASSWORD (Triggered via Email Token)
+         ==================================================================== -->
+    <div class="modal-overlay" id="resetPasswordModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title">🔐 Set New Password</div>
+                <button class="drawer-close-btn" onclick="closeModal('resetPasswordModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="resetPasswordForm" onsubmit="handleResetPassword(event)">
+                    <input type="hidden" id="resetPasswordToken" value="">
+                    <div style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.5;">
+                        Please choose a new, secure password for your Olaslog account.
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">New Password (Min. 6 chars)</label>
+                        <input type="password" id="resetNewPassword" class="form-control" placeholder="••••••••" minlength="6" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm New Password</label>
+                        <input type="password" id="resetConfirmPassword" class="form-control" placeholder="••••••••" minlength="6" required>
+                    </div>
+                    <div id="resetPasswordFeedback" style="display: none; padding: 0.75rem; border-radius: 8px; font-size: 0.82rem; margin-bottom: 1rem; line-height: 1.4;"></div>
+                    <button type="submit" class="btn btn-emerald" id="btnSubmitResetPass" style="width: 100%; margin-top: 0.5rem;">
+                        Save Password &amp; Proceed
+                    </button>
                 </form>
             </div>
         </div>

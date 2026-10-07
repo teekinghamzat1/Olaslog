@@ -141,7 +141,8 @@ function switchTab(tabKey, el = null) {
     users: 'Registered User Directory',
     admins: 'Administrator & Staff Console',
     ledger: 'Financial Ledger Audit',
-    email: 'Email & SMTP Operations'
+    email: 'Alerts & Email Operations',
+    analytics: 'Sales Analytics & Revenue Intelligence'
   };
   document.getElementById('pageTitle').textContent = titles[tabKey] || 'Operations';
 
@@ -150,6 +151,7 @@ function switchTab(tabKey, el = null) {
   if (tabKey === 'admins') loadAdmins();
   if (tabKey === 'ledger') loadLedger();
   if (tabKey === 'email') loadEmailSettings();
+  if (tabKey === 'analytics') loadSalesAnalytics();
 
   // Mobile drawer close if open
   toggleMobileSidebar(false);
@@ -1890,5 +1892,252 @@ async function sendTestTelegramAlert() {
     }
     loadTelegramStatus();
   }
+}
+
+// ─── Sales Analytics & Revenue Intelligence ───────────────────────────────────
+
+adminState.analyticsDays = 30;
+
+function setAnalyticsDays(days, el) {
+  adminState.analyticsDays = days;
+  document.querySelectorAll('.adm-analytics-time-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  loadSalesAnalytics(days);
+}
+
+async function loadSalesAnalytics(days = null) {
+  const d = days || adminState.analyticsDays || 30;
+  const chartBox = document.getElementById('anRevenueChartContainer');
+  const topList = document.getElementById('anTopProductsList');
+
+  if (chartBox) {
+    chartBox.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-faint);font-size:13px;">Loading sales analytics... ⏳</div>';
+  }
+
+  try {
+    const res = await fetch(`/api/admin/analytics?days=${d}`);
+    const data = await res.json();
+    if (!data.success) {
+      if (chartBox) chartBox.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--danger);font-size:13px;">Failed to load analytics data.</div>';
+      return;
+    }
+
+    const a = data.analytics;
+    const s = a.summary || {};
+
+    // Update KPI Tiles
+    const revEl = document.getElementById('anKpiRevenue');
+    const aovEl = document.getElementById('anKpiAov');
+    const convEl = document.getElementById('anKpiConvRate');
+    const payingEl = document.getElementById('anPayingUsers');
+    const totUsersEl = document.getElementById('anTotalUsers');
+    const repEl = document.getElementById('anKpiRepeatRate');
+    const repBuyersEl = document.getElementById('anRepeatBuyers');
+    const chartTotEl = document.getElementById('anChartTotalPeriod');
+
+    if (revEl) revEl.textContent = Number(s.totalRevenue || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+    if (aovEl) aovEl.textContent = Number(s.avgOrderValue || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+    if (convEl) convEl.textContent = s.conversionRate || 0;
+    if (payingEl) payingEl.textContent = s.payingCustomers || 0;
+    if (totUsersEl) totUsersEl.textContent = s.totalCustomers || 0;
+    if (repEl) repEl.textContent = s.repeatPurchaseRate || 0;
+    if (repBuyersEl) repBuyersEl.textContent = s.repeatBuyers || 0;
+
+    const periodTotal = (a.dailyRevenue || []).reduce((sum, item) => sum + (Number(item.revenue) || 0), 0);
+    if (chartTotEl) chartTotEl.textContent = `Period: ₦${periodTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+
+    // Render Daily Revenue SVG Chart
+    renderDailyRevenueChart(a.dailyRevenue || []);
+
+    // Render Top Products List
+    renderAnalyticsTopProducts(a.topProducts || []);
+
+    // Render Conversion Funnel
+    renderAnalyticsFunnel(s);
+
+    // Render Payment Breakdown
+    renderAnalyticsPaymentBreakdown(a.paymentBreakdown || {});
+  } catch (err) {
+    console.error('loadSalesAnalytics error:', err);
+    if (chartBox) chartBox.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--danger);font-size:13px;">Error loading chart data.</div>';
+  }
+}
+
+function renderDailyRevenueChart(dailyData) {
+  const container = document.getElementById('anRevenueChartContainer');
+  if (!container) return;
+
+  if (!dailyData.length) {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-faint);font-size:13px;">No sales data available for this timeframe.</div>';
+    return;
+  }
+
+  const maxVal = Math.max(...dailyData.map(d => d.revenue), 1000);
+  const width = 640;
+  const height = 190;
+  const padLeft = 60;
+  const padRight = 20;
+  const padTop = 20;
+  const padBottom = 35;
+  const chartW = width - padLeft - padRight;
+  const chartH = height - padTop - padBottom;
+
+  const points = dailyData.map((d, i) => {
+    const x = padLeft + (i / Math.max(dailyData.length - 1, 1)) * chartW;
+    const y = padTop + chartH - (d.revenue / maxVal) * chartH;
+    return { x, y, ...d };
+  });
+
+  const polylineStr = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaPolygonStr = `${padLeft},${padTop + chartH} ` + polylineStr + ` ${padLeft + chartW},${padTop + chartH}`;
+
+  // Y-axis grid ticks
+  const ticks = [0, 0.33, 0.66, 1].map(ratio => {
+    const y = padTop + chartH - ratio * chartH;
+    const val = Math.round(ratio * maxVal);
+    let label = `₦${val}`;
+    if (val >= 1000000) label = `₦${(val / 1000000).toFixed(1)}M`;
+    else if (val >= 1000) label = `₦${(val / 1000).toFixed(0)}k`;
+    return `<line x1="${padLeft}" y1="${y}" x2="${padLeft + chartW}" y2="${y}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="3 3"/>
+            <text x="${padLeft - 8}" y="${y + 4}" fill="#6b7280" font-size="10" text-anchor="end" font-family="monospace">${label}</text>`;
+  }).join('');
+
+  // X-axis sample date labels (approx 5-6 evenly spaced labels)
+  const step = Math.max(Math.floor(dailyData.length / 5), 1);
+  const dateLabels = points.filter((_, idx) => idx % step === 0 || idx === points.length - 1).map(p => `
+    <text x="${p.x}" y="${height - 8}" fill="#6b7280" font-size="10" text-anchor="middle" font-family="'Segoe UI',sans-serif">${p.label}</text>
+  `).join('');
+
+  // Interactive circles
+  const circles = points.map(p => `
+    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#63d38a" stroke="#0f1117" stroke-width="2" style="cursor:pointer;transition:transform 0.15s ease;">
+      <title>${p.label}: ₦${Number(p.revenue).toLocaleString()} (${p.orders} order${p.orders === 1 ? '' : 's'})</title>
+    </circle>
+  `).join('');
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" style="width:100%;height:100%;display:block;overflow:visible;">
+      <defs>
+        <linearGradient id="anRevenueGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#63d38a" stop-opacity="0.35"/>
+          <stop offset="100%" stop-color="#63d38a" stop-opacity="0.0"/>
+        </linearGradient>
+      </defs>
+      ${ticks}
+      <polygon points="${areaPolygonStr}" fill="url(#anRevenueGrad)"/>
+      <polyline points="${polylineStr}" fill="none" stroke="#63d38a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${circles}
+      ${dateLabels}
+    </svg>
+  `;
+}
+
+function renderAnalyticsTopProducts(products) {
+  const container = document.getElementById('anTopProductsList');
+  if (!container) return;
+
+  if (!products.length) {
+    container.innerHTML = '<div style="color:var(--text-faint);font-size:12.5px;padding:12px;text-align:center;">No completed sales yet.</div>';
+    return;
+  }
+
+  const maxRev = Math.max(...products.map(p => p.total_revenue), 1);
+
+  container.innerHTML = products.map((p, idx) => {
+    const rank = idx + 1;
+    const pct = Math.round((p.total_revenue / maxRev) * 100);
+    const badgeColor = rank === 1 ? '#f59e0b' : (rank === 2 ? '#9ca3af' : (rank === 3 ? '#b45309' : 'var(--text-dim)'));
+
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid var(--edge);border-radius:8px;padding:10px 12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+            <span style="font-size:11px;font-weight:800;color:${badgeColor};min-width:18px;">#${rank}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</span>
+          </div>
+          <div style="font-weight:700;font-size:13px;color:var(--teal);flex-shrink:0;">
+            ₦${Number(p.total_revenue).toLocaleString()}
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-faint);margin-bottom:4px;">
+          <span>${p.category_icon || '📱'} ${p.category_name || 'Category'}</span>
+          <span>${p.units_sold} unit${p.units_sold === 1 ? '' : 's'} sold</span>
+        </div>
+        <div style="width:100%;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--teal),#3fbf6a);border-radius:2px;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderAnalyticsFunnel(s) {
+  const container = document.getElementById('anFunnelContainer');
+  if (!container) return;
+
+  const totalUsers = Math.max(s.totalCustomers || 0, 1);
+  const payingUsers = s.payingCustomers || 0;
+  const repeatUsers = s.repeatBuyers || 0;
+
+  const steps = [
+    { label: 'Registered Customers', count: s.totalCustomers || 0, sub: 'Total registered client accounts', pct: 100, color: '#38bdf8' },
+    { label: 'Completed First Purchase', count: payingUsers, sub: `${s.conversionRate || 0}% overall customer conversion`, pct: Math.round((payingUsers / totalUsers) * 100), color: '#63d38a' },
+    { label: 'Repeat Buyers (>1 Order)', count: repeatUsers, sub: `${s.repeatPurchaseRate || 0}% retention rate`, pct: Math.round((repeatUsers / totalUsers) * 100), color: '#f59e0b' }
+  ];
+
+  container.innerHTML = steps.map(st => `
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--edge);border-radius:10px;padding:12px 14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-weight:600;font-size:13px;color:var(--text);">${st.label}</span>
+        <span style="font-weight:800;font-size:13.5px;color:${st.color};">${st.count.toLocaleString()}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:6px;">${st.sub}</div>
+      <div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+        <div style="width:${Math.max(st.pct, 4)}%;height:100%;background:${st.color};border-radius:3px;"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAnalyticsPaymentBreakdown(pb) {
+  const container = document.getElementById('anPaymentBreakdownContainer');
+  if (!container) return;
+
+  const funded = Number(pb.fundedVolume || 0);
+  const purchased = Number(pb.purchaseVolume || 0);
+  const total = Math.max(funded + purchased, 1);
+
+  const fundedPct = Math.round((funded / total) * 100);
+  const purchasePct = Math.round((purchased / total) * 100);
+
+  container.innerHTML = `
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--edge);border-radius:10px;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">🏦</span>
+          <span style="font-weight:600;font-size:13px;color:var(--text);">Virtual Bank Account Deposits</span>
+        </div>
+        <span style="font-weight:800;font-size:14px;color:var(--teal);">₦${funded.toLocaleString()}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:8px;">${pb.fundedCount || 0} successful wallet credit transactions</div>
+      <div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+        <div style="width:${fundedPct}%;height:100%;background:var(--teal);border-radius:3px;"></div>
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,0.02);border:1px solid var(--edge);border-radius:10px;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">🛍️</span>
+          <span style="font-weight:600;font-size:13px;color:var(--text);">Marketplace Checkout Spend</span>
+        </div>
+        <span style="font-weight:800;font-size:14px;color:var(--gold);">₦${purchased.toLocaleString()}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-faint);margin-bottom:8px;">${pb.purchaseCount || 0} order debits settled instantly via wallet</div>
+      <div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+        <div style="width:${purchasePct}%;height:100%;background:var(--gold);border-radius:3px;"></div>
+      </div>
+    </div>
+  `;
 }
 

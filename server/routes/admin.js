@@ -1273,4 +1273,137 @@ router.post('/telegram/test', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/admin/analytics
+ * Advanced sales performance metrics, charts data, and conversion funnels
+ */
+router.get('/analytics', (req, res) => {
+    try {
+        const days = Math.min(Math.max(parseInt(req.query.days || '30', 10), 7), 90);
+
+        // 1. Daily Revenue & Order Volume
+        const dailyRevenueRaw = db.prepare(`
+            SELECT 
+                DATE(created_at) as date,
+                COALESCE(SUM(total_amount), 0) as revenue,
+                COUNT(id) as orders_count
+            FROM orders
+            WHERE status = 'completed' AND created_at >= DATE('now', '-' || ? || ' days')
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `).all(days);
+
+        // Continuous date range
+        const dailyMap = new Map();
+        for (const row of dailyRevenueRaw) {
+            dailyMap.set(row.date, { revenue: row.revenue, orders: row.orders_count });
+        }
+
+        const dailyRevenue = [];
+        const now = new Date();
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            const data = dailyMap.get(dateStr) || { revenue: 0, orders: 0 };
+            dailyRevenue.push({
+                date: dateStr,
+                label: d.toLocaleDateString('en-NG', { month: 'short', day: 'numeric' }),
+                revenue: data.revenue,
+                orders: data.orders
+            });
+        }
+
+        // 2. Top Selling Products
+        const topProducts = db.prepare(`
+            SELECT 
+                p.id,
+                p.name,
+                c.name as category_name,
+                c.icon as category_icon,
+                COALESCE(SUM(oi.quantity), 0) as units_sold,
+                COALESCE(SUM(oi.subtotal), 0) as total_revenue
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id AND o.status = 'completed'
+            JOIN products p ON p.id = oi.product_id
+            LEFT JOIN product_categories c ON c.id = p.category_id
+            GROUP BY p.id
+            ORDER BY total_revenue DESC
+            LIMIT 10
+        `).all();
+
+        // 3. Funnel & Conversion Metrics
+        const totalCustomers = db.prepare(`SELECT COUNT(*) as count FROM users WHERE role = 'customer'`).get()?.count || 0;
+        const totalCompletedOrders = db.prepare(`SELECT COUNT(*) as count FROM orders WHERE status = 'completed'`).get()?.count || 0;
+        const totalGrossRevenue = db.prepare(`SELECT COALESCE(SUM(total_amount), 0) as rev FROM orders WHERE status = 'completed'`).get()?.rev || 0;
+
+        const payingCustomersCount = db.prepare(`
+            SELECT COUNT(DISTINCT user_id) as count FROM orders WHERE status = 'completed'
+        `).get()?.count || 0;
+
+        const repeatBuyersCount = db.prepare(`
+            SELECT COUNT(*) as count FROM (
+                SELECT user_id FROM orders WHERE status = 'completed' GROUP BY user_id HAVING COUNT(*) > 1
+            )
+        `).get()?.count || 0;
+
+        const conversionRate = totalCustomers > 0 
+            ? Math.round((payingCustomersCount / totalCustomers) * 1000) / 10 
+            : 0;
+
+        const repeatPurchaseRate = payingCustomersCount > 0 
+            ? Math.round((repeatBuyersCount / payingCustomersCount) * 1000) / 10 
+            : 0;
+
+        const avgOrderValue = totalCompletedOrders > 0 
+            ? Math.round((totalGrossRevenue / totalCompletedOrders) * 100) / 100 
+            : 0;
+
+        // 4. Wallet vs Direct Virtual Bank Account Funding Comparison
+        const fundingStats = db.prepare(`
+            SELECT 
+                COALESCE(SUM(amount), 0) as total_funded,
+                COUNT(*) as count
+            FROM wallet_transactions
+            WHERE type = 'funding' AND status = 'successful'
+        `).get();
+
+        const purchaseStats = db.prepare(`
+            SELECT 
+                COALESCE(SUM(amount), 0) as total_purchased,
+                COUNT(*) as count
+            FROM wallet_transactions
+            WHERE type = 'purchase' AND status = 'successful'
+        `).get();
+
+        return res.json({
+            success: true,
+            analytics: {
+                timeframeDays: days,
+                summary: {
+                    totalRevenue: totalGrossRevenue,
+                    totalOrders: totalCompletedOrders,
+                    totalCustomers,
+                    payingCustomers: payingCustomersCount,
+                    repeatBuyers: repeatBuyersCount,
+                    conversionRate,
+                    repeatPurchaseRate,
+                    avgOrderValue
+                },
+                dailyRevenue,
+                topProducts,
+                paymentBreakdown: {
+                    fundedVolume: fundingStats?.total_funded || 0,
+                    fundedCount: fundingStats?.count || 0,
+                    purchaseVolume: purchaseStats?.total_purchased || 0,
+                    purchaseCount: purchaseStats?.count || 0
+                }
+            }
+        });
+    } catch (err) {
+        console.error('[Admin] Analytics error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to generate analytics report' });
+    }
+});
+
 module.exports = router;

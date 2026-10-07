@@ -220,8 +220,33 @@ try {
                 buttonText: 'View My Orders →',
                 footerNote: 'Issue with your order? Open a dispute and our team will assist you within 24 hours.'
             })
+        },
+        {
+            key: 'password_reset',
+            name: 'Password Reset Request',
+            subject: 'Reset your Olaslog password 🔐',
+            headline: 'Password Reset Request 🔐',
+            body: 'We received a request to reset your password for your Olaslog account. Click the button below to choose a new password. This link is valid for 1 hour.',
+            extra: JSON.stringify({
+                buttonText: 'Reset My Password →',
+                footerNote: 'If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.'
+            })
         }
     ];
+
+    // Password Resets table migration
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+    `);
 
     const insertTemplate = db.prepare(`
         INSERT OR IGNORE INTO email_templates (template_key, name, subject, headline, body, extra_data)

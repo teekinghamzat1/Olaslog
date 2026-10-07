@@ -171,6 +171,16 @@ const DEFAULT_TEMPLATES = {
             buttonText: 'View My Orders →',
             footerNote: 'Issue with your order? Open a dispute and our team will assist you within 24 hours.'
         }
+    },
+    password_reset: {
+        name: 'Password Reset Request',
+        subject: 'Reset your Olaslog password 🔐',
+        headline: 'Password Reset Request 🔐',
+        body: 'We received a request to reset your password for your Olaslog account. Click the button below to choose a new password. This link will expire in 1 hour.',
+        extra: {
+            buttonText: 'Reset My Password →',
+            footerNote: 'If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.'
+        }
     }
 };
 
@@ -504,6 +514,54 @@ function buildPurchaseEmail(user, { orderNumber, totalAmount, remainingBalance, 
     };
 }
 
+function buildPasswordResetEmail(user, details = {}) {
+    const cfg = getEmailSettings();
+    const tpl = getTemplate('password_reset') || DEFAULT_TEMPLATES.password_reset;
+    const extra = tpl.extra || {};
+    const resetUrl = details.resetUrl || `${cfg.appUrl}/#reset-password?token=${details.token || ''}`;
+
+    const firstName = (user.fullName || 'there').trim().split(/\s+/)[0];
+    const tokens = {
+        first_name: firstName,
+        full_name: user.fullName || 'Valued User',
+        email: user.email || '',
+        reset_link: resetUrl
+    };
+
+    const subject = replaceTokens(tpl.subject, tokens);
+    const headline = replaceTokens(tpl.headline, tokens);
+    const body = replaceTokens(tpl.body, tokens);
+    const btnText = replaceTokens(extra.buttonText || DEFAULT_TEMPLATES.password_reset.extra.buttonText, tokens);
+    const footerNote = replaceTokens(extra.footerNote || DEFAULT_TEMPLATES.password_reset.extra.footerNote, tokens);
+
+    const content = `
+      ${greeting(user.fullName)}
+      <h1 style="margin:0 0 16px;font-size:24px;font-weight:800;color:#f9fafb;line-height:1.3;">
+        ${headline}
+      </h1>
+      <p style="margin:0 0 20px;font-size:15px;color:#9ca3af;line-height:1.7;">
+        ${body}
+      </p>
+
+      ${primaryBtn(btnText, resetUrl)}
+
+      <p style="margin:20px 0 0;font-size:12px;color:#6b7280;word-break:break-all;">
+        Or copy and paste this link in your browser:<br/>
+        <a href="${resetUrl}" style="color:#63d38a;text-decoration:none;">${resetUrl}</a>
+      </p>
+
+      ${divider()}
+      <p style="margin:0;font-size:12.5px;color:#6b7280;line-height:1.6;">
+        ${footerNote}
+      </p>
+    `;
+
+    return {
+        subject,
+        html: layout(content, cfg.appUrl)
+    };
+}
+
 // ─── Send Core ────────────────────────────────────────────────────────────────
 
 async function sendMail({ to, subject, html }) {
@@ -562,6 +620,16 @@ async function sendPurchaseEmail(user, details) {
     }
 }
 
+async function sendPasswordResetEmail(user, details) {
+    try {
+        const { subject, html } = buildPasswordResetEmail(user, details);
+        return await sendMail({ to: user.email, subject, html });
+    } catch (err) {
+        console.error('[Email] sendPasswordResetEmail error:', err.message);
+        throw err;
+    }
+}
+
 /**
  * Send a test email to verify SMTP and template appearance.
  * @param {string} templateKey - 'welcome' | 'wallet_funded' | 'purchase'
@@ -605,6 +673,10 @@ async function sendTestEmail(templateKey, recipientEmail) {
                 }
             ]
         });
+    } else if (templateKey === 'password_reset') {
+        emailData = buildPasswordResetEmail(mockUser, {
+            resetUrl: `${cfg.appUrl}/#reset-password?token=sample_reset_token_123`
+        });
     } else {
         throw new Error(`Unsupported template key: ${templateKey}`);
     }
@@ -638,8 +710,10 @@ module.exports = {
     buildWelcomeEmail,
     buildWalletFundedEmail,
     buildPurchaseEmail,
+    buildPasswordResetEmail,
     sendWelcomeEmail,
     sendWalletFundedEmail,
     sendPurchaseEmail,
+    sendPasswordResetEmail,
     sendTestEmail
 };

@@ -227,16 +227,140 @@ async function logoutUser() {
     }
 }
 
+async function handleForgotPassword(e) {
+    e.preventDefault();
+    const email = (document.getElementById('forgotEmail')?.value || '').trim();
+    const btn = document.getElementById('btnSendResetLink');
+    const feedback = document.getElementById('forgotPasswordFeedback');
+
+    if (!email) {
+        showToast('Please enter your email address', 'error');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending Link... ⏳';
+    }
+    if (feedback) feedback.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (feedback) {
+            feedback.style.display = 'block';
+            if (data.success) {
+                feedback.style.background = 'rgba(99, 211, 138, 0.12)';
+                feedback.style.border = '1px solid rgba(99, 211, 138, 0.3)';
+                feedback.style.color = '#63d38a';
+                feedback.textContent = data.message;
+                showToast('Reset email dispatched! Check your inbox.', 'success');
+            } else {
+                feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+                feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                feedback.style.color = '#ef4444';
+                feedback.textContent = data.error || 'Failed to dispatch reset email';
+            }
+        }
+    } catch (err) {
+        showToast('Network error sending reset email', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Send Password Reset Link';
+        }
+    }
+}
+
+async function handleResetPassword(e) {
+    e.preventDefault();
+    const token = document.getElementById('resetPasswordToken')?.value || '';
+    const newPassword = document.getElementById('resetNewPassword')?.value || '';
+    const confirmPassword = document.getElementById('resetConfirmPassword')?.value || '';
+    const feedback = document.getElementById('resetPasswordFeedback');
+    const btn = document.getElementById('btnSubmitResetPass');
+
+    if (!token) {
+        showToast('Reset token is missing or invalid', 'error');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showToast('Password must be at least 6 characters long', 'error');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Saving Password... ⏳';
+    }
+    if (feedback) feedback.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, newPassword })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            closeModal('resetPasswordModal');
+            showToast('Password reset successfully! Please log in.', 'success');
+            openAuthModal('login');
+            if (window.history.replaceState) {
+                window.history.replaceState(null, '', '/');
+            }
+        } else {
+            if (feedback) {
+                feedback.style.display = 'block';
+                feedback.style.background = 'rgba(239, 68, 68, 0.12)';
+                feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                feedback.style.color = '#ef4444';
+                feedback.textContent = data.error || 'Failed to reset password';
+            }
+            showToast(data.error || 'Password reset failed', 'error');
+        }
+    } catch (err) {
+        showToast('Network error resetting password', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Save Password & Proceed';
+        }
+    }
+}
+
 function openAuthModal(mode = 'login') {
     switchAuthMode(mode);
     openModal('authModal');
 }
 
 function switchAuthMode(mode) {
-    const isLogin = mode === 'login';
-    document.getElementById('authModalTitle').textContent = isLogin ? 'Sign In to Olaslog' : 'Create an Account';
-    document.getElementById('loginForm').style.display = isLogin ? 'block' : 'none';
-    document.getElementById('registerForm').style.display = isLogin ? 'none' : 'block';
+    const titleEl = document.getElementById('authModalTitle');
+    const loginForm = document.getElementById('loginForm');
+    const regForm = document.getElementById('registerForm');
+    const forgotForm = document.getElementById('forgotPasswordForm');
+
+    if (loginForm) loginForm.style.display = mode === 'login' ? 'block' : 'none';
+    if (regForm) regForm.style.display = mode === 'register' ? 'block' : 'none';
+    if (forgotForm) forgotForm.style.display = mode === 'forgot' ? 'block' : 'none';
+
+    if (titleEl) {
+        if (mode === 'login') titleEl.textContent = 'Sign In to Olaslog';
+        else if (mode === 'register') titleEl.textContent = 'Create an Account';
+        else if (mode === 'forgot') titleEl.textContent = 'Forgot Password';
+    }
 }
 
 // ============================================================================
@@ -291,6 +415,19 @@ function getViewFromUrl() {
 
 function handleRouting() {
     const viewName = getViewFromUrl();
+
+    // Intercept password reset link token
+    const urlParams = new URLSearchParams(window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''));
+    const resetToken = urlParams.get('token');
+    if (viewName === 'reset-password' || window.location.hash.includes('reset-password') || (resetToken && window.location.hash.includes('reset'))) {
+        if (resetToken) {
+            const tokenInput = document.getElementById('resetPasswordToken');
+            if (tokenInput) tokenInput.value = resetToken;
+            openModal('resetPasswordModal');
+            switchView('home');
+            return;
+        }
+    }
 
     // Intercept modal & auth routes so page is NEVER blank
     if (viewName === 'authModal' || viewName === 'login') {
@@ -1214,45 +1351,214 @@ async function loadDashboard() {
     }
 }
 
+// ============================================================================
+// Order & Purchase History with Re-Buy System
+// ============================================================================
+
+state.userOrders = [];
+state.userOrdersFilter = 'all';
+state.userOrdersSearch = '';
+
 async function loadOrders() {
     try {
+        const container = document.getElementById('userOrdersCardsContainer');
+        if (container) {
+            container.innerHTML = `<div class="card" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">Loading your purchase history...</div>`;
+        }
+
         const res = await fetch('/api/orders');
         const data = await res.json();
-        const tbody = document.getElementById('fullOrdersTableBody');
-        if (!tbody) return;
 
-        if (!data.success || !data.orders.length) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No orders found.</td></tr>`;
+        if (!data.success) {
+            if (container) container.innerHTML = `<div class="card" style="text-align: center; padding: 2.5rem; color: var(--danger);">Failed to load orders.</div>`;
             return;
         }
 
-        tbody.innerHTML = data.orders.map(o => {
-            let disputeBadge = `<span style="color: var(--text-muted); font-size: 0.8rem;">None</span>`;
-            if (o.dispute_status === 'submitted') disputeBadge = `<span class="badge badge-warning">Submitted</span>`;
-            else if (o.dispute_status === 'under_review') disputeBadge = `<span class="badge badge-info">Under Review</span>`;
-            else if (o.dispute_status === 'approved_refunded') disputeBadge = `<span class="badge badge-success">Refunded</span>`;
-            else if (o.dispute_status === 'rejected') disputeBadge = `<span class="badge badge-danger">Rejected</span>`;
+        state.userOrders = data.orders || [];
 
-            const canDispute = !o.dispute_status && o.status === 'completed';
+        // Update Summary Stats
+        const totalCount = state.userOrders.length;
+        const totalSpent = state.userOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+        const deliveredCount = state.userOrders.reduce((sum, o) => sum + (Number(o.item_count) || 0), 0);
+        const disputeCount = state.userOrders.filter(o => o.dispute_status && o.dispute_status !== 'rejected').length;
 
-            return `
-                <tr>
-                    <td style="font-family: var(--font-mono); font-weight: 700;">${o.order_number}</td>
-                    <td>${new Date(o.created_at).toLocaleString()}</td>
-                    <td>${o.item_count} item(s)</td>
-                    <td style="font-weight: 800; color: var(--accent-emerald);">₦${o.total_amount.toLocaleString()}</td>
-                    <td><span class="badge badge-success">${o.status}</span></td>
-                    <td>${disputeBadge}</td>
-                    <td style="display: flex; gap: 0.4rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="viewOrderCredentials(${o.id})">🔐 Credentials</button>
-                        ${canDispute ? `<button class="btn btn-danger btn-sm" onclick="openDisputeModal(${o.id}, '${o.order_number}')">⚠️ Report Issue</button>` : ''}
-                    </td>
-                </tr>
-            `;
-        }).join('');
+        const countEl = document.getElementById('userOrdersTotalCount');
+        const spentEl = document.getElementById('userOrdersTotalSpent');
+        const delivEl = document.getElementById('userOrdersDeliveredCount');
+        const dispEl  = document.getElementById('userOrdersDisputeCount');
+
+        if (countEl) countEl.textContent = totalCount;
+        if (spentEl) spentEl.textContent = `₦${totalSpent.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+        if (delivEl) delivEl.textContent = deliveredCount;
+        if (dispEl)  dispEl.textContent  = disputeCount;
+
+        renderUserOrders();
     } catch (err) {
         console.error('Failed to load orders:', err);
     }
+}
+
+function renderUserOrders() {
+    const container = document.getElementById('userOrdersCardsContainer');
+    if (!container) return;
+
+    let filtered = [...(state.userOrders || [])];
+
+    // Status Filter
+    if (state.userOrdersFilter === 'completed') {
+        filtered = filtered.filter(o => o.status === 'completed' && !o.dispute_status);
+    } else if (state.userOrdersFilter === 'disputed') {
+        filtered = filtered.filter(o => o.dispute_status);
+    }
+
+    // Search Query
+    if (state.userOrdersSearch) {
+        const q = state.userOrdersSearch.toLowerCase().trim();
+        filtered = filtered.filter(o => {
+            if (o.order_number && o.order_number.toLowerCase().includes(q)) return true;
+            if (o.items && o.items.some(it => it.product_name && it.product_name.toLowerCase().includes(q))) return true;
+            return false;
+        });
+    }
+
+    if (!filtered.length) {
+        container.innerHTML = `
+            <div class="card" style="text-align: center; padding: 3.5rem 2rem; color: var(--text-muted);">
+                <div style="font-size: 3rem; margin-bottom: 0.75rem;">📦</div>
+                <div style="font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem;">No orders found</div>
+                <p style="font-size: 0.9rem; margin-bottom: 1.5rem; max-width: 400px; margin-inline: auto;">
+                    ${state.userOrdersSearch ? 'No purchases match your search terms.' : 'You have not placed any orders yet. Explore our verified digital inventory!'}
+                </p>
+                <button class="btn btn-primary" onclick="navigateTo('shop')">Explore Catalogue</button>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = filtered.map(o => {
+        let disputeBadge = '';
+        if (o.dispute_status === 'submitted') disputeBadge = `<span class="badge badge-warning">Dispute: Submitted</span>`;
+        else if (o.dispute_status === 'under_review') disputeBadge = `<span class="badge badge-info">Dispute: Under Review</span>`;
+        else if (o.dispute_status === 'approved_refunded') disputeBadge = `<span class="badge badge-success">Refunded</span>`;
+        else if (o.dispute_status === 'rejected') disputeBadge = `<span class="badge badge-danger">Dispute: Rejected</span>`;
+
+        const canDispute = !o.dispute_status && o.status === 'completed';
+        const formattedDate = new Date(o.created_at).toLocaleString('en-NG', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        });
+
+        const itemsList = (o.items && o.items.length) ? o.items.map(it => `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.85rem;">
+                    <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; overflow: hidden; flex-shrink: 0;">
+                        ${it.image_url ? `<img src="${it.image_url}" alt="${it.product_name}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='/icons/logo.png'">` : '🛍️'}
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.95rem; color: var(--text);">${it.product_name}</div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); display: flex; gap: 0.5rem; align-items: center; margin-top: 0.15rem;">
+                            <span>${it.category_name || 'Digital Item'}</span>
+                            <span>•</span>
+                            <span>Qty: <b>${it.quantity}</b></span>
+                        </div>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: 700; color: var(--accent-emerald); font-size: 0.95rem;">₦${(it.subtotal || it.unit_price * it.quantity).toLocaleString()}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">₦${(it.unit_price || 0).toLocaleString()} each</div>
+                </div>
+            </div>
+        `).join('') : `
+            <div style="padding: 0.75rem 0; font-size: 0.85rem; color: var(--text-muted);">
+                ${o.item_count || 1} item(s) delivered
+            </div>
+        `;
+
+        return `
+            <div class="card" style="padding: 1.5rem;">
+                <!-- Order Card Top Bar -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.07);">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <span style="font-family: var(--font-mono); font-weight: 800; font-size: 1.05rem; color: var(--text);">#${o.order_number}</span>
+                        <button class="btn btn-secondary btn-sm" onclick="copyOrderNumber('${o.order_number}', this)" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;" title="Copy Order Number">📋 Copy</button>
+                        <span style="font-size: 0.82rem; color: var(--text-muted);">• ${formattedDate}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="badge badge-success">${o.status}</span>
+                        ${disputeBadge}
+                        <div style="font-weight: 800; font-size: 1.15rem; color: var(--accent-emerald); margin-left: 0.5rem;">
+                            ₦${Number(o.total_amount).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products in Order -->
+                <div style="padding: 0.5rem 0;">
+                    ${itemsList}
+                </div>
+
+                <!-- Actions Footer -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 0.25rem;">
+                    <div>
+                        ${canDispute ? `<button class="btn btn-danger btn-sm" onclick="openDisputeModal(${o.id}, '${o.order_number}')">⚠️ Report Issue</button>` : ''}
+                    </div>
+                    <div style="display: flex; gap: 0.6rem; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" onclick="viewOrderCredentials(${o.id})">🔐 View Credentials</button>
+                        <button class="btn btn-primary btn-sm" onclick="rebuyOrder(${o.id})" style="display: flex; align-items: center; gap: 0.35rem;">
+                            <span>🔄</span> Re-Buy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function handleUserOrdersSearch(query) {
+    state.userOrdersSearch = query || '';
+    renderUserOrders();
+}
+
+function setUserOrderFilter(filter, el) {
+    state.userOrdersFilter = filter;
+    document.querySelectorAll('.user-order-filter-pill').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    renderUserOrders();
+}
+
+function copyOrderNumber(orderNum, btn) {
+    navigator.clipboard.writeText(orderNum).then(() => {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+    }).catch(() => {
+        showToast(orderNum, 'info');
+    });
+}
+
+async function rebuyOrder(orderId) {
+    const order = (state.userOrders || []).find(o => o.id === orderId);
+    if (!order || !order.items || !order.items.length) {
+        showToast('Unable to load items for this order', 'error');
+        return;
+    }
+
+    let addedCount = 0;
+    for (const itm of order.items) {
+        const prod = (state.products || []).find(p => p.id === itm.product_id) || {
+            id: itm.product_id,
+            name: itm.product_name,
+            price: itm.current_price || itm.unit_price,
+            imageUrl: itm.image_url,
+            isAutoFulfilled: true,
+            inStock: itm.is_active !== 0
+        };
+        addToCart(prod, itm.quantity || 1);
+        addedCount++;
+    }
+
+    toggleCartDrawer(true);
+    showToast(`Added ${addedCount} item(s) from order #${order.order_number} to cart!`, 'success');
 }
 
 async function viewOrderCredentials(orderId) {

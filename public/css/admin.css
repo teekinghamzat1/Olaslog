@@ -848,7 +848,7 @@ tr.row-clickable:hover {
     gap: 8px !important;
   }
   
-  .split, .two-pane {
+  .split, .two-pane, .split-analytics, .split-analytics-bottom {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
@@ -894,4 +894,11 @@ tr.row-clickable:hover {
   .content {
     padding: 14px 10px !important;
   }
+}
+
+.adm-analytics-time-btn.active {
+  background: var(--teal) !important;
+  color: #080b11 !important;
+  border-color: var(--teal) !important;
+  font-weight: 700 !important;
 }

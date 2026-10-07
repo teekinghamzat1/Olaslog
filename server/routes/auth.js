@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('../db');
 const { authenticate, generateToken } = require('../middleware/auth');
 const { getWalletBalance } = require('../services/wallet');
@@ -174,6 +175,104 @@ router.post('/change-password', authenticate, (req, res) => {
         return res.json({ success: true, message: 'Password changed successfully' });
     } catch (err) {
         return res.status(500).json({ success: false, error: 'Failed to change password' });
+    }
+});
+
+// Request Password Reset Link
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ success: false, error: 'Please enter a valid email address' });
+        }
+
+        const user = db.prepare('SELECT id, email, full_name, is_banned FROM users WHERE email = ?').get(email.toLowerCase().trim());
+
+        // Generic safe message to prevent email enumeration
+        if (!user || user.is_banned) {
+            return res.json({
+                success: true,
+                message: 'If an account exists with this email, a password reset link has been dispatched. Please check your inbox.'
+            });
+        }
+
+        // Invalidate older unused reset tokens
+        db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+        db.prepare(`
+            INSERT INTO password_resets (user_id, token, expires_at, used)
+            VALUES (?, ?, ?, 0)
+        `).run(user.id, resetToken, expiresAt);
+
+        const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+        const resetUrl = `${appUrl}/#reset-password?token=${resetToken}`;
+
+        try {
+            await emailService.sendPasswordResetEmail(user, { resetUrl, token: resetToken });
+        } catch (mailErr) {
+            console.error('[Auth] Failed to send password reset email:', mailErr.message);
+        }
+
+        return res.json({
+            success: true,
+            message: 'If an account exists with this email, a password reset link has been dispatched. Please check your inbox.'
+        });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        return res.status(500).json({ success: false, error: 'Unable to process password reset request' });
+    }
+});
+
+// Reset Password with Token
+router.post('/reset-password', (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token) {
+            return res.status(400).json({ success: false, error: 'Reset token is required' });
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long' });
+        }
+
+        const resetRecord = db.prepare(`
+            SELECT pr.*, u.id as user_id, u.email, u.full_name
+            FROM password_resets pr
+            JOIN users u ON u.id = pr.user_id
+            WHERE pr.token = ? AND pr.used = 0
+        `).get(token.trim());
+
+        if (!resetRecord) {
+            return res.status(400).json({ success: false, error: 'This password reset link is invalid or has already been used' });
+        }
+
+        const now = new Date();
+        const expires = new Date(resetRecord.expires_at);
+        if (now > expires) {
+            return res.status(400).json({ success: false, error: 'This password reset link has expired. Please request a new one.' });
+        }
+
+        const passwordHash = bcrypt.hashSync(newPassword, 10);
+
+        const executeReset = db.transaction(() => {
+            db.prepare(`UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+                .run(passwordHash, resetRecord.user_id);
+            db.prepare(`UPDATE password_resets SET used = 1 WHERE id = ?`)
+                .run(resetRecord.id);
+        });
+
+        executeReset();
+
+        return res.json({
+            success: true,
+            message: 'Password reset successful! You can now log in with your new password.'
+        });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to reset password' });
     }
 });
 
