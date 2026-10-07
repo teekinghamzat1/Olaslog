@@ -1403,6 +1403,9 @@ async function loadEmailSettings() {
 
     // Populate active template form
     populateTemplateForm(adminState.currentEmailTemplateKey || 'welcome');
+
+    // Also check and load Telegram alerts status
+    loadTelegramStatus();
   } catch (err) {
     console.error('loadEmailSettings error:', err);
   }
@@ -1822,5 +1825,70 @@ function previewCurrentTemplate() {
   if (frame) frame.srcdoc = fullHtml;
 
   openAdminModal('admEmailPreviewModal');
+}
+
+// ─── Telegram Bot Alerts Admin Management ────────────────────────────────────
+
+async function loadTelegramStatus() {
+  try {
+    const res = await fetch('/api/admin/telegram/status');
+    const data = await res.json();
+    const badge = document.getElementById('tgAdminBadge');
+    const summary = document.getElementById('tgAdminSummary');
+    if (!badge) return;
+
+    if (data.configured) {
+      badge.className = 'pill pill-teal';
+      badge.innerHTML = '<span class="dot"></span> Bot Active';
+      if (summary) {
+        summary.textContent = `Connected to Chat ID: ${data.chatId || 'Configured'} · Real-time alerts enabled.`;
+      }
+    } else {
+      badge.className = 'pill pill-danger';
+      badge.innerHTML = '<span class="dot"></span> Not Configured';
+      if (summary) {
+        summary.textContent = 'Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to your .env file to enable instant mobile alerts.';
+      }
+    }
+  } catch (err) {
+    console.warn('loadTelegramStatus error:', err);
+  }
+}
+
+async function sendTestTelegramAlert() {
+  const btnTop = document.getElementById('btnTestTgTop');
+  const btnCard = document.getElementById('btnTestTgAlert');
+  const btns = [btnTop, btnCard].filter(Boolean);
+
+  btns.forEach(b => {
+    b.disabled = true;
+    b.textContent = 'Sending ping... ⏳';
+  });
+
+  try {
+    const res = await fetch('/api/admin/telegram/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      showAdminToast(data.message || 'Telegram test message delivered!', 'success');
+    } else {
+      showAdminToast(data.error || 'Failed to send Telegram test message', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error triggering Telegram test: ' + err.message, 'error');
+  } finally {
+    if (btnTop) {
+      btnTop.disabled = false;
+      btnTop.textContent = '✈️ Test Telegram';
+    }
+    if (btnCard) {
+      btnCard.disabled = false;
+      btnCard.textContent = '⚡ Send Test Telegram Ping';
+    }
+    loadTelegramStatus();
+  }
 }
 

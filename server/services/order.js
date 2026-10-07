@@ -3,6 +3,7 @@ const { getWalletBalance } = require('./wallet');
 const { encrypt, decrypt } = require('./crypto');
 const sujanService = require('./sujan');
 const emailService = require('./email');
+const telegram = require('./telegram');
 
 /**
  * Performs atomic checkout for a cart with Rakib Socials API integration
@@ -296,6 +297,27 @@ async function checkoutCart(userId, items) {
         }
     } catch (emailErr) {
         console.error('[Order] Error triggering purchase email:', emailErr.message);
+    }
+
+    // Check for low stock alerts on local inventory (non-blocking)
+    try {
+        for (const fulfillment of fulfillmentResults) {
+            if (fulfillment.source === 'local') {
+                const prodId = fulfillment.item.product.id;
+                const prodName = fulfillment.item.product.name;
+                const stockRow = db.prepare(`SELECT COUNT(*) as count FROM stock_items WHERE product_id = ? AND status = 'available'`).get(prodId);
+                const remaining = stockRow ? stockRow.count : 0;
+                if (remaining <= 3) {
+                    telegram.notifyLowStock({
+                        productName: prodName,
+                        productId: prodId,
+                        remaining
+                    });
+                }
+            }
+        }
+    } catch (stockErr) {
+        console.warn('[Telegram] Low stock notification check error:', stockErr.message);
     }
 
     return result;

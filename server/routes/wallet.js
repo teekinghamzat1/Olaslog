@@ -6,6 +6,7 @@ const { getWalletBalance, getTransactions } = require('../services/wallet');
 
 const billstackService = require('../services/billstack');
 const emailService = require('../services/email');
+const telegram = require('../services/telegram');
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
@@ -232,15 +233,27 @@ router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
                     const userRow = db.prepare(`SELECT email, full_name FROM users WHERE id = ?`).get(result.user.id);
                     if (userRow) {
                         const amount = parseFloat(event.data.amount) || 0;
+                        const reference = event.data.wiaxy_ref || event.data.transaction_ref || event.data.reference;
+
                         emailService.sendWalletFundedEmail(
                             { email: userRow.email, fullName: userRow.full_name },
                             {
                                 amount,
                                 newBalance: result.balance,
-                                reference: event.data.wiaxy_ref || event.data.transaction_ref || event.data.reference,
+                                reference,
                                 channel: 'virtual_bank_account'
                             }
                         ).catch(() => {});
+
+                        // Telegram admin alert (non-blocking)
+                        telegram.notifyWalletFunded({
+                            fullName: userRow.full_name,
+                            email:    userRow.email,
+                            userId:   result.user.id,
+                            amount,
+                            newBalance: result.balance,
+                            reference
+                        }).catch(() => {});
                     }
                 }
             } else {

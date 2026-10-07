@@ -8,6 +8,7 @@ const { authenticate } = require('../middleware/auth');
 const { getOrderWithCredentials } = require('../services/order');
 const { encrypt } = require('../services/crypto');
 const sujanService = require('../services/sujan');
+const telegram = require('../services/telegram');
 
 // Setup multer storage for dispute screenshots/proof
 const uploadDir = path.resolve(__dirname, '../../uploads/disputes');
@@ -130,6 +131,21 @@ router.post('/:id/dispute', authenticate, upload.single('proofImage'), (req, res
             INSERT INTO disputes (order_id, user_id, reason, proof_image_path, status)
             VALUES (?, ?, ?, ?, 'submitted')
         `).run(orderId, req.user.id, reason.trim(), proofImagePath);
+
+        // Notify admin via Telegram (fire-and-forget)
+        try {
+            const userRow = db.prepare(`SELECT full_name, email FROM users WHERE id = ?`).get(req.user.id);
+            telegram.notifyDispute({
+                fullName: userRow?.full_name || 'Customer',
+                email: userRow?.email || req.user.email || 'N/A',
+                userId: req.user.id,
+                orderNumber: order.order_number,
+                orderId: order.id,
+                reason: reason.trim()
+            });
+        } catch (tgErr) {
+            console.warn('[Telegram] Failed to dispatch dispute notification:', tgErr.message);
+        }
 
         return res.status(201).json({
             success: true,

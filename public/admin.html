@@ -98,7 +98,7 @@
         </div>
         <div class="sb-item" data-screen="email" onclick="switchTab('email', this)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-          Email &amp; SMTP
+          Alerts &amp; Email
         </div>
       </nav>
 
@@ -138,7 +138,7 @@
         <button class="adm-tab-pill" data-screen="users" onclick="switchTab('users')">User Directory</button>
         <button class="adm-tab-pill" data-screen="admins" onclick="switchTab('admins')">Manage Admins</button>
         <button class="adm-tab-pill" data-screen="ledger" onclick="switchTab('ledger')">System Ledger</button>
-        <button class="adm-tab-pill" data-screen="email" onclick="switchTab('email')">Email &amp; SMTP</button>
+        <button class="adm-tab-pill" data-screen="email" onclick="switchTab('email')">Alerts &amp; Email</button>
       </nav>
 
       <div class="content">
@@ -477,12 +477,15 @@
           <!-- Top summary row -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
             <div>
-              <div style="font-family: var(--display); font-size: 20px; font-weight: 700; margin-bottom: 6px;">Email &amp; SMTP Operations</div>
+              <div style="font-family: var(--display); font-size: 20px; font-weight: 700; margin-bottom: 6px;">Alerts, Email &amp; SMTP Operations</div>
               <div style="font-size: 13px; color: var(--text-dim); max-width: 680px; line-height: 1.5;">
-                Configure your SMTP mail server, customize the messaging content for customer notifications, and send live test emails to verify your inbox delivery.
+                Configure real-time Telegram admin notifications, manage your SMTP mail server, customize customer email templates, and dispatch test pings.
               </div>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" onclick="sendTestTelegramAlert()" id="btnTestTgTop">
+                ✈️ Test Telegram
+              </button>
               <button class="btn btn-outline btn-sm" onclick="openTestEmailModal()">
                 ⚡ Send Test Email
               </button>
@@ -500,6 +503,71 @@
             </div>
             <div style="font-size: 12px; color: var(--text-faint);">
               ✨ Brand Logo &amp; Responsive Dark Layout are automatically injected
+            </div>
+          </div>
+
+          <!-- Section: Telegram Real-Time Admin Alerts -->
+          <div class="panel" style="background: var(--panel-2); border: 1px solid var(--edge); border-radius: 14px; padding: 22px; margin-bottom: 28px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div style="font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                  <span>✈️ Telegram Admin Alerts</span>
+                  <span id="tgAdminBadge" class="pill pill-muted"><span class="dot"></span> Checking Telegram...</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-faint); margin-top: 4px;" id="tgAdminSummary">
+                  Real-time mobile alerts sent to your Telegram chat for high-priority platform events.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="sendTestTelegramAlert()" id="btnTestTgAlert">
+                ⚡ Send Test Telegram Ping
+              </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;">
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 14px;">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>👤</span> New User Signups
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-dim); line-height: 1.4;">
+                  Fires immediately when a customer creates an account with their name, email, and ID.
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 14px;">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>💰</span> Wallet Funded
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-dim); line-height: 1.4;">
+                  Fires on verified deposits with amount (₦), new balance, and transaction reference.
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 14px;">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>🛒</span> New Orders
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-dim); line-height: 1.4;">
+                  Fires on checkout with order #, customer info, total amount (₦), and item count.
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 14px;">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>⚠️</span> Customer Disputes
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-dim); line-height: 1.4;">
+                  Fires immediately when a buyer reports an issue, showing reason and order ID.
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--edge); border-radius: 10px; padding: 12px 14px;">
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                  <span>📦</span> Low Stock Warning
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-dim); line-height: 1.4;">
+                  Fires automatically when any local inventory product drops to 3 units or fewer.
+                </div>
+              </div>
             </div>
           </div>
 

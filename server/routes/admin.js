@@ -9,6 +9,7 @@ const { getOrderWithCredentials } = require('../services/order');
 const sujanService = require('../services/sujan');
 const syncScheduler = require('../services/syncScheduler');
 const emailService = require('../services/email');
+const telegram = require('../services/telegram');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -1205,6 +1206,69 @@ router.post('/email/test', async (req, res) => {
         return res.status(400).json({
             success: false,
             error: err.message || 'Failed to send test email. Check your SMTP configuration.'
+        });
+    }
+});
+
+/**
+ * GET /api/admin/telegram/status
+ * Returns configured status of Telegram bot alerts
+ */
+router.get('/telegram/status', (req, res) => {
+    try {
+        const configured = telegram.isConfigured();
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+        const maskedChatId = chatId
+            ? (chatId.length > 5 ? `${chatId.slice(0, 3)}***${chatId.slice(-2)}` : chatId)
+            : null;
+
+        return res.json({
+            success: true,
+            configured,
+            chatId: maskedChatId
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * POST /api/admin/telegram/test
+ * Sends a live test alert to verify Telegram bot connectivity
+ */
+router.post('/telegram/test', async (req, res) => {
+    try {
+        if (!telegram.isConfigured()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Telegram is not configured. Please ensure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set in your .env file.'
+            });
+        }
+
+        const result = await telegram.sendTestMessage();
+        if (result && result.ok) {
+            logAudit(
+                req.user.id,
+                'send_test_telegram',
+                'telegram',
+                'admin_bot',
+                'Dispatched test Telegram notification to admin chat'
+            );
+            return res.json({
+                success: true,
+                message: 'Test alert sent successfully to your Telegram chat!'
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: result?.description || result?.reason || 'Failed to send test message to Telegram.'
+            });
+        }
+    } catch (err) {
+        console.error('[Admin] Test telegram error:', err);
+        return res.status(500).json({
+            success: false,
+            error: err.message || 'Failed to dispatch Telegram test alert'
         });
     }
 });
