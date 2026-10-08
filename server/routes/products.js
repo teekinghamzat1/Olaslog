@@ -37,7 +37,7 @@ router.get('/categories', (req, res) => {
     }
 });
 
-// List Products with Live Rakib Stock Counts
+// List Products with Live Sujan Logs Stock Counts
 router.get('/', async (req, res) => {
     try {
         const { category, search } = req.query;
@@ -45,14 +45,12 @@ router.get('/', async (req, res) => {
         let query = `
             SELECT 
                 p.id, 
-                p.rakib_product_id,
                 p.sujan_product_id,
                 p.category_id, 
                 p.name, 
                 p.slug, 
                 p.description, 
                 p.price, 
-                p.rakib_base_price,
                 p.sujan_base_price,
                 p.reseller_markup_percent,
                 p.image_url, 
@@ -123,7 +121,7 @@ router.get('/', async (req, res) => {
             let stockCount = 0;
             let isAutoFulfilled = false;
             let inStock = false;
-            const targetSujanId = p.sujan_product_id || p.rakib_product_id || p.id;
+            const targetSujanId = p.sujan_product_id || p.id;
             const sujanItem = sujanProductsMap.get(Number(targetSujanId));
 
             if (sujanItem) {
@@ -151,8 +149,7 @@ router.get('/', async (req, res) => {
 
             return {
                 id: p.id,
-                rakibProductId: targetSujanId,
-                sujanProductId: targetSujanId, // backwards compatibility
+                sujanProductId: targetSujanId,
                 name: p.name,
                 slug: p.slug,
                 description: p.description,
@@ -227,7 +224,7 @@ router.get('/:id/stock', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetSujanId = product.sujan_product_id || product.rakib_product_id || product.id;
+        const targetSujanId = product.sujan_product_id || product.id;
         let stockData = null;
         try {
             stockData = await sujanService.getProductStock(targetSujanId);
@@ -321,7 +318,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const targetSujanId = product.sujan_product_id || product.rakib_product_id || product.id;
+        const targetSujanId = product.sujan_product_id || product.id;
         let stockCount = 10;
         let inStock = true;
 
@@ -341,7 +338,6 @@ router.get('/:id', async (req, res) => {
             success: true,
             product: {
                 id: product.id,
-                rakibProductId: targetSujanId,
                 sujanProductId: targetSujanId,
                 name: product.name,
                 slug: product.slug,

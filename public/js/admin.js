@@ -188,17 +188,15 @@ async function loadMetrics() {
       document.getElementById('kpiDisputes').textContent = m.pendingDisputesCount || 0;
       document.getElementById('sbDisputeCount').textContent = m.pendingDisputesCount || 0;
       document.getElementById('kpiUsers').textContent = (m.totalCustomersCount || 0).toLocaleString();
-      let rakibVal = 0;
-      const balObj = m.rakibBalance || m.sujanBalance;
+      let sujanVal = 0;
+      const balObj = m.sujanBalance;
       if (typeof balObj === 'object' && balObj !== null) {
-        rakibVal = balObj.balance ?? balObj.amount ?? balObj.funds ?? 0;
+        sujanVal = balObj.balance ?? balObj.amount ?? balObj.funds ?? 0;
       } else if (typeof balObj === 'number') {
-        rakibVal = balObj;
+        sujanVal = balObj;
       }
-      const elRakib = document.getElementById('kpiRakibBal');
-      if (elRakib) elRakib.textContent = Number(rakibVal || 0).toLocaleString();
       const elSujan = document.getElementById('kpiSujanBal');
-      if (elSujan) elSujan.textContent = Number(rakibVal || 0).toLocaleString();
+      if (elSujan) elSujan.textContent = Number(sujanVal || 0).toLocaleString();
     }
   } catch (err) {
     console.error('Failed to load metrics:', err);
@@ -230,7 +228,7 @@ function renderProductsTable(products) {
   }
 
   tbody.innerHTML = products.map(p => {
-    const cost = p.rakib_base_price ?? p.rakib_cost ?? p.sujan_base_price ?? p.sujan_cost;
+    const cost = p.sujan_base_price ?? p.sujan_cost;
     const wholesale = cost ? `₦${Number(cost).toLocaleString()}` : '<span style="color:var(--text-faint);">N/A</span>';
     const isOverride = p.is_custom_price === 1 || p.manual_price_override === 1;
     const modeBadge = isOverride
@@ -240,13 +238,13 @@ function renderProductsTable(products) {
     const stockPill = stockCount > 0
       ? `<span class="pill pill-teal"><span class="dot"></span>${stockCount} in stock</span>`
       : `<span class="pill pill-danger"><span class="dot"></span>Out of stock</span>`;
-    const providerId = p.rakib_product_id || p.sujan_product_id;
+    const providerId = p.sujan_product_id;
 
     return `
       <tr class="row-clickable">
         <td>
           <div class="cell-title">${p.name}</div>
-          <div class="cell-sub mono">#${p.id} • ${providerId ? `Rakib #${providerId}` : 'Local'}</div>
+          <div class="cell-sub mono">#${p.id} • ${providerId ? `Sujan #${providerId}` : 'Local'}</div>
         </td>
         <td class="mono">${p.category_name || 'General'}</td>
         <td class="mono" style="color:var(--text-faint);">${wholesale}</td>
@@ -272,17 +270,17 @@ function populateBulkProductSelect(products) {
   sel.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (₦${p.price.toLocaleString()})</option>`).join('');
 }
 
-async function syncRakibCatalog() {
-  const btn = document.getElementById('btnSyncRakib') || document.getElementById('btnSyncSujan');
+async function syncSujanCatalog() {
+  const btn = document.getElementById('btnSyncSujan');
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Syncing...';
   }
   try {
-    const res = await fetch('/api/admin/products/sync-rakib', { method: 'POST' });
+    const res = await fetch('/api/admin/products/sync-sujan', { method: 'POST' });
     const data = await res.json();
     if (data.success) {
-      showAdminToast(data.message || 'Catalog synced with Rakib Socials!', 'success');
+      showAdminToast(data.message || 'Catalog synced with Sujan Logs Marketplace!', 'success');
       await loadProducts();
       await loadMetrics();
     } else {
@@ -297,21 +295,18 @@ async function syncRakibCatalog() {
     }
   }
 }
-const syncSujanCatalog = syncRakibCatalog;
 
 // Manual Price Modal
 function openPriceModal(productId) {
   const product = adminState.products.find(p => p.id === productId);
   if (!product) return;
 
-  const cost = product.rakib_base_price ?? product.rakib_cost ?? product.sujan_base_price ?? product.sujan_cost ?? 0;
+  const cost = product.sujan_base_price ?? product.sujan_cost ?? 0;
 
   document.getElementById('admPriceProductId').value = product.id;
   document.getElementById('admPriceProductName').textContent = product.name;
   document.getElementById('admPriceProductCategory').textContent = product.category_name || 'General';
   
-  const elRakib = document.getElementById('admPriceRakibBase');
-  if (elRakib) elRakib.textContent = cost ? `₦${Number(cost).toLocaleString()}` : '₦0';
   const elSujan = document.getElementById('admPriceSujanBase');
   if (elSujan) elSujan.textContent = cost ? `₦${Number(cost).toLocaleString()}` : '₦0';
 
@@ -1074,12 +1069,12 @@ function renderAdminsTable(admins) {
           <div style="display:flex; justify-content:flex-end; gap:6px; flex-wrap:wrap;">
             <button class="btn btn-outline btn-xs" onclick="openResetAdminPasswordModal(${a.id})" title="Reset Password">🔑 Password</button>
             <button class="btn btn-outline btn-xs" onclick="openEditAdminModal(${a.id})" title="Edit Details">✏️ Edit</button>
-            ${!isSelf ? `
+            ${isSelf ? '' : `
               <button class="btn ${a.is_banned ? 'btn-teal' : 'btn-outline'} btn-xs" onclick="toggleAdminStatus(${a.id}, '${escapeHtml(a.email)}')" title="${a.is_banned ? 'Reactivate' : 'Suspend'}">
                 ${a.is_banned ? 'Reactivate' : 'Suspend'}
               </button>
               <button class="btn btn-danger btn-xs" onclick="deleteAdminAccount(${a.id}, '${escapeHtml(a.email)}')" title="Delete Admin">🗑️</button>
-            ` : ''}
+            `}
           </div>
         </td>
       </tr>

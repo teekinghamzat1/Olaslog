@@ -34,10 +34,10 @@ router.get('/metrics', async (req, res) => {
         const totalUsers = db.prepare(`SELECT COUNT(*) as count FROM users WHERE role = 'customer'`).get().count;
         const pendingDisputes = db.prepare(`SELECT COUNT(*) as count FROM disputes WHERE status IN ('submitted', 'under_review')`).get().count;
         
-        let rakibBalance = null;
+        let sujanBalance = null;
         try {
             const balRes = await sujanService.getBalance();
-            rakibBalance = balRes.data;
+            sujanBalance = balRes.data;
         } catch (e) {
             console.warn('Admin metrics: could not fetch Sujan balance', e.message);
         }
@@ -70,8 +70,7 @@ router.get('/metrics', async (req, res) => {
                 pendingDisputes,
                 pendingDisputesCount: pendingDisputes,   // alias for frontend
                 availableStockCount: stockStats ? (stockStats.available_items || 0) : 0, // alias for frontend
-                rakibBalance,
-                sujanBalance: rakibBalance, // backwards compatibility
+                sujanBalance,
                 stock: stockStats,
                 topProducts
             }
@@ -82,7 +81,7 @@ router.get('/metrics', async (req, res) => {
 });
 
 // Sujan API Health & Balance
-router.get(['/rakib/status', '/rakib-status', '/sujan/status', '/sujan-status'], async (req, res) => {
+router.get(['/sujan/status', '/sujan-status'], async (req, res) => {
     try {
         const balanceData = await sujanService.getBalance();
         return res.json({
@@ -123,7 +122,7 @@ router.get('/products', (req, res) => {
 });
 
 // Trigger catalog sync from Sujan API on demand
-router.post(['/products/sync-rakib', '/products/sync-sujan'], async (req, res) => {
+router.post('/products/sync-sujan', async (req, res) => {
     try {
         const syncResult = await sujanService.syncCatalogFromSujan();
         logAudit(req.user.id, 'SYNC_SUJAN_CATALOG', 'CATALOG', 0, `Synced ${syncResult.productsSynced} products from Sujan Logs Marketplace`);
@@ -147,7 +146,7 @@ router.put('/products/:id/price', (req, res) => {
 
         if (resetToDefault || resetToDefaultFormula) {
             // Reset to default auto price: Wholesale base price + ₦1,000 markup
-            const wholesaleBase = product.rakib_base_price || product.sujan_base_price || product.price;
+            const wholesaleBase = product.sujan_base_price || product.price;
             const newPrice = wholesaleBase + 1000;
             db.prepare(`
                 UPDATE products 

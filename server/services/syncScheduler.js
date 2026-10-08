@@ -2,7 +2,7 @@
  * Olaslog - Automated Catalog Sync Scheduler
  *
  * Automatically syncs, updates, and ingests live products and categories from
- * the provider API (Sujan Logs Marketplace / Rakib) on a configurable schedule.
+ * the provider API (Sujan Logs Marketplace) on a configurable schedule.
  *
  * Features:
  * - Recurring timer (defaults to every 15 minutes, configurable via CATALOG_SYNC_INTERVAL_MINUTES)

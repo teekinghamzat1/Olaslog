@@ -212,8 +212,8 @@ router.post('/webhook', async (req, res) => {
                 // Find matching order in DB
                 const localOrder = db.prepare(`
                     SELECT id FROM orders 
-                    WHERE sujan_order_id = ? OR rakib_order_id = ?
-                `).get(sujanOrderId, sujanOrderId);
+                    WHERE sujan_order_id = ?
+                `).get(sujanOrderId);
 
                 if (localOrder && Array.isArray(orderData.items) && orderData.items.length > 0) {
                     const orderId = localOrder.id;
@@ -237,9 +237,9 @@ router.post('/webhook', async (req, res) => {
                             const orderItem = db.prepare(`
                                 SELECT oi.id FROM order_items oi
                                 JOIN products p ON oi.product_id = p.id
-                                WHERE oi.order_id = ? AND (p.sujan_product_id = ? OR p.rakib_product_id = ?)
+                                WHERE oi.order_id = ? AND p.sujan_product_id = ?
                                 LIMIT 1
-                            `).get(orderId, item.product_id, item.product_id);
+                            `).get(orderId, item.product_id);
 
                             db.prepare(`
                                 INSERT INTO delivered_credentials

@@ -7,8 +7,8 @@ const { checkoutCart, getOrderWithCredentials } = require('../server/services/or
 const { encrypt, decrypt } = require('../server/services/crypto');
 const { MIN_FUNDING } = require('../server/services/wallet');
 
-const korapayService = require('../server/services/korapay');
-const rakibService = require('../server/services/rakib');
+const billstackService = require('../server/services/billstack');
+const sujanService = require('../server/services/sujan');
 
 async function runTests() {
     console.log('--- Starting Olaslog Automated Core Tests ---');
@@ -27,118 +27,90 @@ async function runTests() {
 
     // 3. Test Users & Pre-funded Balance
     console.log('\n[2] Testing Demo Customer Wallet Balance...');
-    const customer = db.prepare(`SELECT id, email FROM users WHERE email = 'customer@olaslog.com'`).get();
+    const customer = db.prepare(`SELECT id, email, full_name FROM users WHERE email = 'customer@olaslog.com'`).get();
     assert(customer, 'Customer user must exist');
     let balance = getWalletBalance(customer.id);
     assert.strictEqual(balance, 15000, 'Initial seeded customer balance should be ₦15,000');
     console.log(`✓ Customer balance verified: ₦${balance.toLocaleString()}`);
 
-    // 4. Test Wallet Funding - Direct Ledger (Korapay path)
+    // 4. Test Wallet Funding Ledger & BillStack Virtual Bank Account
     console.log('\n[3] Testing Wallet Funding Ledger & Idempotency...');
 
-    // Test minimum funding enforced by constant
+    // Confirm minimum funding constant
     assert(MIN_FUNDING === 100, 'MIN_FUNDING must be 100');
     console.log(`✓ MIN_FUNDING constant confirmed: ₦${MIN_FUNDING}`);
 
-    // Test Korapay Standard Checkout initialization
-    const checkoutInit = await korapayService.initializeCheckout(customer.id, customer.email, customer.full_name, 2500);
-    assert(checkoutInit.success && checkoutInit.reference && checkoutInit.checkoutUrl, 'Checkout init should return reference and checkoutUrl');
-    console.log(`✓ Korapay standard checkout initialized: ${checkoutInit.reference}`);
+    // Test BillStack Dedicated Virtual Bank Account creation
+    console.log('\n[3b] Testing BillStack Dedicated Virtual Bank Account...');
 
-    // Verify checkout funding
-    const verifyResult = await korapayService.verifyPayment(checkoutInit.reference);
-    assert.strictEqual(verifyResult.balance, 17500, 'Balance should increase to ₦17,500 after ₦2,500 top-up');
-    console.log(`✓ Balance after verified top-up: ₦${verifyResult.balance.toLocaleString()}`);
+    const vbaResult = await billstackService.createVirtualAccount(customer, '9PSB');
+    assert(vbaResult && vbaResult.account_number, 'BillStack should generate a virtual bank account');
+    assert(vbaResult.account_number.length === 10, 'NUBAN account number must be 10 digits');
+    console.log(`✓ BillStack Virtual Account created: ${vbaResult.bank_name} - ${vbaResult.account_number} (${vbaResult.account_name})`);
 
-    // Test idempotency (verifying same reference again must not double credit)
-    const duplicateVerify = await korapayService.verifyPayment(checkoutInit.reference);
-    assert.strictEqual(duplicateVerify.alreadyProcessed, true, 'Duplicate completion must be flagged as already processed');
-    assert.strictEqual(duplicateVerify.balance, 17500, 'Balance must remain ₦17,500 and not double-credit');
-    console.log('✓ Korapay checkout verification idempotency verified (no double crediting)');
-
-    // 4b. Test Korapay Dedicated Virtual Bank Account & Webhooks (when enabled)
-    console.log('\n[3b] Testing Korapay Dedicated Virtual Bank Account & Webhooks...');
-    
-    // Test BVN requirement
-    try {
-        await korapayService.createOrGetVirtualAccount(customer.id, { bvn: '123' });
-        assert.fail('Should reject invalid BVN');
-    } catch (bvnErr) {
-        assert.strictEqual(bvnErr.code, 'BVN_REQUIRED');
-        console.log('✓ Correctly enforced mandatory 11-digit BVN requirement');
-    }
-
-    // Generate Dedicated Virtual Bank Account
-    const vbaResult = await korapayService.createOrGetVirtualAccount(customer.id, { bvn: '22212345678', bankCode: '070' });
-    assert(vbaResult.success && vbaResult.data, 'Should successfully generate Virtual Bank Account');
-    assert.strictEqual(vbaResult.data.account_status, 'active', 'Virtual Account must be active');
-    assert(vbaResult.data.account_number && vbaResult.data.account_number.length === 10, 'NUBAN account number must be 10 digits');
-    console.log(`✓ Dedicated Virtual Bank Account created: ${vbaResult.data.bank_name} - ${vbaResult.data.account_number} (${vbaResult.data.account_name})`);
-
-    // Verify account persistence (second call returns exact same account)
-    const secondVbaCall = await korapayService.createOrGetVirtualAccount(customer.id);
-    assert.strictEqual(secondVbaCall.isNew, false, 'Second fetch should return existing persistent account');
-    assert.strictEqual(secondVbaCall.data.account_number, vbaResult.data.account_number, 'Persistent account number must match');
+    // Verify persistence (second call returns same account)
+    const secondVba = billstackService.getVirtualAccount(customer.id);
+    assert(secondVba, 'Persisted virtual account must be retrievable by user ID');
+    assert.strictEqual(secondVba.account_number, vbaResult.account_number, 'Same account number must be returned');
     console.log('✓ Virtual Bank Account persistence confirmed (single dedicated account per user)');
 
-    // Test Incoming Bank Transfer via Webhook / Sandbox Simulator
+    // Test incoming bank transfer / webhook
     const startBal = getWalletBalance(customer.id);
     const transferAmount = 5000;
-    const simRef = `KPY-TEST-${Date.now()}`;
-    const paymentResult = await korapayService.processIncomingPayment({
+    const simRef = `BST-TEST-${Date.now()}`;
+    const paymentResult = await billstackService.processIncomingPayment({
         reference: simRef,
         amount: transferAmount,
         currency: 'NGN',
         fee: 0,
-        virtual_bank_account_details: {
-            payer_bank_account: {
-                account_name: 'Adetunji Test',
-                account_number: '******9901',
-                bank_name: 'GTBank'
-            },
-            virtual_bank_account: {
-                account_name: vbaResult.data.account_name,
-                account_number: vbaResult.data.account_number,
-                account_reference: vbaResult.data.account_reference,
-                bank_name: vbaResult.data.bank_name
-            }
+        virtual_bank_account: {
+            account_name: vbaResult.account_name,
+            account_number: vbaResult.account_number,
+            account_reference: vbaResult.account_reference,
+            bank_name: vbaResult.bank_name
+        },
+        payer_bank_account: {
+            account_name: 'Adetunji Test',
+            account_number: '******9901',
+            bank_name: 'GTBank'
         }
     });
     assert.strictEqual(paymentResult.balance, startBal + transferAmount, `Balance should increase by ₦${transferAmount}`);
     console.log(`✓ Incoming bank transfer credited wallet: ₦${paymentResult.balance.toLocaleString()}`);
 
-    // Test Korapay Webhook Idempotency
-    const dupPayment = await korapayService.processIncomingPayment({
+    // Test BillStack webhook idempotency (duplicate reference must not double-credit)
+    const dupPayment = await billstackService.processIncomingPayment({
         reference: simRef,
         amount: transferAmount,
-        virtual_bank_account_details: {
-            virtual_bank_account: {
-                account_reference: vbaResult.data.account_reference
-            }
+        virtual_bank_account: {
+            account_reference: vbaResult.account_reference
         }
     });
-    assert.strictEqual(dupPayment.alreadyProcessed, true, 'Duplicate Korapay webhook must not double credit');
+    assert.strictEqual(dupPayment.alreadyProcessed, true, 'Duplicate BillStack webhook must not double credit');
     assert.strictEqual(dupPayment.balance, startBal + transferAmount, 'Balance must remain unchanged on duplicate webhook');
-    console.log('✓ Korapay webhook idempotency verified');
+    console.log('✓ BillStack webhook idempotency verified (no double crediting)');
 
-    // 5. Test Rakib Socials API Integration: Balance, Catalog & Stock Previews
-    console.log('\n[4] Testing Rakib Socials Marketplace API Service...');
-    const rakibBal = await rakibService.getBalance();
-    assert(rakibBal.success && rakibBal.data, 'Rakib balance query should succeed');
-    const balNum = parseFloat(rakibBal.data.balance || rakibBal.data.balance_minor / 100 || 0);
-    console.log(`✓ Rakib API balance: ₦${balNum.toLocaleString()} (${rakibBal.data.currency || 'NGN'})`);
+    // 5. Test Sujan Logs API: Balance & Catalog
+    console.log('\n[4] Testing Sujan Logs Marketplace API Service...');
+    const sujanBal = await sujanService.getBalance();
+    assert(sujanBal.success && sujanBal.data, 'Sujan Logs balance query should succeed');
+    const sujanBalNum = parseFloat(
+        sujanBal.data.balance_minor != null
+            ? sujanBal.data.balance_minor / 100
+            : sujanBal.data.balance || 0
+    );
+    console.log(`✓ Sujan Logs API balance: ₦${sujanBalNum.toLocaleString()} (${sujanBal.data.currency || 'NGN'})`);
 
     const firstProd = db.prepare(`SELECT sujan_product_id FROM products WHERE sujan_product_id IS NOT NULL LIMIT 1`).get();
-    const testSujanId = firstProd ? firstProd.sujan_product_id : 35;
-    const stockPreview = await rakibService.getProductStock(testSujanId);
-    assert(stockPreview.data, 'Rakib stock preview must return data');
-    console.log(`✓ Rakib stock preview: fulfillment_type="${stockPreview.data.fulfillment_type}", available_stock=${stockPreview.data.available_stock}`);
+    const testSujanId = firstProd ? firstProd.sujan_product_id : 1;
+    const stockPreview = await sujanService.getProductStock(testSujanId);
+    assert(stockPreview.data, 'Sujan Logs stock preview must return data');
+    console.log(`✓ Sujan Logs stock preview: fulfillment_type="${stockPreview.data.fulfillment_type}", available_stock=${stockPreview.data.available_stock}`);
 
     // 6. Test Insufficient Funds Check
     console.log('\n[5] Testing Insufficient Funds Prevention...');
     let testProd = db.prepare(`SELECT id, price FROM products LIMIT 1`).get();
     if (!testProd) {
-        // Fallback product if table was just cleared
         testProd = { id: 1, price: 4500 };
     }
     try {
@@ -154,7 +126,6 @@ async function runTests() {
     console.log('\n[6] Testing Atomic Checkout (Local Stock Fallback)...');
     let fbProduct = db.prepare(`SELECT id, price FROM products WHERE is_active = 1 LIMIT 1`).get();
     if (!fbProduct) {
-        // Ensure a product exists for checkout test
         const cat = db.prepare(`SELECT id FROM product_categories LIMIT 1`).get();
         const catId = cat ? cat.id : 1;
         const insertRes = db.prepare(`
@@ -165,9 +136,8 @@ async function runTests() {
     }
 
     // Seed a local encrypted stock item for the product
-    const { encrypt: encryptLocal } = require('../server/services/crypto');
-    const testCredential = 'Email: test_account@gmail.com | Password: Secret@2026! | Key: RAKIB-XXXX-YYYY';
-    const { encrypted, iv, authTag } = encryptLocal(testCredential);
+    const testCredential = 'Email: test_account@gmail.com | Password: Secret@2026! | Key: SUJAN-XXXX-YYYY';
+    const { encrypted, iv, authTag } = encrypt(testCredential);
     db.prepare(`
         INSERT INTO stock_items (product_id, encrypted_credential, iv, auth_tag, status)
         VALUES (?, ?, ?, ?, 'available')
@@ -221,23 +191,25 @@ async function runTests() {
     console.log('\n[8] Testing Dispute Submission & Admin Wallet Refund...');
     const admin = db.prepare(`SELECT id FROM users WHERE email = 'admin@olaslog.com'`).get();
 
-    // Submit dispute
     const disputeInsert = db.prepare(`
         INSERT INTO disputes (order_id, user_id, reason, status)
         VALUES (?, ?, 'Credential invalid upon inspection', 'submitted')
     `).run(orderResult.orderId, customer.id);
     const disputeId = disputeInsert.lastInsertRowid;
 
-    // Admin approves refund
     const refundLedger = recordRefund(customer.id, orderResult.totalAmount, orderResult.orderId, disputeId, admin.id, 'Approved defective credential replacement refund');
-    
-    // Check wallet balance is restored
+
     const balanceAfterRefund = getWalletBalance(customer.id);
     assert.strictEqual(balanceAfterRefund, 22500, 'Balance must be restored to ₦22,500 after refund');
     console.log(`✓ Wallet refund successfully processed! Balance restored to: ₦${balanceAfterRefund.toLocaleString()}`);
 
     console.log('\n=============================================');
-    console.log('🎉 ALL RAKIB API & BACKEND TESTS PASSED!');
+    console.log('🎉 ALL OLASLOG BACKEND TESTS PASSED!');
+    console.log('   ✅ BillStack Virtual Accounts');
+    console.log('   ✅ Sujan Logs Marketplace API');
+    console.log('   ✅ Atomic Checkout & Credential Delivery');
+    console.log('   ✅ Wallet Ledger & Idempotency');
+    console.log('   ✅ Dispute & Refund Flow');
     console.log('=============================================');
 }
 

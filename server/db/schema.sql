@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
     phone TEXT,
+    telegram_id TEXT UNIQUE,
+    telegram_username TEXT,
+    telegram_first_name TEXT,
+    telegram_photo_url TEXT,
     role TEXT CHECK(role IN ('customer', 'admin', 'support')) DEFAULT 'customer',
     is_verified INTEGER DEFAULT 1,
     is_banned INTEGER DEFAULT 0,
@@ -46,14 +50,12 @@ CREATE TABLE IF NOT EXISTS product_categories (
 -- Products
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    rakib_product_id INTEGER,
     sujan_product_id INTEGER,
     category_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     description TEXT,
     price REAL NOT NULL, -- NGN
-    rakib_base_price REAL,
     sujan_base_price REAL,
     manual_price_override INTEGER DEFAULT 0,
     reseller_markup_percent REAL DEFAULT 15,
@@ -87,7 +89,6 @@ CREATE TABLE IF NOT EXISTS stock_items (
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_number TEXT UNIQUE NOT NULL,
-    rakib_order_id TEXT,
     sujan_order_id TEXT,
     user_id INTEGER NOT NULL,
     total_amount REAL NOT NULL,
@@ -115,7 +116,6 @@ CREATE TABLE IF NOT EXISTS delivered_credentials (
     order_item_id INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     stock_item_id INTEGER,
-    rakib_item_id TEXT,
     sujan_item_id INTEGER,
     public_data TEXT,
     encrypted_credential TEXT NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- User Dedicated Virtual Bank Accounts (Korapay Integration)
+-- User Dedicated Virtual Bank Accounts (BillStack Integration)
 CREATE TABLE IF NOT EXISTS user_virtual_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL UNIQUE,

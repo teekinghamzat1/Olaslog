@@ -7,6 +7,7 @@ const { authenticate, generateToken } = require('../middleware/auth');
 const { getWalletBalance } = require('../services/wallet');
 const emailService = require('../services/email');
 const telegram = require('../services/telegram');
+const telegramAuth = require('../services/telegramAuth');
 
 // Register
 router.post('/register', (req, res) => {
@@ -124,6 +125,8 @@ router.get('/me', authenticate, (req, res) => {
             phone: req.user.phone,
             role: req.user.role,
             isVerified: !!req.user.is_verified,
+            telegramId: req.user.telegram_id,
+            telegramUsername: req.user.telegram_username,
             balance
         }
     });
@@ -280,6 +283,107 @@ router.post('/reset-password', (req, res) => {
 router.post('/logout', (req, res) => {
     res.clearCookie('token');
     return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Telegram WebApp Authentication (1-Tap Login from Telegram Mini App)
+router.post('/telegram-webapp', (req, res) => {
+    try {
+        const { initData } = req.body;
+        if (!initData) {
+            return res.status(400).json({ success: false, error: 'Telegram initData is required' });
+        }
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+            return res.status(500).json({ success: false, error: 'Telegram Bot is not configured on this server' });
+        }
+
+        const validation = telegramAuth.validateTelegramInitData(initData, botToken);
+        if (!validation.valid || !validation.user) {
+            return res.status(401).json({
+                success: false,
+                error: validation.error || 'Invalid or expired Telegram WebApp authentication'
+            });
+        }
+
+        // Provision or retrieve user matching this Telegram profile
+        const user = telegramAuth.findOrCreateTelegramUser(validation.user);
+        if (user.is_banned) {
+            return res.status(403).json({ success: false, error: 'Your account has been suspended by administration' });
+        }
+
+        const token = generateToken(user);
+        res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+
+        const balance = getWalletBalance(user.id);
+
+        return res.json({
+            success: true,
+            message: 'Telegram Mini App authenticated successfully',
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                fullName: user.full_name,
+                role: user.role,
+                telegramId: user.telegram_id,
+                telegramUsername: user.telegram_username,
+                telegramPhotoUrl: user.telegram_photo_url,
+                balance
+            }
+        });
+    } catch (err) {
+        console.error('[Telegram WebApp Auth] Error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to authenticate via Telegram' });
+    }
+});
+
+// Link Telegram Account to existing logged-in user
+router.post('/telegram-link', authenticate, (req, res) => {
+    try {
+        const { initData } = req.body;
+        if (!initData) {
+            return res.status(400).json({ success: false, error: 'Telegram initData is required' });
+        }
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const validation = telegramAuth.validateTelegramInitData(initData, botToken);
+        if (!validation.valid || !validation.user) {
+            return res.status(400).json({ success: false, error: validation.error || 'Invalid Telegram authentication' });
+        }
+
+        const tgId = String(validation.user.id);
+        const existingLinked = db.prepare('SELECT id FROM users WHERE telegram_id = ? AND id != ?').get(tgId, req.user.id);
+        if (existingLinked) {
+            return res.status(409).json({ success: false, error: 'This Telegram account is already linked to another Olaslog user' });
+        }
+
+        db.prepare(`
+            UPDATE users
+            SET telegram_id = ?,
+                telegram_username = COALESCE(?, telegram_username),
+                telegram_first_name = COALESCE(?, telegram_first_name),
+                telegram_photo_url = COALESCE(?, telegram_photo_url),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `).run(
+            tgId,
+            validation.user.username || null,
+            validation.user.first_name || null,
+            validation.user.photo_url || null,
+            req.user.id
+        );
+
+        return res.json({
+            success: true,
+            message: 'Telegram account linked successfully!',
+            telegramId: tgId,
+            telegramUsername: validation.user.username || null
+        });
+    } catch (err) {
+        console.error('[Telegram Link] Error:', err);
+        return res.status(500).json({ success: false, error: 'Failed to link Telegram account' });
+    }
 });
 
 module.exports = router;

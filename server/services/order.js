@@ -4,9 +4,10 @@ const { encrypt, decrypt } = require('./crypto');
 const sujanService = require('./sujan');
 const emailService = require('./email');
 const telegram = require('./telegram');
+const telegramBot = require('./telegramBot');
 
 /**
- * Performs atomic checkout for a cart with Rakib Socials API integration
+ * Performs atomic checkout for a cart with Sujan Logs Marketplace API integration
  * @param {number} userId
  * @param {Array<{ productId: number, quantity: number, inventoryItemIds?: number[] }>} items
  * @returns {Promise<object>} completed order with decrypted credentials
@@ -70,7 +71,7 @@ async function checkoutCart(userId, items) {
     const fulfillmentResults = [];
 
     for (const valItem of validatedItems) {
-        const targetSujanId = valItem.product.sujan_product_id || valItem.product.rakib_product_id || valItem.product.id;
+        const targetSujanId = valItem.product.sujan_product_id || valItem.product.id;
 
         try {
             // Place order with Sujan Logs Marketplace API
@@ -81,7 +82,6 @@ async function checkoutCart(userId, items) {
             });
 
             const sujanOrderData = sujanRes.data || sujanRes;
-            // Sujan returns items[].credential; Rakib format returns keys[] — support both
             const sujanItems = sujanOrderData.items || [];
             const keys = sujanOrderData.keys || [];
 
@@ -150,9 +150,9 @@ async function checkoutCart(userId, items) {
 
         // Create Order
         const orderResult = db.prepare(`
-            INSERT INTO orders (order_number, rakib_order_id, sujan_order_id, user_id, total_amount, status)
-            VALUES (?, ?, ?, ?, ?, 'completed')
-        `).run(orderNumber, sujanOrderIds || null, sujanOrderIds || null, userId, totalCost);
+            INSERT INTO orders (order_number, sujan_order_id, user_id, total_amount, status)
+            VALUES (?, ?, ?, ?, 'completed')
+        `).run(orderNumber, sujanOrderIds || null, userId, totalCost);
         const orderId = orderResult.lastInsertRowid;
 
         const deliveredCredentials = [];
@@ -168,7 +168,7 @@ async function checkoutCart(userId, items) {
             const orderItemId = orderItemResult.lastInsertRowid;
 
             if (source === 'sujan') {
-                // Sujan returns items[].credential — fall back to keys[] for Rakib-style responses
+                // Sujan Logs API format: items[].credential; fallback to keys[] array
                 const sujanItems = fulfillment.items || [];
                 const keys = fulfillment.keys || [];
 
@@ -269,7 +269,6 @@ async function checkoutCart(userId, items) {
             orderId,
             orderNumber,
             sujanOrderIds,
-            rakibOrderIds: sujanOrderIds, // backwards compatibility alias
             totalAmount: totalCost,
             remainingBalance: newBalance,
             createdAt: new Date().toISOString(),
@@ -279,9 +278,9 @@ async function checkoutCart(userId, items) {
 
     const result = executeCheckoutTransaction();
 
-    // Send purchase confirmation email (non-blocking)
+    // Send purchase confirmation email & Telegram delivery (non-blocking)
     try {
-        const userRow = db.prepare('SELECT email, full_name FROM users WHERE id = ?').get(userId);
+        const userRow = db.prepare('SELECT email, full_name, telegram_id FROM users WHERE id = ?').get(userId);
         if (userRow) {
             emailService.sendPurchaseEmail(
                 { email: userRow.email, fullName: userRow.full_name },
@@ -294,9 +293,21 @@ async function checkoutCart(userId, items) {
             ).catch(err => {
                 console.error('[Order] Failed to send purchase email:', err.message);
             });
+
+            // Instant Telegram DM delivery
+            if (userRow.telegram_id) {
+                telegramBot.notifyUserOrderDelivered({
+                    telegramId: userRow.telegram_id,
+                    orderNumber: result.orderNumber,
+                    totalAmount: result.totalAmount,
+                    deliveredItems: result.deliveredCredentials
+                }).catch(err => {
+                    console.error('[Order] Failed to send Telegram order delivery:', err.message);
+                });
+            }
         }
-    } catch (emailErr) {
-        console.error('[Order] Error triggering purchase email:', emailErr.message);
+    } catch (deliveryErr) {
+        console.error('[Order] Error triggering order notifications:', deliveryErr.message);
     }
 
     // Check for low stock alerts on local inventory (non-blocking)
@@ -358,7 +369,6 @@ function getOrderWithCredentials(orderId, userId = null) {
         productId: row.product_id,
         productName: row.product_name,
         stockItemId: row.stock_item_id,
-        rakibItemId: row.rakib_item_id || row.sujan_item_id,
         sujanItemId: row.sujan_item_id,
         publicData: row.public_data,
         deliveredAt: row.delivered_at,

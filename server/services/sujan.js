@@ -639,25 +639,25 @@ async function syncCatalogFromSujan() {
         VALUES (?, ?, ?, ?)
     `);
 
-    const findProductBySujanIdStmt = db.prepare(`SELECT * FROM products WHERE sujan_product_id = ? OR rakib_product_id = ?`);
+    const findProductBySujanIdStmt = db.prepare(`SELECT * FROM products WHERE sujan_product_id = ?`);
     const insertProductStmt = db.prepare(`
         INSERT INTO products (
-            sujan_product_id, rakib_product_id, category_id, name, slug, description,
-            price, sujan_base_price, rakib_base_price, manual_price_override,
+            sujan_product_id, category_id, name, slug, description,
+            price, sujan_base_price, manual_price_override,
             image_url, min_order_qty, max_order_qty, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, 50, 1)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, 50, 1)
     `);
     const updateProductAutoPriceStmt = db.prepare(`
         UPDATE products
         SET category_id = ?, name = ?, description = ?,
-            sujan_base_price = ?, rakib_base_price = ?,
+            sujan_base_price = ?,
             price = ?, image_url = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     `);
     const updateProductManualPriceStmt = db.prepare(`
         UPDATE products
         SET category_id = ?, name = ?, description = ?,
-            sujan_base_price = ?, rakib_base_price = ?,
+            sujan_base_price = ?,
             image_url = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     `);
@@ -697,13 +697,11 @@ async function syncCatalogFromSujan() {
             const cleanDesc = isInternalDesc(rawDesc) ? generateFriendlyDesc(sp.name) : rawDesc;
             insertProductStmt.run(
                 sp.id,
-                sp.id,
                 categoryId,
                 sp.name,
                 generatedSlug,
                 cleanDesc,
                 defaultSellingPrice,
-                sujanBasePrice,
                 sujanBasePrice,
                 imageUrl
             );
@@ -730,7 +728,6 @@ async function syncCatalogFromSujan() {
                     sp.name,
                     finalDesc,
                     sujanBasePrice,
-                    sujanBasePrice,
                     imageUrl,
                     existingProd.id
                 );
@@ -740,7 +737,6 @@ async function syncCatalogFromSujan() {
                     categoryId,
                     sp.name,
                     finalDesc,
-                    sujanBasePrice,
                     sujanBasePrice,
                     defaultSellingPrice,
                     imageUrl,
@@ -773,7 +769,6 @@ module.exports = {
     getOrder,
     verifyWebhookSignature,
     syncCatalogFromSujan,
-    syncCatalogFromRakib: syncCatalogFromSujan,
     resolveProductLogoUrl,
     resolveCategoryIcon,
     isPlaceholderKey

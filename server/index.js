@@ -8,6 +8,7 @@ require('dotenv').config();
 require('./db');
 
 const syncScheduler = require('./services/syncScheduler');
+const telegramBot = require('./services/telegramBot');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
@@ -85,11 +86,15 @@ const server = app.listen(PORT, () => {
     // Start automated recurring catalog sync from Sujan Logs Marketplace
     const job = syncScheduler.startSyncJob();
     console.log(`📦 Catalog sync scheduler started — running every ${job.intervalMinutes} min. Next: ${job.nextSyncAt}`);
+
+    // Start Telegram Interactive Bot service
+    telegramBot.startBot();
 });
 
-// Graceful shutdown — stop the sync scheduler before exiting
+// Graceful shutdown — stop the sync scheduler and telegram bot before exiting
 process.on('SIGTERM', () => {
     syncScheduler.stopSyncJob();
+    telegramBot.stopBot();
     server.close(() => {
         console.log('[Server] Gracefully shut down.');
         process.exit(0);
@@ -98,6 +103,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
     syncScheduler.stopSyncJob();
+    telegramBot.stopBot();
     server.close(() => {
         console.log('[Server] Gracefully shut down (SIGINT).');
         process.exit(0);

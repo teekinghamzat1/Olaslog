@@ -48,11 +48,59 @@ function updateThemeAssets(theme) {
 initTheme();
 
 // ============================================================================
-// Initialization & Authentication
+// Initialization & Authentication (with Telegram Mini App Support)
 // ============================================================================
+
+function initTelegramWebApp() {
+    if (!window.Telegram || !window.Telegram.WebApp) return;
+
+    try {
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        if (tg.colorScheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('olaslog_theme', 'dark');
+        } else if (tg.colorScheme === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            localStorage.setItem('olaslog_theme', 'light');
+        }
+
+        if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('#0b101b');
+        if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#080b11');
+
+        // Wire Telegram native BackButton for modals & drawers
+        if (tg.BackButton) {
+            tg.BackButton.onClick(() => {
+                const activeModal = document.querySelector('.modal.open');
+                if (activeModal) {
+                    activeModal.classList.remove('open');
+                    tg.BackButton.hide();
+                    return;
+                }
+                const cartDrawer = document.getElementById('cartDrawer');
+                if (cartDrawer && cartDrawer.classList.contains('open')) {
+                    toggleCartDrawer(false);
+                    tg.BackButton.hide();
+                    return;
+                }
+                if (state.activeView !== 'home') {
+                    navigateTo('home');
+                    tg.BackButton.hide();
+                }
+            });
+        }
+
+        console.log('⚡ Telegram Mini App initialized');
+    } catch (e) {
+        console.warn('[Telegram WebApp] Initialization notice:', e);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
+    initTelegramWebApp();
     await checkAuth();
     await loadCatalog();
     handleRouting();
@@ -64,6 +112,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function checkAuth() {
     try {
+        // 1. If running inside Telegram Mini App, authenticate seamlessly via initData
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+            try {
+                const tgRes = await fetch('/api/auth/telegram-webapp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initData: window.Telegram.WebApp.initData })
+                });
+                const tgData = await tgRes.json();
+                if (tgData.success && tgData.user) {
+                    state.currentUser = tgData.user;
+                    updateAuthUI();
+                    return;
+                }
+            } catch (tgErr) {
+                console.warn('[Telegram WebApp Auth] Auto-login fallback to cookie/session:', tgErr);
+            }
+        }
+
+        // 2. Standard session check
         const res = await fetch('/api/auth/me');
         const data = await res.json();
         if (data.success && data.user) {
@@ -419,14 +487,12 @@ function handleRouting() {
     // Intercept password reset link token
     const urlParams = new URLSearchParams(window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''));
     const resetToken = urlParams.get('token');
-    if (viewName === 'reset-password' || window.location.hash.includes('reset-password') || (resetToken && window.location.hash.includes('reset'))) {
-        if (resetToken) {
-            const tokenInput = document.getElementById('resetPasswordToken');
-            if (tokenInput) tokenInput.value = resetToken;
-            openModal('resetPasswordModal');
-            switchView('home');
-            return;
-        }
+    if (resetToken && (viewName === 'reset-password' || window.location.hash.includes('reset-password') || window.location.hash.includes('reset'))) {
+        const tokenInput = document.getElementById('resetPasswordToken');
+        if (tokenInput) tokenInput.value = resetToken;
+        openModal('resetPasswordModal');
+        switchView('home');
+        return;
     }
 
     // Intercept modal & auth routes so page is NEVER blank
@@ -1080,6 +1146,9 @@ function addToCart(product, qty = 1, inventoryItemIds = null) {
 
     saveCart();
     updateCartUI();
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+        try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch (_) {}
+    }
     showToast(`Added "${product.name}" to cart!`, 'success');
 }
 
@@ -1263,6 +1332,9 @@ async function executeCheckout() {
             updateAuthUI();
 
             // Open Instant Delivery Modal!
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+                try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('success'); } catch (_) {}
+            }
             openDeliveryModal(data.data);
             showToast('Purchase successful! Credentials delivered instantly.', 'success');
 
@@ -2047,11 +2119,9 @@ async function loadAdminDashboard() {
             document.getElementById('admMetricDisputes').textContent = m.pendingDisputes;
             document.getElementById('admMetricUsers').textContent = m.totalUsers;
 
-            const balObj = m.rakibBalance || m.sujanBalance;
+            const balObj = m.sujanBalance;
             if (balObj) {
                 const bal = balObj.balance_minor ? (balObj.balance_minor / 100) : (parseFloat(balObj.balance) || balObj.amount || 0);
-                const balElRakib = document.getElementById('admMetricRakibBal');
-                if (balElRakib) balElRakib.textContent = bal.toLocaleString();
                 const balElSujan = document.getElementById('admMetricSujanBal');
                 if (balElSujan) balElSujan.textContent = bal.toLocaleString();
             }
@@ -2105,12 +2175,12 @@ function renderAdminProducts(products) {
     if (!tbody) return;
 
     if (!products.length) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No products in catalog. Click "Sync Rakib Catalog" to import.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No products in catalog. Click "Sync Sujan Catalog" to import.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = products.map(p => {
-        const rakibBase = p.rakib_base_price != null ? Number(p.rakib_base_price) : (p.sujan_base_price != null ? Number(p.sujan_base_price) : null);
+        const sujanBase = p.sujan_base_price != null ? Number(p.sujan_base_price) : null;
         const isManual = p.manual_price_override === 1;
 
         return `
@@ -2118,7 +2188,7 @@ function renderAdminProducts(products) {
                 <td style="font-weight: 700;">${escapeHtml(p.name)}</td>
                 <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHtml(p.category_name)}</span></td>
                 <td style="color: #94a3b8; font-family: var(--font-mono);">
-                    ${rakibBase != null ? `₦${rakibBase.toLocaleString()}` : '<span style="color: var(--text-muted);">Local</span>'}
+                    ${sujanBase != null ? `₦${sujanBase.toLocaleString()}` : '<span style="color: var(--text-muted);">Local</span>'}
                 </td>
                 <td>
                     <strong style="color: var(--accent-emerald); font-size: 1.05rem;">₦${Number(p.price).toLocaleString()}</strong>
@@ -2136,7 +2206,7 @@ function renderAdminProducts(products) {
                 </td>
                 <td>
                     <div style="display: flex; gap: 0.4rem; align-items: center;">
-                        <button class="btn btn-primary btn-sm" onclick="openPriceModal(${p.id}, '${escapeCredential(p.name)}', '${escapeCredential(p.category_name)}', ${rakibBase || 0}, ${p.price}, ${p.manual_price_override || 0})">💰 Set Price</button>
+                        <button class="btn btn-primary btn-sm" onclick="openPriceModal(${p.id}, '${escapeCredential(p.name)}', '${escapeCredential(p.category_name)}', ${sujanBase || 0}, ${p.price}, ${p.manual_price_override || 0})">💰 Set Price</button>
                         <button class="btn btn-secondary btn-sm" onclick="switchAdminTab('stock', document.querySelectorAll('.admin-nav-tab')[1])">+ Stock</button>
                     </div>
                 </td>
@@ -2397,28 +2467,28 @@ async function submitCreateProduct() {
 }
 
 // ============================================================================
-// Rakib Catalog Sync & Manual Price Control
+// Sujan Logs Catalog Sync & Manual Price Control
 // ============================================================================
 
-async function triggerRakibCatalogSync() {
-    const btn = document.getElementById('btnSyncRakib') || document.getElementById('btnSyncSujan');
+async function triggerSujanCatalogSync() {
+    const btn = document.getElementById('btnSyncSujan');
     if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ Syncing...';
     }
 
     try {
-        const res = await fetch('/api/admin/products/sync-rakib', {
+        const res = await fetch('/api/admin/products/sync-sujan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
         if (data.success) {
-            showToast(`Catalog Synced! ${data.result.productsSynced} products updated with live Rakib wholesale prices.`, 'success');
+            showToast(`Catalog Synced! ${data.result.productsSynced} products updated with live Sujan wholesale prices.`, 'success');
             loadAdminDashboard();
             loadCatalog();
         } else {
-            showToast(data.error || 'Failed to sync Rakib catalog', 'error');
+            showToast(data.error || 'Failed to sync Sujan catalog', 'error');
         }
     } catch (e) {
         showToast('Sync request error', 'error');
@@ -2429,17 +2499,14 @@ async function triggerRakibCatalogSync() {
         }
     }
 }
-const triggerSujanCatalogSync = triggerRakibCatalogSync;
 
-function openPriceModal(productId, productName, categoryName, rakibBase, currentPrice, isManual) {
+function openPriceModal(productId, productName, categoryName, sujanBase, currentPrice, isManual) {
     document.getElementById('admPriceProductId').value = productId;
     document.getElementById('admPriceProductName').textContent = productName;
     document.getElementById('admPriceProductCategory').textContent = categoryName;
     
-    const elRakib = document.getElementById('admPriceRakibBase');
-    if (elRakib) elRakib.textContent = rakibBase ? `₦${Number(rakibBase).toLocaleString()}` : 'Local Inventory';
     const elSujan = document.getElementById('admPriceSujanBase');
-    if (elSujan) elSujan.textContent = rakibBase ? `₦${Number(rakibBase).toLocaleString()}` : 'Local Inventory';
+    if (elSujan) elSujan.textContent = sujanBase ? `₦${Number(sujanBase).toLocaleString()}` : 'Local Inventory';
 
     document.getElementById('admPriceCurrentActive').textContent = `₦${Number(currentPrice).toLocaleString()}`;
     document.getElementById('admPriceCustomInput').value = currentPrice;

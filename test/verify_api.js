@@ -33,9 +33,9 @@ async function run() {
   const cats = r.body.categories || [];
   console.log('Categories:', 'count=' + cats.length + ', names=' + cats.map(function(c){ return c.name; }).join(', '));
 
-  // Test 4: Admin Rakib status (may be 401 without auth)
-  r = await get('/api/admin/rakib-status');
-  console.log('Rakib-status:', 'status=' + r.status + (r.status === 200 ? ', sandbox=' + r.body.sandbox + ', balance=' + JSON.stringify(r.body.balance) : ' (auth required)'));
+  // Test 4: Admin Sujan status (may be 401 without auth)
+  r = await get('/api/admin/sujan-status');
+  console.log('Sujan-status:', 'status=' + r.status + (r.status === 200 ? ', sandbox=' + r.body.sandbox + ', balance=' + JSON.stringify(r.body.balance) : ' (auth required)'));
 
   // Test 5: Static frontend
   r = await get('/');

@@ -19,7 +19,7 @@ function authenticate(req, res, next) {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        const user = db.prepare(`SELECT id, email, full_name, phone, role, is_banned, is_verified FROM users WHERE id = ?`).get(decoded.id);
+        const user = db.prepare(`SELECT id, email, full_name, phone, role, is_banned, is_verified, telegram_id, telegram_username FROM users WHERE id = ?`).get(decoded.id);
 
         if (!user) {
             return res.status(401).json({ success: false, error: 'User account no longer exists' });
