@@ -93,6 +93,18 @@ function resolveUser(from) {
 
 // ─── /start ────────────────────────────────────────────────────────────────────
 
+// Persistent reply keyboard — always visible below the text input
+const MAIN_REPLY_KEYBOARD = {
+    keyboard: [
+        [{ text: '🛍️ Browse Products' }, { text: '💰 My Balance' }],
+        [{ text: '💳 Fund Wallet' },      { text: '📦 My Orders'  }],
+        [{ text: '❓ Help & Support' }]
+    ],
+    resize_keyboard: true,
+    persistent: true,
+    input_field_placeholder: 'Choose an option or type a command…'
+};
+
 async function handleStart(msg) {
     const { from } = msg;
     const user = resolveUser(from);
@@ -102,9 +114,9 @@ async function handleStart(msg) {
         `👋 <b>Welcome to Olaslog, ${esc(firstName)}!</b>\n\n` +
         `Nigeria's fastest digital products marketplace.\n` +
         `Get verified accounts, streaming, VPNs & software delivered <b>instantly</b> — right here in Telegram.\n\n` +
-        `🛒 <b>Shop without leaving Telegram.</b> Use the buttons below or tap <b>/shop</b> to browse:`;
+        `🛒 <b>Shop without leaving Telegram.</b> Tap the buttons below to get started!`;
 
-    const keyboard = {
+    const inlineKeyboard = {
         inline_keyboard: [
             [{ text: '🛍️ Browse & Buy Products', callback_data: 'shop_home' }],
             [
@@ -119,7 +131,15 @@ async function handleStart(msg) {
         ]
     };
 
-    await sendMessage(msg.chat.id, welcomeText, { reply_markup: keyboard });
+    // First, set the persistent reply keyboard so buttons appear below the input field
+    await sendMessage(
+        msg.chat.id,
+        `✅ Keyboard activated! Use the buttons at the bottom or tap the options below.`,
+        { reply_markup: MAIN_REPLY_KEYBOARD }
+    );
+
+    // Then send the rich welcome card with inline buttons
+    await sendMessage(msg.chat.id, welcomeText, { reply_markup: inlineKeyboard });
 }
 
 // ─── /balance ──────────────────────────────────────────────────────────────────
@@ -655,9 +675,28 @@ async function processUpdate(update) {
 
     if (update.message && update.message.text) {
         const msg = update.message;
-        const text = msg.text.trim();
-        const cmd = text.split(' ')[0].toLowerCase().split('@')[0];
+        const rawText = msg.text.trim();
+        const lowerText = rawText.toLowerCase();
+        const cmd = rawText.split(' ')[0].toLowerCase().split('@')[0];
 
+        // ── Reply keyboard button handlers (text messages from bottom keyboard) ──
+        if (lowerText === '🛍️ browse products') {
+            return handleShopHome(msg.chat.id);
+        }
+        if (lowerText === '💰 my balance') {
+            return handleBalance(msg.chat.id, msg.from);
+        }
+        if (lowerText === '💳 fund wallet') {
+            return handleFund(msg.chat.id, msg.from);
+        }
+        if (lowerText === '📦 my orders') {
+            return handleOrders(msg.chat.id, msg.from);
+        }
+        if (lowerText === '❓ help & support') {
+            return handleHelp(msg.chat.id);
+        }
+
+        // ── Slash commands ───────────────────────────────────────────────────────
         switch (cmd) {
             case '/start':
                 return handleStart(msg);
@@ -676,10 +715,11 @@ async function processUpdate(update) {
             case '/support':
                 return handleHelp(msg.chat.id);
             default:
-                if (text.startsWith('/')) {
+                if (rawText.startsWith('/')) {
                     return sendMessage(msg.chat.id,
-                        `Unrecognized command. Use /shop to browse products or /help for support.`,
+                        `Unrecognized command. Tap <b>🛍️ Browse Products</b> below, or use /shop to start.`,
                         {
+                            parse_mode: 'HTML',
                             reply_markup: {
                                 inline_keyboard: [
                                     [{ text: '🛍️ Browse Products', callback_data: 'shop_home' }]
@@ -708,11 +748,10 @@ async function configureBotInterface() {
         ]
     });
 
+    // Menu button shows the command list — users can also open the Mini App via /start inline button
     await apiCall('setChatMenuButton', {
         menu_button: {
-            type: 'web_app',
-            text: '🛍️ Mini App',
-            web_app: { url: APP_URL }
+            type: 'commands'
         }
     });
 }
