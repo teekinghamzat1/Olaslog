@@ -1558,6 +1558,29 @@ async function notifyUserOtpReceived({ telegramId, service, phoneNumber, formatt
     return sendMessage(telegramId, text, { reply_markup: keyboard });
 }
 
+async function notifyUserVerificationExpired({ telegramId, service, phoneNumber, formattedNumber, refundAmount }) {
+    if (!telegramId) return;
+
+    const displayNum = formattedNumber || phoneNumber || 'N/A';
+
+    const text =
+        `💸 <b>Verification Expired & Refunded</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Service:  <b>${esc(service)}</b>\n` +
+        `📱 Number: <code>${esc(displayNum)}</code>\n\n` +
+        `⏱️ <i>No SMS was received within the 15-minute window.</i>\n\n` +
+        `💰 <b>₦${Number(refundAmount || 0).toLocaleString()}</b> has been automatically refunded to your wallet!`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '⚡ Try Another Number', callback_data: 'verify_home' }],
+            [{ text: '💳 View Wallet Balance', callback_data: 'cmd_balance' }]
+        ]
+    };
+
+    return sendMessage(telegramId, text, { reply_markup: keyboard });
+}
+
 // ─── Long Polling Engine ───────────────────────────────────────────────────────
 
 async function pollLoop() {
@@ -1625,5 +1648,6 @@ module.exports = {
     notifyUserOrderDelivered,
     notifyUserWalletFunded,
     notifyUserOtpReceived,
+    notifyUserVerificationExpired,
     configureBotInterface
 };

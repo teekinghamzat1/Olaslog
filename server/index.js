@@ -91,12 +91,17 @@ const server = app.listen(PORT, () => {
 
     // Start Telegram Interactive Bot service
     telegramBot.startBot();
+
+    // Start background SMS verification poller (proactively fetches OTP & auto-refunds expired)
+    const phoneVerify = require('./services/phoneVerify');
+    phoneVerify.startVerificationPoller();
 });
 
 // Graceful shutdown — stop the sync scheduler and telegram bot before exiting
 process.on('SIGTERM', () => {
     syncScheduler.stopSyncJob();
     telegramBot.stopBot();
+    require('./services/phoneVerify').stopVerificationPoller();
     server.close(() => {
         console.log('[Server] Gracefully shut down.');
         process.exit(0);
@@ -106,6 +111,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
     syncScheduler.stopSyncJob();
     telegramBot.stopBot();
+    require('./services/phoneVerify').stopVerificationPoller();
     server.close(() => {
         console.log('[Server] Gracefully shut down (SIGINT).');
         process.exit(0);

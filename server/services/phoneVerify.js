@@ -350,6 +350,9 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
 
     const localId = executeOrder();
 
+    // Trigger background poller so incoming SMS is pushed automatically to Telegram
+    startVerificationPoller();
+
     return {
         id: localId,
         requestId,
@@ -411,8 +414,8 @@ async function getVerificationStatus(id, userId = null) {
         const s = getSettings();
         if (s.isConfigured) {
             const apiRes = await callApi('request_status', { id: row.request_id });
-            if (apiRes.status === 'ok' && Array.isArray(apiRes.message) && apiRes.message.length > 0) {
-                const pStatus = apiRes.message[0];
+            if (apiRes && apiRes.status === 'ok') {
+                const pStatus = Array.isArray(apiRes.message) ? apiRes.message[0] : (apiRes.message || {});
                 const rawStatus = (pStatus.status || '').toLowerCase();
 
                 // If number was newly assigned in a priority request
@@ -436,6 +439,19 @@ async function getVerificationStatus(id, userId = null) {
                 } else if (rawStatus === 'rejected') {
                     await autoRefundVerification(row, 'Provider rejected request');
                     row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
+                } else {
+                    // Proactive check: Even if provider status hasn't moved to 'completed',
+                    // check if SMS is already available in read_sms
+                    const smsFound = await fetchAndStoreSMS(row);
+                    if (smsFound) {
+                        row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
+                    }
+                }
+            } else {
+                // If request_status returned unexpected format, check read_sms directly as fallback
+                const smsFound = await fetchAndStoreSMS(row);
+                if (smsFound) {
+                    row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
                 }
             }
         }
@@ -451,9 +467,44 @@ async function getVerificationStatus(id, userId = null) {
  */
 async function fetchAndStoreSMS(row) {
     try {
-        const smsRes = await callApi('read_sms', { id: row.request_id });
-        if (smsRes.status === 'ok' && Array.isArray(smsRes.message) && smsRes.message.length > 0) {
-            const msg = smsRes.message[0];
+        let msg = null;
+
+        // 1. Try reading with request_id
+        if (row.request_id) {
+            const smsRes = await callApi('read_sms', { id: row.request_id });
+            if (smsRes && smsRes.status === 'ok') {
+                const list = Array.isArray(smsRes.message) ? smsRes.message : (smsRes.message ? [smsRes.message] : []);
+                if (list.length > 0 && list[0] && (list[0].reply || list[0].pin)) {
+                    msg = list[0];
+                }
+            }
+        }
+
+        // 2. Fallback: Try reading with MDN
+        if (!msg && row.phone_number) {
+            const smsRes = await callApi('read_sms', { mdn: row.phone_number });
+            if (smsRes && smsRes.status === 'ok') {
+                const list = Array.isArray(smsRes.message) ? smsRes.message : (smsRes.message ? [smsRes.message] : []);
+                if (list.length > 0 && list[0] && (list[0].reply || list[0].pin)) {
+                    msg = list[0];
+                }
+            }
+        }
+
+        // 3. Fallback: Query all recent messages and match by phone number
+        if (!msg && row.phone_number) {
+            const smsRes = await callApi('read_sms', {});
+            if (smsRes && smsRes.status === 'ok' && Array.isArray(smsRes.message)) {
+                const cleanPhone = String(row.phone_number).replace(/\D/g, '');
+                msg = smsRes.message.find(m => {
+                    if (!m || !m.to) return false;
+                    const cleanTo = String(m.to).replace(/\D/g, '');
+                    return cleanPhone.endsWith(cleanTo) || cleanTo.endsWith(cleanPhone);
+                });
+            }
+        }
+
+        if (msg) {
             const pin = msg.pin || extractPinFromText(msg.reply);
             db.prepare(`
                 UPDATE phone_verifications
@@ -465,6 +516,8 @@ async function fetchAndStoreSMS(row) {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `).run(msg.reply || '', pin, msg.from || '', row.id);
+
+            console.log(`✅ [PhoneVerify] SMS Successfully Saved for User #${row.user_id} (${row.service_name}): PIN = ${pin}`);
 
             // Proactive notification via Telegram Bot if user has telegram linked
             try {
@@ -484,10 +537,13 @@ async function fetchAndStoreSMS(row) {
             } catch (notifyErr) {
                 console.warn('[PhoneVerify] Failed to notify Telegram user:', notifyErr.message);
             }
+
+            return true;
         }
     } catch (e) {
         console.warn('[PhoneVerify] Error reading SMS:', e.message);
     }
+    return false;
 }
 
 /**
@@ -607,6 +663,23 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
         })();
 
         console.log(`[PhoneVerify] Auto-refunded ₦${refundAmount} to user #${row.user_id} for timed out verification #${row.id}`);
+
+        // Notify Telegram user if account is linked
+        try {
+            const userRow = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(row.user_id);
+            if (userRow && userRow.telegram_id) {
+                const telegramBot = require('./telegramBot');
+                telegramBot.notifyUserVerificationExpired({
+                    telegramId: userRow.telegram_id,
+                    service: row.service_name,
+                    phoneNumber: row.phone_number,
+                    formattedNumber: formatUsPhoneNumber(row.phone_number),
+                    refundAmount
+                }).catch(err => console.warn('[PhoneVerify] Error sending Telegram refund notification:', err.message));
+            }
+        } catch (notifyErr) {
+            console.warn('[PhoneVerify] Failed to notify Telegram user of refund:', notifyErr.message);
+        }
     } catch (e) {
         console.error('[PhoneVerify] Failed to auto-refund verification:', e);
     }
@@ -777,6 +850,61 @@ function formatVerificationRow(r) {
     };
 }
 
+let pollerInterval = null;
+let isPollingActive = false;
+
+/**
+ * Checks all active / pending verifications in DB and polls provider for incoming SMS
+ */
+async function pollPendingVerifications() {
+    if (isPollingActive) return;
+    isPollingActive = true;
+
+    try {
+        const activeRows = db.prepare(`
+            SELECT id, request_id, user_id, service_name, phone_number, status, expires_at
+            FROM phone_verifications
+            WHERE status IN ('reserved', 'awaiting_mdn')
+        `).all();
+
+        if (!activeRows || activeRows.length === 0) {
+            return;
+        }
+
+        for (const r of activeRows) {
+            try {
+                // getVerificationStatus will check provider, call fetchAndStoreSMS, notify via Telegram, or auto-refund on expiration
+                await getVerificationStatus(r.id);
+            } catch (err) {
+                console.warn(`[PhoneVerify Poller] Check error for #${r.id}:`, err.message);
+            }
+        }
+    } catch (e) {
+        console.warn('[PhoneVerify Poller] Error:', e.message);
+    } finally {
+        isPollingActive = false;
+    }
+}
+
+/**
+ * Starts background poller (runs every 6 seconds)
+ */
+function startVerificationPoller() {
+    if (pollerInterval) return;
+    console.log('🔄 [PhoneVerify Poller] Background SMS checker started (running every 6s)');
+    pollerInterval = setInterval(pollPendingVerifications, 6000);
+    // Run an immediate pass
+    pollPendingVerifications().catch(() => {});
+}
+
+function stopVerificationPoller() {
+    if (pollerInterval) {
+        clearInterval(pollerInterval);
+        pollerInterval = null;
+        console.log('[PhoneVerify Poller] Background SMS checker stopped');
+    }
+}
+
 module.exports = {
     getSettings,
     updateSetting,
@@ -791,5 +919,8 @@ module.exports = {
     getUserVerifications,
     getActiveVerification,
     formatUsPhoneNumber,
+    startVerificationPoller,
+    stopVerificationPoller,
+    pollPendingVerifications,
     POPULAR_SERVICES_METADATA
 };
