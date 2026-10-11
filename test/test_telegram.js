@@ -91,10 +91,20 @@ async function runTelegramTests() {
     assert(typeof telegramBot.sendMessage === 'function', 'sendMessage method exists');
     assert(typeof telegramBot.notifyUserOrderDelivered === 'function', 'notifyUserOrderDelivered method exists');
     assert(typeof telegramBot.notifyUserWalletFunded === 'function', 'notifyUserWalletFunded method exists');
+    assert(typeof telegramBot.notifyUserOtpReceived === 'function', 'notifyUserOtpReceived method exists');
     console.log('  ✓ All Telegram Bot service methods exported and verified');
 
-    // Cleanup
+    // 7. Test Account Linking to Normal Web Wallet
+    console.log('\n[7] Testing Account Linking to Normal Web Wallet...');
+    const testLinkUser = { id: 7788990011, username: 'tester_link', first_name: 'Link Tester' };
+    const linkedResult = telegramAuth.linkTelegramAccount(testLinkUser, 'customer@olaslog.com');
+    assert.strictEqual(linkedResult.email, 'customer@olaslog.com', 'Linked email must match normal customer');
+    assert.strictEqual(linkedResult.telegram_id, String(testLinkUser.id), 'Telegram ID must be linked to customer');
+    console.log('  ✓ Account linking succeeded — Telegram bot now shares normal customer wallet');
+
+    // Cleanup & restore customer account link
     db.prepare('DELETE FROM users WHERE telegram_id = ?').run(String(mockUser.id));
+    db.prepare("UPDATE users SET telegram_id = '5231494516', telegram_username = 'olaslog' WHERE email = 'customer@olaslog.com'").run();
 
     console.log('\n🎉 ALL TELEGRAM TESTS PASSED SUCCESSFULLY!\n');
 }

@@ -104,7 +104,24 @@ function findOrCreateTelegramUser(tgUser) {
         return db.prepare('SELECT * FROM users WHERE id = ?').get(existingUser.id);
     }
 
-    // 2. Auto-provision a new user account linked to this Telegram ID
+    // 2. Look up by telegram_username if pre-configured on a web account
+    if (tgUsername) {
+        const usernameMatch = db.prepare('SELECT * FROM users WHERE LOWER(telegram_username) = LOWER(?) AND telegram_id IS NULL').get(tgUsername);
+        if (usernameMatch) {
+            db.prepare(`
+                UPDATE users
+                SET telegram_id = ?,
+                    telegram_first_name = COALESCE(?, telegram_first_name),
+                    telegram_photo_url = COALESCE(?, telegram_photo_url),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).run(telegramId, tgFirstName, tgPhotoUrl, usernameMatch.id);
+
+            return db.prepare('SELECT * FROM users WHERE id = ?').get(usernameMatch.id);
+        }
+    }
+
+    // 3. Auto-provision a new user account linked to this Telegram ID
     const syntheticEmail = `tg_${telegramId}@olaslog.com`;
     const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || tgUsername || `Telegram User #${telegramId}`;
     const randomPassword = crypto.randomBytes(24).toString('hex');
@@ -128,7 +145,71 @@ function findOrCreateTelegramUser(tgUser) {
     return db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
 }
 
+/**
+ * Links a Telegram user to an existing web account via email and optional password
+ *
+ * @param {object} tgUser - { id, username, first_name, photo_url }
+ * @param {string} email - Email of the account to link
+ * @param {string} [password] - Password if the account has one configured
+ * @returns {object} Linked user DB record
+ */
+function linkTelegramAccount(tgUser, email, password = null) {
+    if (!tgUser || !tgUser.id) {
+        throw new Error('Telegram user data requires an ID');
+    }
+    const cleanEmail = String(email || '').toLowerCase().trim();
+    if (!cleanEmail) {
+        throw new Error('Please provide your website email address.');
+    }
+
+    const targetUser = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(cleanEmail);
+    if (!targetUser) {
+        throw new Error(`No account found on Olaslog with email "${cleanEmail}".`);
+    }
+
+    if (password) {
+        const isMatch = bcrypt.compareSync(password, targetUser.password_hash);
+        if (!isMatch) {
+            throw new Error('Incorrect password for this account.');
+        }
+    }
+
+    const telegramId = String(tgUser.id);
+    const tgUsername = tgUser.username ? String(tgUser.username).trim() : null;
+    const tgFirstName = tgUser.first_name ? String(tgUser.first_name).trim() : null;
+    const tgPhotoUrl = tgUser.photo_url ? String(tgUser.photo_url).trim() : null;
+
+    // If another account is currently linked to this Telegram ID, clean it up or unlink it
+    const otherLinked = db.prepare('SELECT id, email FROM users WHERE telegram_id = ? AND id != ?').get(telegramId, targetUser.id);
+    if (otherLinked) {
+        if (otherLinked.email && otherLinked.email.startsWith('tg_')) {
+            const txCount = db.prepare('SELECT COUNT(*) as c FROM wallet_transactions WHERE user_id = ?').get(otherLinked.id).c;
+            const orderCount = db.prepare('SELECT COUNT(*) as c FROM orders WHERE user_id = ?').get(otherLinked.id).c;
+            if (txCount === 0 && orderCount === 0) {
+                db.prepare('DELETE FROM users WHERE id = ?').run(otherLinked.id);
+            } else {
+                db.prepare('UPDATE users SET telegram_id = NULL WHERE id = ?').run(otherLinked.id);
+            }
+        } else {
+            db.prepare('UPDATE users SET telegram_id = NULL WHERE id = ?').run(otherLinked.id);
+        }
+    }
+
+    db.prepare(`
+        UPDATE users
+        SET telegram_id = ?,
+            telegram_username = COALESCE(?, telegram_username),
+            telegram_first_name = COALESCE(?, telegram_first_name),
+            telegram_photo_url = COALESCE(?, telegram_photo_url),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `).run(telegramId, tgUsername, tgFirstName, tgPhotoUrl, targetUser.id);
+
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(targetUser.id);
+}
+
 module.exports = {
     validateTelegramInitData,
-    findOrCreateTelegramUser
+    findOrCreateTelegramUser,
+    linkTelegramAccount
 };

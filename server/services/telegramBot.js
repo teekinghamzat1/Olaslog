@@ -154,23 +154,33 @@ async function handleBalance(chatId, from, messageId = null) {
     }
 
     const bal = getWalletBalance(user.id);
+    const isSynthetic = user.email && user.email.startsWith('tg_');
 
     const text =
         `💰 <b>Your Olaslog Wallet</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
         `Balance:      <b>${currency(bal)}</b>\n` +
         `Account Name: <b>${esc(user.full_name)}</b>\n` +
+        `Email:        <code>${esc(user.email)}</code>\n` +
         `User ID:      #${user.id}\n\n` +
+        (isSynthetic
+            ? `💡 <i>Have an existing web account with funds? Type <code>/link email password</code> to connect your normal wallet!</i>\n\n`
+            : `✅ <i>Connected to your main Olaslog website wallet.</i>\n\n`) +
         `Need to top up? Tap <b>Fund Wallet</b> below.`;
 
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '🛍️ Shop Now', callback_data: 'shop_home' },
-                { text: '💳 Fund Wallet', callback_data: 'cmd_fund' }
-            ]
-        ]
-    };
+    const rows = [
+        [
+            { text: '🛍️ Shop Now', callback_data: 'shop_home' },
+            { text: '⚡ SMS Verify', callback_data: 'verify_home' }
+        ],
+        [{ text: '💳 Fund Wallet', callback_data: 'cmd_fund' }]
+    ];
+
+    if (isSynthetic) {
+        rows.push([{ text: '🔗 Link Website Account', callback_data: 'cmd_link' }]);
+    }
+
+    const keyboard = { inline_keyboard: rows };
 
     if (messageId) {
         return editMessage(chatId, messageId, text, { reply_markup: keyboard });
@@ -225,6 +235,67 @@ async function handleFund(chatId, from, messageId = null) {
         return editMessage(chatId, messageId, text, { reply_markup: keyboard });
     }
     return sendMessage(chatId, text, { reply_markup: keyboard });
+}
+
+// ─── /link & /login (Account Unification) ────────────────────────────────────────
+
+async function handleLink(chatId, from, rawText = '') {
+    const parts = rawText.trim().split(/\s+/);
+    // parts[0] is /link or /login
+    const email = parts[1];
+    const password = parts[2];
+
+    if (!email) {
+        const text =
+            `🔗 <b>Link Your Olaslog Web Account</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Already have funds or an account on <b>olaslog.com</b>? Link it now to unify your wallet, orders, and verifications!\n\n` +
+            `<b>Usage:</b>\n` +
+            `<code>/link your_email@domain.com your_password</code>\n\n` +
+            `<i>Example:</i>\n` +
+            `<code>/link customer@olaslog.com Demo1234</code>\n\n` +
+            `💡 <i>After linking, both the website and Telegram use the exact same normal wallet balance!</i>`;
+
+        return sendMessage(chatId, text, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '💰 Check Balance', callback_data: 'cmd_balance' }],
+                    [{ text: '⚡ SMS Verify', callback_data: 'verify_home' }]
+                ]
+            }
+        });
+    }
+
+    try {
+        const linked = telegramAuth.linkTelegramAccount(from, email, password);
+        const bal = getWalletBalance(linked.id);
+
+        const successText =
+            `🎉 <b>Account Linked Successfully!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Welcome back, <b>${esc(linked.full_name)}</b>!\n\n` +
+            `📧 Email:        <code>${esc(linked.email)}</code>\n` +
+            `💰 Normal Wallet: <b>${currency(bal)}</b>\n` +
+            `👤 User ID:      #${linked.id}\n\n` +
+            `✅ <b>Your Telegram bot is now using your main website wallet.</b>\n` +
+            `All purchases, SMS verifications, and OTP deliveries will use this balance!`;
+
+        return sendMessage(chatId, successText, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '⚡ SMS Verify Hub', callback_data: 'verify_home' }],
+                    [
+                        { text: '🛍️ Browse Products', callback_data: 'shop_home' },
+                        { text: '💰 Balance', callback_data: 'cmd_balance' }
+                    ]
+                ]
+            }
+        });
+    } catch (err) {
+        return sendMessage(chatId,
+            `❌ <b>Account Linking Failed</b>\n━━━━━━━━━━━━━━━━━━━━━\n${esc(err.message)}\n\nPlease double check and try again:\n<code>/link ${esc(email)} your_password</code>`
+        );
+    }
 }
 
 // ─── /orders ───────────────────────────────────────────────────────────────────
@@ -1091,6 +1162,10 @@ async function handleCallbackQuery(cq) {
         return handleHelp(chatId, messageId);
     }
 
+    if (data === 'cmd_link') {
+        return handleLink(chatId, cqFrom, '/link');
+    }
+
     // ── Category drill-down ─────────────────
     if (data.startsWith('cat_')) {
         const catId = parseInt(data.slice(4), 10);
@@ -1214,6 +1289,9 @@ async function processUpdate(update) {
             case '/help':
             case '/support':
                 return handleHelp(msg.chat.id);
+            case '/link':
+            case '/login':
+                return handleLink(msg.chat.id, msg.from, rawText);
             default:
                 if (rawText.startsWith('/')) {
                     return sendMessage(msg.chat.id,
@@ -1245,6 +1323,7 @@ async function configureBotInterface() {
             { command: 'balance', description: '💰 Check your wallet balance' },
             { command: 'fund',    description: '💳 Get your virtual bank account to top up' },
             { command: 'orders',  description: '📦 View your purchase history & credentials' },
+            { command: 'link',    description: '🔗 Link to your website account & normal wallet' },
             { command: 'help',    description: '❓ FAQs and customer support' },
             { command: 'start',   description: 'Restart Olaslog Bot' }
         ]
