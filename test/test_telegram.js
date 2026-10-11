@@ -12,7 +12,7 @@ async function runTelegramTests() {
     const testBotToken = '123456789:ABCdefGHIjklMNOpqrsTUVwxyz';
 
     // Helper: generate valid Telegram WebApp initData string
-    function generateMockInitData(userObj, authDate = Math.floor(Date.now() / 1000)) {
+    const generateMockInitData = (userObj, authDate = Math.floor(Date.now() / 1000)) => {
         const params = new URLSearchParams();
         params.set('auth_date', String(authDate));
         params.set('query_id', 'AAHdF6IQAAAAAN0XohD97aL_');

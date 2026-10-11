@@ -143,7 +143,7 @@ router.post('/webhook', async (req, res) => {
 router.get('/webhook', (req, res) => {
     res.status(200).json({
         status: true,
-        message: 'Olaslog USPhoneVerify webhook endpoint is live and accepting POST notifications'
+        message: 'Olaslog SMS verification webhook endpoint is live and accepting POST notifications'
     });
 });
 

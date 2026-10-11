@@ -5,6 +5,7 @@ const db = require('../db');
 const { getWalletBalance } = require('./wallet');
 const billstack = require('./billstack');
 const telegramAuth = require('./telegramAuth');
+const phoneVerify = require('./phoneVerify');
 // NOTE: order.js is required lazily inside handleBuyExecute to avoid circular dependency
 // (order.js also requires telegramBot for DM delivery notifications)
 
@@ -97,8 +98,8 @@ function resolveUser(from) {
 const MAIN_REPLY_KEYBOARD = {
     keyboard: [
         [{ text: '🛍️ Browse Products' }, { text: '💰 My Balance' }],
-        [{ text: '💳 Fund Wallet' },      { text: '📦 My Orders'  }],
-        [{ text: '❓ Help & Support' }]
+        [{ text: '💳 Fund Wallet' },      { text: '⚡ SMS Verify' }],
+        [{ text: '📦 My Orders' },        { text: '❓ Help & Support' }]
     ],
     resize_keyboard: true,
     persistent: true,
@@ -114,11 +115,13 @@ async function handleStart(msg) {
         `👋 <b>Welcome to Olaslog, ${esc(firstName)}!</b>\n\n` +
         `Nigeria's fastest digital products marketplace.\n` +
         `Get verified accounts, streaming, VPNs & software delivered <b>instantly</b> — right here in Telegram.\n\n` +
-        `🛒 <b>Shop without leaving Telegram.</b> Tap the buttons below to get started!`;
+        `📱 <b>New:</b> US SMS Verification — receive OTP codes for WhatsApp, Google, ChatGPT, TikTok & 500+ services, paid from your wallet!\n\n` +
+        `🛒 <b>Tap the buttons below to get started!</b>`;
 
     const inlineKeyboard = {
         inline_keyboard: [
             [{ text: '🛍️ Browse & Buy Products', callback_data: 'shop_home' }],
+            [{ text: '⚡ SMS Verification Hub', callback_data: 'verify_home' }],
             [
                 { text: '💰 Balance', callback_data: 'cmd_balance' },
                 { text: '💳 Fund Wallet', callback_data: 'cmd_fund' }
@@ -298,6 +301,449 @@ async function handleHelp(chatId, messageId = null) {
     if (messageId) {
         return editMessage(chatId, messageId, text, { reply_markup: keyboard });
     }
+    return sendMessage(chatId, text, { reply_markup: keyboard });
+}
+
+// ─── VERIFICATION: Home — Popular Services Grid ─────────────────────────────────
+
+async function handleVerifyHome(chatId, from, messageId = null) {
+    const user = resolveUser(from);
+    const bal = user ? getWalletBalance(user.id) : 0;
+
+    let services;
+    try {
+        services = await phoneVerify.listServices();
+    } catch (e) {
+        const errText = `⚠️ <b>Verification Unavailable</b>\n\nCould not load services right now. Please try again shortly.`;
+        if (messageId) return editMessage(chatId, messageId, errText);
+        return sendMessage(chatId, errText);
+    }
+
+    // Show top-12 popular services
+    const popular = services.filter(s => s.popular).slice(0, 12);
+    const displayList = popular.length > 0 ? popular : services.slice(0, 12);
+
+    const text =
+        `⚡ <b>US SMS Verification Hub</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Receive instant US OTP codes for 500+ services.\n` +
+        `Deducted from wallet • 100% refund if no SMS!\n\n` +
+        `💰 Your Balance: <b>${currency(bal)}</b>\n\n` +
+        `Tap a service to view price and request a number:`;
+
+    // Build 2-column grid of popular services
+    const rows = [];
+    for (let i = 0; i < displayList.length; i += 2) {
+        const row = [];
+        const sA = displayList[i];
+        row.push({ text: `${sA.icon} ${sA.name} — ${sA.priceFormatted}`, callback_data: `verify_svc_${sA.name}` });
+        if (displayList[i + 1]) {
+            const sB = displayList[i + 1];
+            row.push({ text: `${sB.icon} ${sB.name} — ${sB.priceFormatted}`, callback_data: `verify_svc_${sB.name}` });
+        }
+        rows.push(row);
+    }
+
+    rows.push([{ text: '🔍 Browse All 500+ Services', callback_data: 'verify_browse' }]);
+    rows.push([
+        { text: '📜 My Verifications', callback_data: 'verify_history' },
+        { text: '💳 Fund Wallet', callback_data: 'cmd_fund' }
+    ]);
+    rows.push([{ text: '← Main Menu', callback_data: 'main_menu' }]);
+
+    if (messageId) return editMessage(chatId, messageId, text, { reply_markup: { inline_keyboard: rows } });
+    return sendMessage(chatId, text, { reply_markup: { inline_keyboard: rows } });
+}
+
+// ─── VERIFICATION: Browse All Services (paginated A-Z) ──────────────────────────
+
+async function handleVerifyBrowse(chatId, from, page = 0, messageId = null) {
+    let services;
+    try {
+        services = await phoneVerify.listServices();
+    } catch (e) {
+        return sendMessage(chatId, `⚠️ Could not load services. Please try again.`);
+    }
+
+    const PAGE_SIZE = 10;
+    const start = page * PAGE_SIZE;
+    const pageItems = services.slice(start, start + PAGE_SIZE);
+    const totalPages = Math.ceil(services.length / PAGE_SIZE);
+
+    const text =
+        `📱 <b>All Verification Services</b> (Page ${page + 1}/${totalPages})\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Tap any service to select it:`;
+
+    const rows = pageItems.map(s => ([{
+        text: `${s.icon} ${s.name} — ${s.priceFormatted} ${s.available ? '✅' : '⏳'}`,
+        callback_data: `verify_svc_${s.name}`
+    }]));
+
+    const navRow = [];
+    if (page > 0) navRow.push({ text: '◀ Prev', callback_data: `verify_page_${page - 1}` });
+    if (page < totalPages - 1) navRow.push({ text: 'Next ▶', callback_data: `verify_page_${page + 1}` });
+    if (navRow.length > 0) rows.push(navRow);
+    rows.push([{ text: '← Back to Hub', callback_data: 'verify_home' }]);
+
+    if (messageId) return editMessage(chatId, messageId, text, { reply_markup: { inline_keyboard: rows } });
+    return sendMessage(chatId, text, { reply_markup: { inline_keyboard: rows } });
+}
+
+// ─── VERIFICATION: Service Detail + Buy Button ───────────────────────────────────
+
+async function handleVerifyService(chatId, from, serviceName, messageId = null) {
+    const user = resolveUser(from);
+    const bal = user ? getWalletBalance(user.id) : 0;
+
+    let services;
+    try {
+        services = await phoneVerify.listServices();
+    } catch (e) {
+        return sendMessage(chatId, `⚠️ Could not load service info. Please try again.`);
+    }
+
+    const svc = services.find(s => s.name.toLowerCase() === serviceName.toLowerCase());
+    if (!svc) {
+        return sendMessage(chatId, `⚠️ Service "${esc(serviceName)}" not found.`);
+    }
+
+    const canAfford = bal >= svc.priceNgn;
+    const shortfall = svc.priceNgn - bal;
+
+    const text =
+        `${svc.icon} <b>${esc(svc.name)} Verification</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `${svc.desc ? esc(svc.desc) + '\n\n' : ''}` +
+        `💵 Cost:         <b>${svc.priceFormatted}</b>\n` +
+        `🇺🇸 Country:     <b>United States (+1)</b>\n` +
+        `⏱️ Window:       <b>15 Minutes</b>\n` +
+        `📶 Availability: <b>${svc.available ? `✅ In Stock (${svc.availableCount} numbers)` : '⚠️ Limited — may retry'}</b>\n\n` +
+        `💰 Your Balance: <b>${currency(bal)}</b>\n` +
+        (canAfford
+            ? `✅ You can afford this. Tap below to request a number!`
+            : `⚠️ You need <b>${currency(shortfall)}</b> more. Fund your wallet first.`) +
+        `\n\n🛡️ <i>100% automatic wallet refund if no SMS arrives within 15 min.</i>`;
+
+    const rows = [];
+    if (canAfford) {
+        rows.push([{ text: `⚡ Request Number — ${svc.priceFormatted}`, callback_data: `verify_buy_${svc.name}` }]);
+    } else {
+        rows.push([{ text: `💳 Fund Wallet (Need ${currency(shortfall)} more)`, callback_data: 'cmd_fund' }]);
+    }
+    rows.push([
+        { text: '← Back to Hub', callback_data: 'verify_home' },
+        { text: '📜 History', callback_data: 'verify_history' }
+    ]);
+
+    if (messageId) return editMessage(chatId, messageId, text, { reply_markup: { inline_keyboard: rows } });
+    return sendMessage(chatId, text, { reply_markup: { inline_keyboard: rows } });
+}
+
+// ─── VERIFICATION: Confirm Purchase ─────────────────────────────────────────────
+
+async function handleVerifyBuy(chatId, from, serviceName, messageId = null) {
+    const user = resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    const bal = getWalletBalance(user.id);
+    let services;
+    try {
+        services = await phoneVerify.listServices();
+    } catch (e) {
+        return sendMessage(chatId, `⚠️ Could not load service. Please try again.`);
+    }
+
+    const svc = services.find(s => s.name.toLowerCase() === serviceName.toLowerCase());
+    if (!svc) {
+        return sendMessage(chatId, `⚠️ Service not found. Please try again from the hub.`);
+    }
+
+    if (bal < svc.priceNgn) {
+        const shortfall = svc.priceNgn - bal;
+        const text =
+            `❌ <b>Insufficient Balance</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Service: <b>${esc(svc.name)}</b>\n` +
+            `Cost:    <b>${svc.priceFormatted}</b>\n` +
+            `Balance: <b>${currency(bal)}</b>\n` +
+            `Needed:  <b>${currency(shortfall)}</b> more\n\n` +
+            `Please fund your wallet and try again.`;
+        const keyboard = { inline_keyboard: [
+            [{ text: '💳 Fund Wallet Now', callback_data: 'cmd_fund' }],
+            [{ text: '← Back', callback_data: `verify_svc_${svc.name}` }]
+        ]};
+        if (messageId) return editMessage(chatId, messageId, text, { reply_markup: keyboard });
+        return sendMessage(chatId, text, { reply_markup: keyboard });
+    }
+
+    const balAfter = bal - svc.priceNgn;
+    const text =
+        `🔔 <b>Confirm Verification Order</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Service:       <b>${svc.icon} ${esc(svc.name)}</b>\n` +
+        `Cost:          <b>${svc.priceFormatted}</b>\n` +
+        `Balance Now:   <b>${currency(bal)}</b>\n` +
+        `Balance After: <b>${currency(balAfter)}</b>\n\n` +
+        `A <b>US phone number</b> will be assigned to you instantly.\n` +
+        `You'll receive the OTP code <b>right here in this chat</b> the moment it arrives!\n\n` +
+        `🛡️ <i>100% refund if no SMS arrives within 15 min.</i>`;
+
+    const keyboard = { inline_keyboard: [
+        [{ text: `✅ Confirm & Pay ${svc.priceFormatted}`, callback_data: `verify_exec_${svc.name}` }],
+        [{ text: '❌ Cancel', callback_data: `verify_svc_${svc.name}` }]
+    ]};
+
+    if (messageId) return editMessage(chatId, messageId, text, { reply_markup: keyboard });
+    return sendMessage(chatId, text, { reply_markup: keyboard });
+}
+
+// ─── VERIFICATION: Execute Order ─────────────────────────────────────────────────
+
+async function handleVerifyExecute(chatId, from, serviceName, messageId = null) {
+    const user = resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    // Show processing state immediately
+    const processingText = `⏳ <b>Requesting your US number...</b>\n\nPlease wait while we assign a dedicated US phone number for <b>${esc(serviceName)}</b>.`;
+    let processingMsgId = messageId;
+    if (messageId) {
+        await editMessage(chatId, messageId, processingText, { reply_markup: { inline_keyboard: [] } });
+    } else {
+        const sent = await sendMessage(chatId, processingText);
+        if (sent && sent.result) processingMsgId = sent.result.message_id;
+    }
+
+    try {
+        const result = await phoneVerify.requestNumber({ userId: user.id, service: serviceName });
+
+        // Update balance on user object for subsequent displays
+        const newBal = result.newBalance;
+        const phoneDisplay = result.formattedNumber || result.phoneNumber || 'Assigning…';
+        const tillMin = Math.ceil((result.tillExpiration || 900) / 60);
+
+        const successText = `✅ <b>Number Assigned!</b>
+━━━━━━━━━━━━━━━━━━━━━
+Service:      <b>${esc(serviceName)}</b>
+📱 Your Number: <code>${esc(phoneDisplay)}</code>
+💰 Cost Charged: <b>${result.costFormatted}</b>
+⏳ Expires In:  <b>${tillMin} minutes</b>
+New Balance:  <b>${currency(newBal)}</b>
+
+<b>Next steps:</b>
+1️⃣ Copy the number above (tap to copy)
+2️⃣ Enter it in <b>${esc(serviceName)}</b> to receive your code
+3️⃣ Your OTP will be sent <b>automatically to this chat</b> the moment it arrives!
+
+🛡️ <i>Auto 100% refund if no SMS within ${tillMin} min.</i>`;
+
+        const keyboard = { inline_keyboard: [
+            [{ text: '🔄 Check for OTP', callback_data: `verify_status_${result.id}` }],
+            [{ text: '❌ Cancel & Refund', callback_data: `verify_cancel_${result.id}` }],
+            [{ text: '⚡ New Verification', callback_data: 'verify_home' }]
+        ]};
+
+        if (processingMsgId) {
+            return editMessage(chatId, processingMsgId, successText, { reply_markup: keyboard });
+        }
+        return sendMessage(chatId, successText, { reply_markup: keyboard });
+
+    } catch (err) {
+        console.error('[Bot] Verification order error:', err.message);
+
+        let errorText;
+        if (err.code === 'INSUFFICIENT_FUNDS') {
+            errorText = `❌ <b>Insufficient Balance</b>
+━━━━━━━━━━━━━━━━━━━━━
+You need <b>${currency(err.shortfall || 0)}</b> more.
+Current balance: <b>${currency(err.currentBalance || 0)}</b>
+
+Fund your wallet and try again.`;
+        } else {
+            errorText = `❌ <b>Request Failed</b>
+━━━━━━━━━━━━━━━━━━━━━
+${esc(err.message || 'No numbers available for this service right now.')}
+
+Try another service or try again in a few minutes.`;
+        }
+
+        const keyboard = { inline_keyboard: [
+            err.code === 'INSUFFICIENT_FUNDS'
+                ? [{ text: '💳 Fund Wallet', callback_data: 'cmd_fund' }]
+                : [{ text: '⚡ Try Another Service', callback_data: 'verify_home' }],
+            [{ text: '← Back to Hub', callback_data: 'verify_home' }]
+        ]};
+
+        if (processingMsgId) {
+            return editMessage(chatId, processingMsgId, errorText, { reply_markup: keyboard });
+        }
+        return sendMessage(chatId, errorText, { reply_markup: keyboard });
+    }
+}
+
+// ─── VERIFICATION: Check / Refresh Status ───────────────────────────────────────
+
+async function handleVerifyStatus(chatId, from, verificationId, messageId = null) {
+    const user = resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    try {
+        const v = await phoneVerify.getVerificationStatus(verificationId, user.id);
+        const phone = v.formattedNumber || v.phoneNumber || 'N/A';
+        const tillMin = v.remainingSeconds > 0 ? Math.ceil(v.remainingSeconds / 60) : 0;
+
+        let statusLine, keyboard;
+
+        if (v.status === 'completed' && v.otpCode) {
+            statusLine =
+                `🎉 <b>OTP Code Received!</b>\n\n` +
+                `📱 Number: <code>${esc(phone)}</code>\n` +
+                `🔑 OTP Code: <code>${esc(v.otpCode)}</code>\n` +
+                `📨 Full SMS: <i>${esc(v.smsReply || 'N/A')}</i>\n\n` +
+                `✅ Verification complete!`;
+            keyboard = { inline_keyboard: [
+                [{ text: '⚡ New Verification', callback_data: 'verify_home' }],
+                [{ text: '📜 Verification History', callback_data: 'verify_history' }]
+            ]};
+        } else if (['refunded', 'timed_out'].includes(v.status)) {
+            statusLine =
+                `💸 <b>Verification Expired & Refunded</b>\n\n` +
+                `📱 Number: <code>${esc(phone)}</code>\n` +
+                `Status: <b>Timed Out — Full Refund Issued</b>\n\n` +
+                `<i>Your ${esc(v.costFormatted || '')} has been returned to your wallet.</i>`;
+            keyboard = { inline_keyboard: [
+                [{ text: '⚡ Try Again', callback_data: 'verify_home' }]
+            ]};
+        } else if (v.status === 'rejected') {
+            statusLine =
+                `❌ <b>Verification Cancelled</b>\n\n` +
+                `📱 Number: <code>${esc(phone)}</code>\n` +
+                `Status: <b>Cancelled — Full Refund Issued</b>`;
+            keyboard = { inline_keyboard: [
+                [{ text: '⚡ Start New Verification', callback_data: 'verify_home' }]
+            ]};
+        } else {
+            // Still active / waiting
+            statusLine =
+                `⏳ <b>Waiting for SMS...</b>\n\n` +
+                `Service: <b>${esc(v.service)}</b>\n` +
+                `📱 Number: <code>${esc(phone)}</code>\n` +
+                `⏱️ Time Left: <b>${tillMin > 0 ? `${tillMin} min` : 'Expiring soon…'}</b>\n\n` +
+                `1️⃣ Enter this number in <b>${esc(v.service)}</b>\n` +
+                `2️⃣ Wait for the OTP — it'll appear here automatically!\n\n` +
+                `<i>You'll receive a notification the moment your code arrives.</i>`;
+            keyboard = { inline_keyboard: [
+                [{ text: '🔄 Refresh Status', callback_data: `verify_status_${v.id}` }],
+                [{ text: '❌ Cancel & Refund', callback_data: `verify_cancel_${v.id}` }]
+            ]};
+        }
+
+        if (messageId) return editMessage(chatId, messageId, statusLine, { reply_markup: keyboard });
+        return sendMessage(chatId, statusLine, { reply_markup: keyboard });
+
+    } catch (e) {
+        const errText = `⚠️ Could not fetch verification status: ${esc(e.message)}`;
+        if (messageId) return editMessage(chatId, messageId, errText);
+        return sendMessage(chatId, errText);
+    }
+}
+
+// ─── VERIFICATION: Cancel & Refund ───────────────────────────────────────────────
+
+async function handleVerifyCancel(chatId, from, verificationId, messageId = null) {
+    const user = resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    // Show processing message
+    const processingText = `⏳ <b>Processing cancellation & refund...</b>`;
+    if (messageId) {
+        await editMessage(chatId, messageId, processingText, { reply_markup: { inline_keyboard: [] } });
+    }
+
+    try {
+        const result = await phoneVerify.cancelAndRefund(verificationId, user.id);
+
+        const text =
+            `✅ <b>Cancelled & Refunded!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Your verification has been cancelled and <b>${result.refundedFormatted || result.refundAmount || 'full amount'}</b> has been credited back to your wallet.\n\n` +
+            `New Balance: <b>${currency(result.newBalance)}</b>`;
+
+        const keyboard = { inline_keyboard: [
+            [{ text: '⚡ Start New Verification', callback_data: 'verify_home' }],
+            [{ text: '💰 Check Balance', callback_data: 'cmd_balance' }]
+        ]};
+
+        if (messageId) return editMessage(chatId, messageId, text, { reply_markup: keyboard });
+        return sendMessage(chatId, text, { reply_markup: keyboard });
+
+    } catch (e) {
+        const errText = `⚠️ <b>Cancel failed:</b> ${esc(e.message)}\n\n<i>If the issue persists, contact support.</i>`;
+        const keyboard = { inline_keyboard: [
+            [{ text: '💬 Contact Support', url: 'https://t.me/olaslogsupport' }],
+            [{ text: '← Back to Hub', callback_data: 'verify_home' }]
+        ]};
+        if (messageId) return editMessage(chatId, messageId, errText, { reply_markup: keyboard });
+        return sendMessage(chatId, errText, { reply_markup: keyboard });
+    }
+}
+
+// ─── VERIFICATION: History ────────────────────────────────────────────────────────
+
+async function handleVerifyHistory(chatId, from, messageId = null) {
+    const user = resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    const history = phoneVerify.getUserVerifications(user.id, 10);
+
+    if (!history || history.length === 0) {
+        const text =
+            `📜 <b>Verification History</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `No verifications yet! Request your first US number below.`;
+        const keyboard = { inline_keyboard: [
+            [{ text: '⚡ Start Verification', callback_data: 'verify_home' }]
+        ]};
+        if (messageId) return editMessage(chatId, messageId, text, { reply_markup: keyboard });
+        return sendMessage(chatId, text, { reply_markup: keyboard });
+    }
+
+    let text = `📜 <b>Recent Verifications (Last 10)</b>\n━━━━━━━━━━━━━━━━━━━━━\n`;
+    for (const v of history) {
+        const date = v.createdAt ? new Date(v.createdAt).toLocaleDateString('en-NG', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : '—';
+
+        const statusEmoji = {
+            completed: '✅', refunded: '💸', timed_out: '⏰', rejected: '❌', reserved: '⏳', awaiting_mdn: '⏳'
+        }[v.status] || '⏳';
+
+        text += `\n${statusEmoji} <b>${esc(v.service)}</b>`;
+        if (v.formattedNumber || v.phoneNumber) {
+            text += ` — <code>${esc(v.formattedNumber || v.phoneNumber)}</code>`;
+        }
+        if (v.otpCode) {
+            text += `\n🔑 OTP: <code>${esc(v.otpCode)}</code>`;
+        }
+        text += `\n   ${statusEmoji} ${v.status.replace(/_/g, ' ')} • ${esc(v.costFormatted || '')} • <i>${date}</i>\n`;
+    }
+
+    const keyboard = { inline_keyboard: [
+        [{ text: '⚡ New Verification', callback_data: 'verify_home' }],
+        [{ text: '📱 Full History in App', web_app: { url: `${APP_URL}/#verification` } }]
+    ]};
+
+    if (messageId) return editMessage(chatId, messageId, text, { reply_markup: keyboard });
     return sendMessage(chatId, text, { reply_markup: keyboard });
 }
 
@@ -625,6 +1071,10 @@ async function handleCallbackQuery(cq) {
         return handleShopHome(chatId, messageId);
     }
 
+    if (data === 'main_menu') {
+        return handleStart({ chat: { id: chatId }, from: cqFrom });
+    }
+
     if (data === 'cmd_balance') {
         return handleBalance(chatId, cqFrom, messageId);
     }
@@ -664,6 +1114,49 @@ async function handleCallbackQuery(cq) {
         const prodId = parseInt(data.slice(12), 10);
         return handleBuyExecute(chatId, cqFrom, prodId, messageId);
     }
+
+    // ── SMS Verification Hub ─────────────────
+    if (data === 'verify_home') {
+        return handleVerifyHome(chatId, cqFrom, messageId);
+    }
+
+    if (data === 'verify_browse') {
+        return handleVerifyBrowse(chatId, cqFrom, 0, messageId);
+    }
+
+    if (data === 'verify_history') {
+        return handleVerifyHistory(chatId, cqFrom, messageId);
+    }
+
+    if (data.startsWith('verify_page_')) {
+        const page = parseInt(data.slice(12), 10) || 0;
+        return handleVerifyBrowse(chatId, cqFrom, page, messageId);
+    }
+
+    if (data.startsWith('verify_svc_')) {
+        const svcName = data.slice(11);
+        return handleVerifyService(chatId, cqFrom, svcName, messageId);
+    }
+
+    if (data.startsWith('verify_buy_')) {
+        const svcName = data.slice(11);
+        return handleVerifyBuy(chatId, cqFrom, svcName, messageId);
+    }
+
+    if (data.startsWith('verify_exec_')) {
+        const svcName = data.slice(12);
+        return handleVerifyExecute(chatId, cqFrom, svcName, messageId);
+    }
+
+    if (data.startsWith('verify_status_')) {
+        const vId = parseInt(data.slice(14), 10);
+        return handleVerifyStatus(chatId, cqFrom, vId, messageId);
+    }
+
+    if (data.startsWith('verify_cancel_')) {
+        const vId = parseInt(data.slice(14), 10);
+        return handleVerifyCancel(chatId, cqFrom, vId, messageId);
+    }
 }
 
 // ─── Text / Command Dispatcher ─────────────────────────────────────────────────
@@ -689,6 +1182,9 @@ async function processUpdate(update) {
         if (lowerText === '💳 fund wallet') {
             return handleFund(msg.chat.id, msg.from);
         }
+        if (lowerText === '⚡ sms verify') {
+            return handleVerifyHome(msg.chat.id, msg.from);
+        }
         if (lowerText === '📦 my orders') {
             return handleOrders(msg.chat.id, msg.from);
         }
@@ -711,18 +1207,23 @@ async function processUpdate(update) {
                 return handleFund(msg.chat.id, msg.from);
             case '/orders':
                 return handleOrders(msg.chat.id, msg.from);
+            case '/verify':
+            case '/verification':
+            case '/sms':
+                return handleVerifyHome(msg.chat.id, msg.from);
             case '/help':
             case '/support':
                 return handleHelp(msg.chat.id);
             default:
                 if (rawText.startsWith('/')) {
                     return sendMessage(msg.chat.id,
-                        `Unrecognized command. Tap <b>🛍️ Browse Products</b> below, or use /shop to start.`,
+                        `Unrecognized command. Use /verify for SMS verification, /shop to browse products, or tap the keyboard buttons below.`,
                         {
                             parse_mode: 'HTML',
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: '🛍️ Browse Products', callback_data: 'shop_home' }]
+                                    [{ text: '⚡ SMS Verify', callback_data: 'verify_home' },
+                                     { text: '🛍️ Shop', callback_data: 'shop_home' }]
                                 ]
                             }
                         }
@@ -739,6 +1240,7 @@ async function configureBotInterface() {
 
     await apiCall('setMyCommands', {
         commands: [
+            { command: 'verify',  description: '⚡ US SMS Verification — receive OTP codes from 500+ services' },
             { command: 'shop',    description: '🛍️ Browse & buy products directly in Telegram' },
             { command: 'balance', description: '💰 Check your wallet balance' },
             { command: 'fund',    description: '💳 Get your virtual bank account to top up' },
@@ -813,6 +1315,33 @@ async function notifyUserWalletFunded({ telegramId, amount, newBalance, referenc
     return sendMessage(telegramId, text, { reply_markup: keyboard });
 }
 
+// ─── OTP / Verification Code Delivery Notification ──────────────────────────────
+
+async function notifyUserOtpReceived({ telegramId, service, phoneNumber, formattedNumber, otpCode, smsReply, verificationId }) {
+    if (!telegramId) return;
+
+    const displayNum = formattedNumber || phoneNumber || 'N/A';
+
+    const text =
+        `🔑 <b>OTP Code Received!</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Service:  <b>${esc(service)}</b>\n` +
+        `📱 Number: <code>${esc(displayNum)}</code>\n\n` +
+        `🎯 <b>Your Verification Code:</b>\n` +
+        `<code>${esc(otpCode)}</code>\n\n` +
+        (smsReply ? `📨 Full SMS:\n<i>${esc(smsReply)}</i>\n\n` : '') +
+        `✅ <i>Enter the code above in ${esc(service)} to complete verification!</i>`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '⚡ New Verification', callback_data: 'verify_home' }],
+            [{ text: '📜 Verification History', callback_data: 'verify_history' }]
+        ]
+    };
+
+    return sendMessage(telegramId, text, { reply_markup: keyboard });
+}
+
 // ─── Long Polling Engine ───────────────────────────────────────────────────────
 
 async function pollLoop() {
@@ -879,5 +1408,6 @@ module.exports = {
     sendMessage,
     notifyUserOrderDelivered,
     notifyUserWalletFunded,
+    notifyUserOtpReceived,
     configureBotInterface
 };

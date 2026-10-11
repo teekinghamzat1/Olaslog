@@ -98,7 +98,8 @@ function calculateNgnPrice(usdPrice, settings = null) {
 async function callApi(cmd, params = {}) {
     const s = getSettings();
     if (!s.isConfigured) {
-        throw new Error('USPhoneVerify API credentials are not configured. Please set API User and Key in Admin Settings.');
+        console.warn('[PhoneVerify] API credentials are not configured in settings.');
+        throw new Error('SMS verification service is temporarily unavailable. Please try again later or contact support.');
     }
 
     const url = new URL(API_ENDPOINT);
@@ -123,14 +124,13 @@ async function callApi(cmd, params = {}) {
         });
 
         if (!response.ok) {
-            throw new Error(`USPhoneVerify API returned HTTP ${response.status}`);
+            throw new Error(`SMS verification service error (${response.status}). Please try again later.`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (err) {
         if (err.name === 'AbortError') {
-            throw new Error('USPhoneVerify API request timed out');
+            throw new Error('SMS verification request timed out. Please try again.');
         }
         throw err;
     } finally {
@@ -420,7 +420,7 @@ async function getVerificationStatus(id, userId = null) {
                     // Fetch received SMS!
                     await fetchAndStoreSMS(row);
                     row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
-                } else if (rawStatus === 'timed out' || rawStatus === 'timed_out') {
+                } else if (['timed out', 'timed_out'].includes(rawStatus)) {
                     await autoRefundVerification(row);
                     row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
                 } else if (rawStatus === 'rejected') {
@@ -444,6 +444,7 @@ async function fetchAndStoreSMS(row) {
         const smsRes = await callApi('read_sms', { id: row.request_id });
         if (smsRes.status === 'ok' && Array.isArray(smsRes.message) && smsRes.message.length > 0) {
             const msg = smsRes.message[0];
+            const pin = msg.pin || extractPinFromText(msg.reply);
             db.prepare(`
                 UPDATE phone_verifications
                 SET status = 'completed',
@@ -453,7 +454,26 @@ async function fetchAndStoreSMS(row) {
                     sms_received_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            `).run(msg.reply || '', msg.pin || extractPinFromText(msg.reply), msg.from || '', row.id);
+            `).run(msg.reply || '', pin, msg.from || '', row.id);
+
+            // Proactive notification via Telegram Bot if user has telegram linked
+            try {
+                const userRow = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(row.user_id);
+                if (userRow && userRow.telegram_id && pin) {
+                    const telegramBot = require('./telegramBot');
+                    telegramBot.notifyUserOtpReceived({
+                        telegramId: userRow.telegram_id,
+                        service: row.service_name,
+                        phoneNumber: row.phone_number,
+                        formattedNumber: formatUsPhoneNumber(row.phone_number),
+                        otpCode: pin,
+                        smsReply: msg.reply || '',
+                        verificationId: row.id
+                    }).catch(err => console.warn('[PhoneVerify] Error sending Telegram OTP notification:', err.message));
+                }
+            } catch (notifyErr) {
+                console.warn('[PhoneVerify] Failed to notify Telegram user:', notifyErr.message);
+            }
         }
     } catch (e) {
         console.warn('[PhoneVerify] Error reading SMS:', e.message);
@@ -575,8 +595,8 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
  * Webhook handler for USPhoneVerify
  */
 async function handleWebhookEvent(body) {
-    const event = body.event;
-    const reqId = String(body.id || '');
+    const { event, id = '', reply = '', from = '', mdn = '' } = body;
+    const reqId = String(id);
 
     if (!reqId) {
         return { status: false, message: 'Missing request id' };
@@ -589,9 +609,8 @@ async function handleWebhookEvent(body) {
     }
 
     if (event === 'incoming_message') {
-        const reply = body.reply || '';
         const pin = body.pin || extractPinFromText(reply);
-        const sender = body.from || '';
+        const sender = from;
 
         db.prepare(`
             UPDATE phone_verifications
@@ -605,6 +624,26 @@ async function handleWebhookEvent(body) {
         `).run(reply, pin, sender, row.id);
 
         console.log(`✅ [PhoneVerify Webhook] SMS Received for User #${row.user_id} (${row.service_name}): PIN = ${pin}`);
+
+        // Proactive notification via Telegram Bot if user has telegram linked
+        try {
+            const userRow = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(row.user_id);
+            if (userRow && userRow.telegram_id && pin) {
+                const telegramBot = require('./telegramBot');
+                telegramBot.notifyUserOtpReceived({
+                    telegramId: userRow.telegram_id,
+                    service: row.service_name,
+                    phoneNumber: row.phone_number,
+                    formattedNumber: formatUsPhoneNumber(row.phone_number),
+                    otpCode: pin,
+                    smsReply: reply,
+                    verificationId: row.id
+                }).catch(err => console.warn('[PhoneVerify Webhook] Error sending Telegram OTP notification:', err.message));
+            }
+        } catch (notifyErr) {
+            console.warn('[PhoneVerify Webhook] Failed to notify Telegram user:', notifyErr.message);
+        }
+
         return { status: true, message: 'SMS recorded' };
     }
 
@@ -692,11 +731,9 @@ function extractPinFromText(text) {
  * Formats a DB row into a clean frontend response
  */
 function formatVerificationRow(r) {
-    let remainingSeconds = 0;
-    if (r.expires_at) {
-        const diff = Math.floor((new Date(r.expires_at).getTime() - Date.now()) / 1000);
-        remainingSeconds = Math.max(0, diff);
-    }
+    const remainingSeconds = r.expires_at
+        ? Math.max(0, Math.floor((new Date(r.expires_at).getTime() - Date.now()) / 1000))
+        : 0;
 
     return {
         id: r.id,
