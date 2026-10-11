@@ -2893,3 +2893,212 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     color: #64748B;
 }
 
+/* ==========================================================================
+   US PHONE & SMS VERIFICATION PANEL STYLES
+   ========================================================================== */
+
+.verify-layout-grid {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 900px) {
+    .verify-layout-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.verify-service-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    padding: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    user-select: none;
+}
+
+.verify-service-card:hover {
+    background: rgba(91, 217, 165, 0.06);
+    border-color: rgba(91, 217, 165, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.verify-service-card.selected {
+    background: radial-gradient(80px 50px at 90% 0%, rgba(91,217,165,0.2), transparent 70%), rgba(91, 217, 165, 0.1);
+    border-color: var(--teal);
+    box-shadow: 0 0 0 2px var(--teal-glow);
+}
+
+.verify-service-card .svc-icon {
+    font-size: 1.5rem;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 0.6rem;
+}
+
+.verify-service-card .svc-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+}
+
+.verify-service-card .svc-price {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--teal);
+    font-family: var(--display);
+}
+
+/* Active Verification Hero Card */
+.verify-active-card {
+    background: radial-gradient(350px 180px at 80% 10%, rgba(91, 217, 165, 0.22), transparent 70%),
+                linear-gradient(160deg, #123425 0%, #081B13 100%);
+    border: 1.5px solid var(--teal);
+    border-radius: 18px;
+    padding: 1.75rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 20px var(--teal-glow);
+    position: relative;
+    overflow: hidden;
+}
+
+.verify-number-display {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin: 0.75rem 0;
+}
+
+@media (max-width: 600px) {
+    .verify-number-display {
+        font-size: 1.6rem;
+    }
+}
+
+.copy-pill-btn {
+    background: rgba(91, 217, 165, 0.15);
+    border: 1px solid rgba(91, 217, 165, 0.4);
+    color: var(--teal);
+    font-family: var(--font-main, sans-serif);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 99px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s ease;
+}
+
+.copy-pill-btn:hover {
+    background: var(--teal);
+    color: #06150e;
+    transform: scale(1.04);
+}
+
+/* Radar Pulse Indicator */
+.radar-pulse-ring {
+    width: 12px;
+    height: 12px;
+    background-color: var(--teal);
+    border-radius: 50%;
+    position: relative;
+    display: inline-block;
+}
+
+.radar-pulse-ring::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--teal);
+    animation: radarRipple 1.6s infinite cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+@keyframes radarRipple {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2.4);
+        opacity: 0;
+    }
+}
+
+/* OTP Code Box */
+.otp-display-box {
+    background: linear-gradient(135deg, rgba(91, 217, 165, 0.15), rgba(30, 155, 68, 0.2));
+    border: 2px solid var(--teal);
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1.2rem 0;
+    box-shadow: 0 4px 18px rgba(91, 217, 165, 0.25);
+    animation: otpArrivalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes otpArrivalPop {
+    0% {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.otp-code-digits {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(91, 217, 165, 0.6);
+}
+
+.countdown-bar-wrap {
+    background: rgba(255, 255, 255, 0.1);
+    height: 6px;
+    border-radius: 99px;
+    overflow: hidden;
+    margin: 0.85rem 0 0.5rem;
+}
+
+.countdown-bar-fill {
+    background: linear-gradient(90deg, var(--teal) 0%, #22c55e 100%);
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1s linear;
+}
+
+.countdown-bar-fill.warning {
+    background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+}
+

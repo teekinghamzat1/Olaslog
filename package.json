@@ -8,7 +8,8 @@
     "dev": "node --watch server/index.js",
     "seed": "node server/db/seed.js",
     "test": "node test/test_core.js",
-    "test:telegram": "node test/test_telegram.js"
+    "test:telegram": "node test/test_telegram.js",
+    "test:verification": "node test/test_verification.js"
   },
   "keywords": [
     "marketplace",

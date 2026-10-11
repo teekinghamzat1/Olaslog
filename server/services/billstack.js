@@ -118,7 +118,10 @@ function deleteVirtualAccount(userId, accountId) {
  * @param {string} [params.idNumber]  - The NIN/BVN value (required when bankId = PALMPAY)
  * @param {boolean} [params.forceNew] - If true, replaces existing account
  */
-async function createOrGetVirtualAccount(userId, { bankId, phone, idType, idNumber, forceNew = false } = {}) {
+async function createOrGetVirtualAccount(userOrId, options = {}) {
+    const userId = (typeof userOrId === 'object' && userOrId !== null) ? userOrId.id : userOrId;
+    const opts = (typeof options === 'string') ? { bankId: options } : (options || {});
+    const { bankId, phone, idType, idNumber, forceNew = false } = opts;
     const mock = isMock();
 
     // Automatically purge stale mock accounts whenever a real key is now present
@@ -402,6 +405,7 @@ module.exports = {
     getVirtualAccount,
     getAllVirtualAccounts,
     createOrGetVirtualAccount,
+    createVirtualAccount: createOrGetVirtualAccount,
     deleteVirtualAccount,
     verifyWebhookSignature,
     processIncomingPayment

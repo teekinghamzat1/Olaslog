@@ -142,7 +142,8 @@ function switchTab(tabKey, el = null) {
     admins: 'Administrator & Staff Console',
     ledger: 'Financial Ledger Audit',
     email: 'Alerts & Email Operations',
-    analytics: 'Sales Analytics & Revenue Intelligence'
+    analytics: 'Sales Analytics & Revenue Intelligence',
+    verification: 'US Phone & SMS Verification Hub'
   };
   document.getElementById('pageTitle').textContent = titles[tabKey] || 'Operations';
 
@@ -152,6 +153,7 @@ function switchTab(tabKey, el = null) {
   if (tabKey === 'ledger') loadLedger();
   if (tabKey === 'email') loadEmailSettings();
   if (tabKey === 'analytics') loadSalesAnalytics();
+  if (tabKey === 'verification') loadAdminVerificationData();
 
   // Mobile drawer close if open
   toggleMobileSidebar(false);
@@ -2134,5 +2136,209 @@ function renderAnalyticsPaymentBreakdown(pb) {
       </div>
     </div>
   `;
+}
+
+// ============================================================================
+// Admin US Phone Verification Management
+// ============================================================================
+
+async function loadAdminVerificationData() {
+  await Promise.all([
+    loadAdminVerificationSettings(),
+    loadAdminVerificationOrders()
+  ]);
+}
+
+async function loadAdminVerificationSettings() {
+  try {
+    const res = await fetch('/api/admin/verification/settings');
+    const data = await res.json();
+
+    if (data.success) {
+      const s = data.settings || {};
+      const pb = data.providerBalance || {};
+      const stats = data.stats || {};
+
+      // Fill settings form
+      const userInput = document.getElementById('admVerifyUser');
+      const rateInput = document.getElementById('admVerifyUsdRate');
+      const marginInput = document.getElementById('admVerifyMargin');
+      const minPriceInput = document.getElementById('admVerifyMinPrice');
+
+      if (userInput) userInput.value = s.apiUser || '';
+      if (rateInput) rateInput.value = s.usdRate || 1500;
+      if (marginInput) marginInput.value = s.marginPercent || 25;
+      if (minPriceInput) minPriceInput.value = s.minPriceNgn || 800;
+
+      // Update KPIs
+      const balUsdEl = document.getElementById('admVerifyBalUsd');
+      const balNgnEl = document.getElementById('admVerifyBalNgn');
+      const totalEl = document.getElementById('admVerifyTotalOrders');
+      const compEl = document.getElementById('admVerifyCompletedOrders');
+      const refEl = document.getElementById('admVerifyRefundedOrders');
+
+      if (balUsdEl) balUsdEl.textContent = pb.isConfigured ? `$${pb.balanceUsd}` : 'Not Configured';
+      if (balNgnEl) balNgnEl.textContent = pb.isConfigured ? `≈ ₦${Number(pb.balanceNgn || 0).toLocaleString()}` : 'Enter API user & key';
+      if (totalEl) totalEl.textContent = Number(stats.total_requests || 0).toLocaleString();
+      if (compEl) compEl.textContent = Number(stats.completed_count || 0).toLocaleString();
+      if (refEl) refEl.textContent = Number(stats.refunded_count || 0).toLocaleString();
+    }
+  } catch (err) {
+    console.error('Failed to load admin verification settings:', err);
+  }
+}
+
+async function saveAdminVerificationSettings() {
+  const btn = document.getElementById('btnSaveVerifySettings');
+  const apiUser = (document.getElementById('admVerifyUser')?.value || '').trim();
+  const apiKey = (document.getElementById('admVerifyApiKey')?.value || '').trim();
+  const usdRate = parseFloat(document.getElementById('admVerifyUsdRate')?.value) || 1500;
+  const marginPercent = parseFloat(document.getElementById('admVerifyMargin')?.value) || 25;
+  const minPriceNgn = parseFloat(document.getElementById('admVerifyMinPrice')?.value) || 800;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Saving... ⏳';
+  }
+
+  try {
+    const payload = { apiUser, usdRate, marginPercent, minPriceNgn };
+    if (apiKey) payload.apiKey = apiKey;
+
+    const res = await fetch('/api/admin/verification/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      showAdminToast('Verification settings updated successfully!', 'success');
+      document.getElementById('admVerifyApiKey').value = '';
+      await loadAdminVerificationSettings();
+    } else {
+      showAdminToast(data.error || 'Failed to save settings', 'error');
+    }
+  } catch (e) {
+    showAdminToast('Network error saving verification settings', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Save Configuration';
+    }
+  }
+}
+
+async function loadAdminVerificationOrders() {
+  const tbody = document.getElementById('admVerifyOrdersTableBody');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/admin/verification/orders');
+    const data = await res.json();
+
+    if (data.success && Array.isArray(data.orders)) {
+      if (data.orders.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 24px; color: var(--text-faint);">
+              No phone verification orders recorded yet.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = data.orders.map(o => {
+        const dateStr = o.created_at ? new Date(o.created_at).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : '—';
+
+        let statusBadge = '';
+        if (o.status === 'completed') {
+          statusBadge = '<span class="status-pill status-active">Completed</span>';
+        } else if (o.status === 'refunded') {
+          statusBadge = '<span class="status-pill status-banned">Refunded</span>';
+        } else if (o.status === 'timed_out') {
+          statusBadge = '<span class="status-pill" style="background: rgba(245,158,11,0.15); color: #f59e0b;">Timed Out</span>';
+        } else {
+          statusBadge = '<span class="status-pill" style="background: rgba(59,130,246,0.15); color: #60a5fa;">Active</span>';
+        }
+
+        const otpDisplay = o.otp_code ? `<span class="mono" style="font-weight:700; color:var(--teal);">${escapeAdminHtml(o.otp_code)}</span>` : '<span style="color:var(--text-faint);">—</span>';
+
+        const canRefund = o.status !== 'completed' && o.status !== 'refunded';
+
+        return `
+          <tr>
+            <td class="mono" style="font-size:12px;">#${o.id}</td>
+            <td style="font-size:12px; color:var(--text-dim); white-space:nowrap;">${dateStr}</td>
+            <td>
+              <div style="font-weight:600; font-size:13px;">${escapeAdminHtml(o.user_name || 'User')}</div>
+              <div class="mono" style="font-size:11.5px; color:var(--text-faint);">${escapeAdminHtml(o.user_email || '')}</div>
+            </td>
+            <td style="font-weight:700;">${escapeAdminHtml(o.service_name)}</td>
+            <td class="mono" style="font-size:12.5px;">${escapeAdminHtml(o.phone_number || 'Awaiting MDN')}</td>
+            <td>${statusBadge}</td>
+            <td>${otpDisplay}</td>
+            <td style="font-weight:700; color:var(--teal);">₦${Number(o.cost_ngn || 0).toLocaleString()}</td>
+            <td>
+              ${canRefund ? `
+                <button class="btn btn-danger btn-sm" onclick="refundAdminVerificationOrder(${o.id}, '${escapeAdminHtml(o.service_name)}', '${escapeAdminHtml(o.user_email)}')">
+                  Force Refund
+                </button>
+              ` : `
+                <span style="font-size:11px; color:var(--text-faint);">Settled</span>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } catch (err) {
+    console.error('Failed to load verification orders:', err);
+  }
+}
+
+async function refundAdminVerificationOrder(id, service, userEmail) {
+  const confirmRefund = confirm(`Are you sure you want to manually cancel and refund verification #${id} (${service}) for ${userEmail}?\n\nThe amount will be refunded immediately back to their wallet.`);
+  if (!confirmRefund) return;
+
+  try {
+    const res = await fetch(`/api/admin/verification/orders/${id}/refund`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      showAdminToast('Verification order refunded successfully!', 'success');
+      await loadAdminVerificationData();
+    } else {
+      showAdminToast(data.error || 'Failed to refund order', 'error');
+    }
+  } catch (err) {
+    showAdminToast('Network error during refund', 'error');
+  }
+}
+
+function copyAdminWebhookUrl() {
+  const input = document.getElementById('admVerifyWebhookUrl');
+  if (!input) return;
+  input.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(input.value).then(() => {
+      showAdminToast('Webhook URL copied to clipboard!', 'success');
+    });
+  } else {
+    document.execCommand('copy');
+    showAdminToast('Webhook URL copied to clipboard!', 'success');
+  }
+}
+
+function escapeAdminHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 

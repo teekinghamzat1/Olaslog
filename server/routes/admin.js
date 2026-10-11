@@ -10,6 +10,7 @@ const sujanService = require('../services/sujan');
 const syncScheduler = require('../services/syncScheduler');
 const emailService = require('../services/email');
 const telegram = require('../services/telegram');
+const phoneVerify = require('../services/phoneVerify');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -1402,6 +1403,95 @@ router.get('/analytics', (req, res) => {
     } catch (err) {
         console.error('[Admin] Analytics error:', err);
         return res.status(500).json({ success: false, error: 'Failed to generate analytics report' });
+    }
+});
+
+// ─── Verification Hub Management ─────────────────────────────────────────────
+
+// Get verification settings & provider balance
+router.get('/verification/settings', async (req, res) => {
+    try {
+        const settings = phoneVerify.getSettings();
+        const providerBal = await phoneVerify.getProviderBalance();
+
+        const stats = db.prepare(`
+            SELECT
+                COUNT(*) as total_requests,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) as refunded_count,
+                SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) as active_count,
+                COALESCE(SUM(cost_ngn), 0) as total_volume_ngn
+            FROM phone_verifications
+        `).get();
+
+        return res.json({
+            success: true,
+            settings: {
+                apiUser: settings.user,
+                hasApiKey: Boolean(settings.apiKey),
+                usdRate: settings.usdRate,
+                marginPercent: settings.marginPercent,
+                minPriceNgn: settings.minPriceNgn,
+                isConfigured: settings.isConfigured
+            },
+            providerBalance: providerBal,
+            stats
+        });
+    } catch (err) {
+        console.error('[Admin] Error fetching verification settings:', err);
+        return res.status(500).json({ success: false, error: 'Failed to retrieve verification settings' });
+    }
+});
+
+// Update verification settings
+router.post('/verification/settings', (req, res) => {
+    try {
+        const { apiUser, apiKey, usdRate, marginPercent, minPriceNgn } = req.body;
+
+        if (apiUser !== undefined) phoneVerify.updateSetting('api_user', apiUser.trim());
+        if (apiKey !== undefined && apiKey.trim() !== '') phoneVerify.updateSetting('api_key', apiKey.trim());
+        if (usdRate !== undefined) phoneVerify.updateSetting('usd_rate', parseFloat(usdRate) || 1500);
+        if (marginPercent !== undefined) phoneVerify.updateSetting('margin_percent', parseFloat(marginPercent) || 25);
+        if (minPriceNgn !== undefined) phoneVerify.updateSetting('min_price_ngn', parseFloat(minPriceNgn) || 800);
+
+        logAudit(req.user.id, 'UPDATE_VERIFICATION_SETTINGS', 'verification_settings', 'all', JSON.stringify({ usdRate, marginPercent, minPriceNgn }));
+
+        return res.json({ success: true, message: 'Phone verification settings updated successfully!' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// List all verifications across platform
+router.get('/verification/orders', (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit || '100', 10);
+        const rows = db.prepare(`
+            SELECT pv.*, u.email as user_email, u.full_name as user_name
+            FROM phone_verifications pv
+            JOIN users u ON pv.user_id = u.id
+            ORDER BY pv.created_at DESC
+            LIMIT ?
+        `).all(limit);
+
+        return res.json({ success: true, orders: rows });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Admin force refund a verification
+router.post('/verification/orders/:id/refund', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
+        if (!row) return res.status(404).json({ success: false, error: 'Verification order not found' });
+
+        const result = await phoneVerify.cancelAndRefund(row.id, row.user_id);
+        logAudit(req.user.id, 'MANUAL_REFUND_VERIFICATION', 'phone_verifications', String(id), `Refunded ₦${row.cost_ngn} to user #${row.user_id}`);
+        return res.json(result);
+    } catch (err) {
+        return res.status(400).json({ success: false, error: err.message });
     }
 });
 

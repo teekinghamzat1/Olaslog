@@ -214,3 +214,37 @@ CREATE TABLE IF NOT EXISTS password_resets (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+
+-- Phone Verifications (USPhoneVerify Integration)
+CREATE TABLE IF NOT EXISTS phone_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    request_id TEXT NOT NULL UNIQUE,
+    service_name TEXT NOT NULL,
+    phone_number TEXT,
+    state TEXT,
+    areacode TEXT,
+    carrier TEXT,
+    markup INTEGER DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    cost_ngn REAL NOT NULL,
+    wallet_ref TEXT,
+    status TEXT CHECK(status IN ('awaiting_mdn', 'reserved', 'completed', 'rejected', 'timed_out', 'refunded')) DEFAULT 'reserved',
+    sms_reply TEXT,
+    otp_code TEXT,
+    sms_sender TEXT,
+    sms_received_at DATETIME,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_phone_verifications_user ON phone_verifications(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_phone_verifications_req ON phone_verifications(request_id);
+
+-- Verification Settings (Configurable Exchange Rate & Markup)
+CREATE TABLE IF NOT EXISTS verification_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

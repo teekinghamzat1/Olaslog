@@ -51,8 +51,33 @@ function generateToken(user) {
     );
 }
 
+function optionalAuth(req, res, next) {
+    let token = null;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+
+    if (!token) {
+        return next();
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = db.prepare(`SELECT id, email, full_name, phone, role, is_banned, is_verified, telegram_id, telegram_username FROM users WHERE id = ?`).get(decoded.id);
+        if (user && !user.is_banned) {
+            req.user = user;
+        }
+    } catch (_) {}
+
+    next();
+}
+
 module.exports = {
     authenticate,
     requireAdmin,
-    generateToken
+    generateToken,
+    optionalAuth
 };

@@ -8,7 +8,12 @@ const state = {
     catalog: [],
     categories: [],
     activeView: 'home',
-    activeDisputeOrderId: null
+    activeDisputeOrderId: null,
+    verificationServices: [],
+    selectedVerifyService: null,
+    activeVerification: null,
+    verificationPollInterval: null,
+    verificationCountdownInterval: null
 };
 
 // ============================================================================
@@ -194,6 +199,8 @@ function updateAuthUI() {
         if (dashBalEl) dashBalEl.textContent = balFormatted;
         const wallBalEl = document.getElementById('walletPageBalance');
         if (wallBalEl) wallBalEl.textContent = balFormatted;
+        const verifyBalEl = document.getElementById('verifyWalletBalance');
+        if (verifyBalEl) verifyBalEl.textContent = balFormatted;
         const nameEl = document.getElementById('dashCustomerName');
         if (nameEl) nameEl.textContent = displayName;
     }
@@ -587,6 +594,7 @@ function switchView(viewName) {
     const viewTitles = {
         home: 'Olaslog | Instant Digital Accounts, Virtual Numbers & Subscriptions Marketplace',
         shop: 'Shop Catalog — Verified Accounts & Services | Olaslog',
+        verification: 'US Phone & SMS Verification Hub | Olaslog',
         dashboard: 'Client Dashboard & Vault | Olaslog',
         orders: 'Order History & Credentials | Olaslog',
         wallet: 'Fund Wallet — Dedicated Virtual Bank Accounts | Olaslog'
@@ -600,6 +608,8 @@ function switchView(viewName) {
     // Load view data
     if (viewName === 'shop') {
         loadCatalog();
+    } else if (viewName === 'verification') {
+        loadVerificationView();
     } else if (viewName === 'dashboard') {
         loadDashboard();
     } else if (viewName === 'orders') {
@@ -2736,6 +2746,621 @@ window.LiveOrderFeed = LiveOrderFeed;
 
 function initLiveOrderFeed() {
     LiveOrderFeed.init();
+}
+
+// ============================================================================
+// US Phone & SMS Verification Hub Frontend Engine
+// ============================================================================
+
+let currentVerifyFilterCat = 'all';
+let currentVerifySearchQuery = '';
+
+async function loadVerificationView() {
+    // 1. Sync wallet balance display
+    if (state.currentUser) {
+        const balFormatted = Number(state.currentUser.balance || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+        const verifyBalEl = document.getElementById('verifyWalletBalance');
+        if (verifyBalEl) verifyBalEl.textContent = balFormatted;
+    }
+
+    // 2. Fetch available services
+    await fetchVerificationServices();
+
+    // 3. Fetch user's active verification order (if logged in)
+    if (state.currentUser) {
+        await checkActiveVerification();
+        await loadVerificationHistory();
+    } else {
+        const historyBody = document.getElementById('verifyHistoryTableBody');
+        if (historyBody) {
+            historyBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
+                        Please <a href="javascript:void(0)" onclick="openAuthModal('login')" style="color: var(--teal); font-weight: 700;">Sign In</a> to view your verification numbers and history.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+async function fetchVerificationServices() {
+    const grid = document.getElementById('verifyServicesGrid');
+    const countEl = document.getElementById('verifyServicesCount');
+
+    try {
+        const res = await fetch('/api/verification/services');
+        const data = await res.json();
+
+        if (data.success && Array.isArray(data.services)) {
+            state.verificationServices = data.services;
+            if (countEl) countEl.textContent = `${data.services.length} Services Available`;
+
+            renderVerificationServicesList();
+
+            // Default select first or WhatsApp
+            if (!state.selectedVerifyService && data.services.length > 0) {
+                const defaultSvc = data.services.find(s => s.name === 'WhatsApp') || data.services[0];
+                selectVerifyService(defaultSvc.name);
+            }
+        } else {
+            if (grid) grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-dim);">Could not load services</div>`;
+        }
+    } catch (e) {
+        console.error('Error fetching verification services:', e);
+        if (grid) grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-dim);">Connection error loading verification services</div>`;
+    }
+}
+
+function renderVerificationServicesList() {
+    const grid = document.getElementById('verifyServicesGrid');
+    if (!grid) return;
+
+    let filtered = [...state.verificationServices];
+
+    // Filter by category
+    if (currentVerifyFilterCat === 'popular') {
+        filtered = filtered.filter(s => s.popular);
+    } else if (currentVerifyFilterCat !== 'all') {
+        filtered = filtered.filter(s => (s.category || '').toLowerCase() === currentVerifyFilterCat.toLowerCase());
+    }
+
+    // Filter by search query
+    if (currentVerifySearchQuery) {
+        const q = currentVerifySearchQuery.toLowerCase();
+        filtered = filtered.filter(s => s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
+    }
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 3rem 1rem; text-align: center; color: var(--text-dim);">
+                <div style="font-size: 1.8rem; margin-bottom: 0.5rem;">🔍</div>
+                <div>No verification services matched "<strong>${escapeHtml(currentVerifySearchQuery)}</strong>"</div>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(s => {
+        const isSelected = state.selectedVerifyService && state.selectedVerifyService.name === s.name;
+        return `
+            <div class="verify-service-card ${isSelected ? 'selected' : ''}" onclick="selectVerifyService('${escapeHtml(s.name)}')">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div class="svc-icon">${s.icon || '📱'}</div>
+                        <span style="font-size: 0.7rem; background: ${s.available ? 'rgba(91,217,165,0.15)' : 'rgba(255,255,255,0.06)'}; color: ${s.available ? 'var(--teal)' : 'var(--text-dim)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                            ${s.available ? '● In Stock' : 'Limited'}
+                        </span>
+                    </div>
+                    <div class="svc-name">${escapeHtml(s.name)}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.5rem;">${escapeHtml(s.category || 'General')}</div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--edge); padding-top: 0.5rem; margin-top: 0.3rem;">
+                    <span class="svc-price">${s.priceFormatted}</span>
+                    <span style="font-size: 0.72rem; color: var(--text-dim);">${isSelected ? '✓ Selected' : 'Choose →'}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterVerifyServices(query) {
+    currentVerifySearchQuery = (query || '').trim();
+    renderVerificationServicesList();
+}
+
+function filterVerifyCategory(cat, btn) {
+    currentVerifyFilterCat = cat;
+    document.querySelectorAll('#verifyCategoryChips .pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderVerificationServicesList();
+}
+
+function selectVerifyService(serviceName) {
+    const s = state.verificationServices.find(x => x.name.toLowerCase() === serviceName.toLowerCase());
+    if (!s) return;
+
+    state.selectedVerifyService = s;
+    renderVerificationServicesList();
+
+    // Update details card
+    const nameEl = document.getElementById('selectedServiceName');
+    const iconEl = document.getElementById('selectedServiceIcon');
+    const priceEl = document.getElementById('selectedServicePrice');
+    const catEl = document.getElementById('selectedServiceCategory');
+    const shortfallBox = document.getElementById('verifyInsufficientFundsBox');
+    const shortfallText = document.getElementById('verifyShortfallText');
+    const btn = document.getElementById('btnRequestNumber');
+
+    if (nameEl) nameEl.textContent = s.name;
+    if (iconEl) iconEl.textContent = s.icon || '📱';
+    if (priceEl) priceEl.textContent = s.priceFormatted;
+    if (catEl) catEl.textContent = `${s.category || 'Instant Code'} • 15 Min Window`;
+
+    // Balance check
+    const userBal = state.currentUser ? Number(state.currentUser.balance || 0) : 0;
+    if (state.currentUser && userBal < s.priceNgn) {
+        const shortfall = s.priceNgn - userBal;
+        if (shortfallBox) shortfallBox.style.display = 'block';
+        if (shortfallText) shortfallText.textContent = `₦${shortfall.toLocaleString()}`;
+        if (btn) {
+            btn.textContent = `+ Fund Wallet (₦${shortfall.toLocaleString()} Shortfall)`;
+            btn.onclick = () => navigateTo('wallet');
+        }
+    } else {
+        if (shortfallBox) shortfallBox.style.display = 'none';
+        if (btn) {
+            btn.textContent = `⚡ Request Verification Number (${s.priceFormatted})`;
+            btn.onclick = submitVerificationOrder;
+        }
+    }
+}
+
+function toggleVerifyAdvancedOptions() {
+    const opts = document.getElementById('verifyAdvancedOptions');
+    const arrow = document.getElementById('verifyAdvancedArrow');
+    if (!opts) return;
+
+    const isHidden = opts.style.display === 'none' || !opts.style.display;
+    opts.style.display = isHidden ? 'flex' : 'none';
+    if (arrow) arrow.textContent = isHidden ? '▲' : '▼';
+}
+
+async function submitVerificationOrder() {
+    if (!state.currentUser) {
+        showToast('Please sign in or create an account to request a verification number', 'info');
+        openAuthModal('login');
+        return;
+    }
+
+    if (!state.selectedVerifyService) {
+        showToast('Please select a verification service first', 'error');
+        return;
+    }
+
+    const s = state.selectedVerifyService;
+    const areacode = (document.getElementById('verifyAreacodeInput')?.value || '').trim();
+    const stateVal = (document.getElementById('verifyStateInput')?.value || '').trim();
+    const mdn = (document.getElementById('verifyMdnInput')?.value || '').trim();
+
+    const btn = document.getElementById('btnRequestNumber');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = 'Assigning US Phone Number... ⏳';
+    }
+
+    try {
+        const res = await fetch('/api/verification/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service: s.name,
+                areacode: areacode || undefined,
+                state: stateVal || undefined,
+                mdn: mdn || undefined
+            })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.verification) {
+            state.activeVerification = data.verification;
+            if (state.currentUser && data.verification.newBalance !== undefined) {
+                state.currentUser.balance = data.verification.newBalance;
+                updateAuthUI();
+            }
+
+            showToast(`Success! Assigned ${data.verification.formattedNumber || 'US Number'} for ${s.name}`, 'success');
+            renderActiveVerification(data.verification);
+            startVerificationPolling(data.verification.id);
+            startVerificationCountdown(data.verification.tillExpiration || 900);
+            loadVerificationHistory();
+
+            // Scroll to top of view
+            const activeCont = document.getElementById('verifyActiveContainer');
+            if (activeCont) activeCont.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            showToast(data.error || 'Failed to order verification number. Please try again or select another service.', 'error');
+            if (data.code === 'INSUFFICIENT_FUNDS') {
+                const shortfallBox = document.getElementById('verifyInsufficientFundsBox');
+                if (shortfallBox) shortfallBox.style.display = 'block';
+            }
+        }
+    } catch (err) {
+        console.error('Verification order submission error:', err);
+        showToast('Network error while requesting number', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            selectVerifyService(s.name);
+        }
+    }
+}
+
+async function checkActiveVerification() {
+    try {
+        const res = await fetch('/api/verification/active');
+        const data = await res.json();
+
+        if (data.success && data.active) {
+            state.activeVerification = data.active;
+            renderActiveVerification(data.active);
+            startVerificationPolling(data.active.id);
+            startVerificationCountdown(data.active.remainingSeconds || 600);
+        } else {
+            state.activeVerification = null;
+            const container = document.getElementById('verifyActiveContainer');
+            if (container) container.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('Could not check active verification:', e);
+    }
+}
+
+function renderActiveVerification(v) {
+    const container = document.getElementById('verifyActiveContainer');
+    if (!container) return;
+
+    if (!v || ['refunded', 'timed_out', 'rejected'].includes(v.status)) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+
+    const isCompleted = v.status === 'completed';
+    const hasPin = Boolean(v.otpCode);
+    const displayNum = v.formattedNumber || v.phoneNumber || 'Assigning number...';
+
+    container.innerHTML = `
+        <div class="verify-active-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--edge); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span class="radar-pulse-ring"></span>
+                    <span style="font-weight: 700; font-size: 1.05rem; color: #ffffff;">
+                        ${isCompleted ? '✅ Verification Code Delivered!' : 'Active Verification in Progress'}
+                    </span>
+                    <span class="pill" style="background: rgba(91,217,165,0.18); color: var(--teal); font-size: 0.75rem; padding: 3px 10px; border-radius: 99px;">
+                        ${escapeHtml(v.service)}
+                    </span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-dim);">Time Left:</span>
+                    <span id="activeCountdownText" style="font-family: var(--font-mono); font-size: 1.1rem; font-weight: 800; color: var(--teal); background: rgba(0,0,0,0.3); padding: 3px 10px; border-radius: 6px;">
+                        --:--
+                    </span>
+                </div>
+            </div>
+
+            <!-- Number Display Box -->
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--edge); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem;">
+                <div style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; margin-bottom: 0.35rem;">
+                    🇺🇸 US Mobile Number (Enter into ${escapeHtml(v.service)})
+                </div>
+                <div class="verify-number-display">
+                    <span>${displayNum}</span>
+                    ${v.phoneNumber ? `
+                        <button class="copy-pill-btn" onclick="copyToClipboard('${v.phoneNumber}', 'Phone number copied!')">
+                            📋 Copy Number
+                        </button>
+                    ` : ''}
+                </div>
+                <div style="display: flex; gap: 1rem; font-size: 0.78rem; color: var(--text-dim); flex-wrap: wrap;">
+                    <span>Carrier: <strong style="color: var(--text);">${escapeHtml(v.carrier || 'US Mobile')}</strong></span>
+                    <span>State: <strong style="color: var(--text);">${escapeHtml(v.state || 'United States')}</strong></span>
+                    <span>Cost: <strong style="color: var(--teal);">${v.costFormatted || '₦' + v.costNgn}</strong></span>
+                </div>
+
+                <!-- Linear Countdown Bar -->
+                <div class="countdown-bar-wrap">
+                    <div id="activeCountdownBar" class="countdown-bar-fill" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- OTP Arrival Section -->
+            ${hasPin ? `
+                <div class="otp-display-box">
+                    <div>
+                        <div style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--teal); letter-spacing: 0.05em; margin-bottom: 0.3rem;">
+                            🎉 Your Received Verification Code (PIN)
+                        </div>
+                        <div class="otp-code-digits" id="receivedOtpDigits">${escapeHtml(v.otpCode)}</div>
+                        ${v.smsReply ? `
+                            <div style="font-size: 0.82rem; color: rgba(255,255,255,0.8); margin-top: 0.5rem; font-style: italic; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 8px; border-left: 3px solid var(--teal);">
+                                "${escapeHtml(v.smsReply)}"
+                            </div>
+                        ` : ''}
+                    </div>
+                    <button class="btn btn-emerald btn-lg" onclick="copyToClipboard('${escapeHtml(v.otpCode)}', 'OTP Code copied to clipboard!')" style="font-weight: 800; white-space: nowrap; height: fit-content;">
+                        📋 Copy Code
+                    </button>
+                </div>
+            ` : `
+                <div style="background: rgba(91,217,165,0.06); border: 1px dashed rgba(91,217,165,0.3); border-radius: 12px; padding: 1.25rem; text-align: center; margin-bottom: 1.25rem;">
+                    <div style="display: inline-flex; align-items: center; gap: 0.5rem; color: var(--teal); font-weight: 600; font-size: 0.92rem; margin-bottom: 0.3rem;">
+                        <span class="radar-pulse-ring"></span>
+                        Listening for incoming SMS from ${escapeHtml(v.service)}...
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin: 0;">
+                        Enter the phone number above into your app. Your OTP code will pop up here instantly the moment it is sent!
+                    </p>
+                </div>
+            `}
+
+            <!-- Active Order Action Buttons -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="checkVerificationStatusManual(${v.id})">
+                        🔄 Refresh Status
+                    </button>
+                    ${!isCompleted ? `
+                        <button class="btn btn-danger btn-sm" onclick="cancelActiveVerification(${v.id}, '${v.costFormatted || '₦' + v.costNgn}')">
+                            ✖ Cancel & 100% Refund
+                        </button>
+                    ` : ''}
+                </div>
+
+                ${isCompleted ? `
+                    <button class="btn btn-emerald btn-sm" onclick="dismissActiveVerification()">
+                        + Order Another Number
+                    </button>
+                ` : `
+                    <span style="font-size: 0.78rem; color: var(--text-dim);">
+                        Auto-refreshes every 4s &bull; Auto-refunds if timed out
+                    </span>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+function startVerificationPolling(orderId) {
+    if (state.verificationPollInterval) clearInterval(state.verificationPollInterval);
+
+    state.verificationPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/verification/order/${orderId}`);
+            const data = await res.json();
+
+            if (data.success && data.verification) {
+                const v = data.verification;
+                state.activeVerification = v;
+
+                if (v.status === 'completed' && v.otpCode) {
+                    clearInterval(state.verificationPollInterval);
+                    renderActiveVerification(v);
+                    showToast(`🎉 SMS Code Received: ${v.otpCode}`, 'success');
+                    loadVerificationHistory();
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                } else if (['timed_out', 'refunded', 'rejected'].includes(v.status)) {
+                    clearInterval(state.verificationPollInterval);
+                    clearInterval(state.verificationCountdownInterval);
+                    showToast(`Order #${v.id} finished (${v.status}). Wallet balance updated.`, 'info');
+                    state.activeVerification = null;
+                    renderActiveVerification(null);
+                    await checkAuth();
+                    loadVerificationHistory();
+                } else {
+                    renderActiveVerification(v);
+                }
+            }
+        } catch (e) {
+            console.warn('Polling status error:', e);
+        }
+    }, 4000);
+}
+
+function startVerificationCountdown(seconds) {
+    if (state.verificationCountdownInterval) clearInterval(state.verificationCountdownInterval);
+
+    let remaining = parseInt(seconds, 10) || 900;
+    const initial = remaining;
+
+    const tick = () => {
+        if (remaining <= 0) {
+            clearInterval(state.verificationCountdownInterval);
+            const textEl = document.getElementById('activeCountdownText');
+            if (textEl) textEl.textContent = '00:00 (Expired)';
+            return;
+        }
+
+        const mins = Math.floor(remaining / 60);
+        const secs = remaining % 60;
+        const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+        const textEl = document.getElementById('activeCountdownText');
+        const barEl = document.getElementById('activeCountdownBar');
+
+        if (textEl) textEl.textContent = formatted;
+        if (barEl) {
+            const pct = Math.max(0, Math.min(100, (remaining / initial) * 100));
+            barEl.style.width = `${pct}%`;
+            if (pct < 20) barEl.classList.add('warning');
+        }
+
+        remaining -= 1;
+    };
+
+    tick();
+    state.verificationCountdownInterval = setInterval(tick, 1000);
+}
+
+async function checkVerificationStatusManual(id) {
+    showToast('Checking status with US carrier network...', 'info');
+    try {
+        const res = await fetch(`/api/verification/order/${id}`);
+        const data = await res.json();
+        if (data.success && data.verification) {
+            state.activeVerification = data.verification;
+            renderActiveVerification(data.verification);
+            if (data.verification.otpCode) {
+                showToast(`Code is ready: ${data.verification.otpCode}`, 'success');
+            } else {
+                showToast('Still waiting for incoming SMS. Please make sure the code was sent in your app.', 'info');
+            }
+        }
+    } catch (e) {
+        showToast('Status check failed', 'error');
+    }
+}
+
+async function cancelActiveVerification(id, costFormatted) {
+    const confirmCancel = confirm(`Are you sure you want to cancel this verification number?\n\n100% of your payment (${costFormatted}) will be instantly refunded to your Olaslog wallet.`);
+    if (!confirmCancel) return;
+
+    try {
+        const res = await fetch(`/api/verification/order/${id}/cancel`, { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+            clearInterval(state.verificationPollInterval);
+            clearInterval(state.verificationCountdownInterval);
+            state.activeVerification = null;
+            renderActiveVerification(null);
+
+            if (state.currentUser && data.newBalance !== undefined) {
+                state.currentUser.balance = data.newBalance;
+                updateAuthUI();
+            } else {
+                await checkAuth();
+            }
+
+            showToast(data.message || 'Verification cancelled and refunded to your wallet!', 'success');
+            loadVerificationHistory();
+        } else {
+            showToast(data.error || 'Could not cancel verification', 'error');
+        }
+    } catch (e) {
+        showToast('Network error during cancellation', 'error');
+    }
+}
+
+function dismissActiveVerification() {
+    clearInterval(state.verificationPollInterval);
+    clearInterval(state.verificationCountdownInterval);
+    state.activeVerification = null;
+    const container = document.getElementById('verifyActiveContainer');
+    if (container) container.style.display = 'none';
+}
+
+async function loadVerificationHistory() {
+    const tbody = document.getElementById('verifyHistoryTableBody');
+    if (!tbody || !state.currentUser) return;
+
+    try {
+        const res = await fetch('/api/verification/history');
+        const data = await res.json();
+
+        if (data.success && Array.isArray(data.history)) {
+            if (data.history.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
+                            No previous verifications found. Request your first US number above!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = data.history.map(row => {
+                const dateStr = row.createdAt ? new Date(row.createdAt).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                }) : '—';
+
+                let statusBadge = '';
+                if (row.status === 'completed') {
+                    statusBadge = '<span class="pill" style="background: rgba(91,217,165,0.18); color: var(--teal); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Completed</span>';
+                } else if (row.status === 'refunded') {
+                    statusBadge = '<span class="pill" style="background: rgba(226,105,94,0.18); color: var(--danger); font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Refunded</span>';
+                } else if (row.status === 'timed_out') {
+                    statusBadge = '<span class="pill" style="background: rgba(245,158,11,0.18); color: #f59e0b; font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Timed Out</span>';
+                } else {
+                    statusBadge = '<span class="pill" style="background: rgba(59,130,246,0.18); color: #60a5fa; font-size: 0.72rem; padding: 2px 8px; border-radius: 99px;">● Active</span>';
+                }
+
+                const otpCell = row.otpCode ? `
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <span style="font-family: var(--font-mono); font-weight: 800; color: #ffffff; background: rgba(91,217,165,0.2); padding: 2px 6px; border-radius: 4px;">
+                            ${escapeHtml(row.otpCode)}
+                        </span>
+                        <button onclick="copyToClipboard('${escapeHtml(row.otpCode)}', 'Copied OTP!')" style="background: none; border: none; cursor: pointer; color: var(--teal); font-size: 0.9rem;" title="Copy OTP">📋</button>
+                    </div>
+                ` : '<span style="color: var(--text-dim);">—</span>';
+
+                const smsCell = row.smsReply ? `
+                    <span style="font-size: 0.78rem; color: var(--text-dim);" title="${escapeHtml(row.smsReply)}">
+                        ${escapeHtml(row.smsReply.substring(0, 36))}${row.smsReply.length > 36 ? '...' : ''}
+                    </span>
+                ` : '<span style="color: var(--text-dim);">No SMS</span>';
+
+                return `
+                    <tr>
+                        <td style="font-size: 0.8rem; color: var(--text-dim); white-space: nowrap;">${dateStr}</td>
+                        <td style="font-weight: 700;">${escapeHtml(row.service)}</td>
+                        <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+                            ${row.formattedNumber || row.phoneNumber || '—'}
+                            ${row.phoneNumber ? `<button onclick="copyToClipboard('${row.phoneNumber}', 'Copied phone number!')" style="background: none; border: none; cursor: pointer; color: var(--teal); font-size: 0.85rem; margin-left: 4px;">📋</button>` : ''}
+                        </td>
+                        <td>${statusBadge}</td>
+                        <td>${otpCell}</td>
+                        <td>${smsCell}</td>
+                        <td style="font-weight: 700; color: var(--teal); font-family: var(--display);">${row.costFormatted || '₦' + row.costNgn}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    } catch (e) {
+        console.warn('Error loading verification history:', e);
+    }
+}
+
+function copyToClipboard(text, successMsg = 'Copied to clipboard!') {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(successMsg, 'success');
+        }).catch(() => {
+            fallbackCopy(text, successMsg);
+        });
+    } else {
+        fallbackCopy(text, successMsg);
+    }
+}
+
+function fallbackCopy(text, successMsg) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        showToast(successMsg, 'success');
+    } catch (_) {}
+    document.body.removeChild(ta);
 }
 
 

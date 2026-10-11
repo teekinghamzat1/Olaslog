@@ -104,6 +104,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Sales Analytics
         </div>
+        <div class="sb-item" data-screen="verification" onclick="switchTab('verification', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          SMS Verification
+        </div>
       </nav>
 
       <div class="sb-foot">
@@ -144,6 +148,7 @@
         <button class="adm-tab-pill" data-screen="ledger" onclick="switchTab('ledger')">System Ledger</button>
         <button class="adm-tab-pill" data-screen="email" onclick="switchTab('email')">Alerts &amp; Email</button>
         <button class="adm-tab-pill" data-screen="analytics" onclick="switchTab('analytics')">Sales Analytics</button>
+        <button class="adm-tab-pill" data-screen="verification" onclick="switchTab('verification')">SMS Verification</button>
       </nav>
 
       <div class="content">
@@ -905,6 +910,146 @@
               <div id="anPaymentBreakdownContainer" style="display: flex; flex-direction: column; gap: 14px;">
                 <!-- Dynamically generated payment breakdown -->
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================================
+             PANEL 11: US PHONE VERIFICATION HUB
+             ============================================================== -->
+        <section class="screen-panel" id="panel-verification">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+            <div>
+              <div style="font-family: var(--display); font-size: 20px; font-weight: 700; margin-bottom: 6px;">⚡ US Phone &amp; SMS Verification Hub</div>
+              <div style="font-size: 13px; color: var(--text-dim); max-width: 680px; line-height: 1.5;">
+                Configure the USPhoneVerify integration, set USD to NGN exchange rate and reseller margins, view live provider balance, and manage client verification orders.
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn btn-outline btn-sm" onclick="loadAdminVerificationData()">🔄 Refresh Hub</button>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="kpi-grid" style="margin-bottom: 24px;">
+            <div class="kpi">
+              <div class="kpi-label">Provider Balance (USD)</div>
+              <div class="kpi-value" style="color: var(--teal);" id="admVerifyBalUsd">$0.00</div>
+              <div class="kpi-delta" id="admVerifyBalNgn">≈ ₦0</div>
+            </div>
+
+            <div class="kpi">
+              <div class="kpi-label">Total Verification Orders</div>
+              <div class="kpi-value" style="color: #60a5fa;" id="admVerifyTotalOrders">0</div>
+              <div class="kpi-delta">Platform requests</div>
+            </div>
+
+            <div class="kpi">
+              <div class="kpi-label">Completed &amp; Delivered</div>
+              <div class="kpi-value" style="color: var(--teal);" id="admVerifyCompletedOrders">0</div>
+              <div class="kpi-delta">Successful OTPs</div>
+            </div>
+
+            <div class="kpi">
+              <div class="kpi-label">Cancelled / Refunded</div>
+              <div class="kpi-value" style="color: var(--danger);" id="admVerifyRefundedOrders">0</div>
+              <div class="kpi-delta">Auto / manual refunds</div>
+            </div>
+          </div>
+
+          <!-- Configuration & Webhook Row -->
+          <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; margin-bottom: 24px;">
+            <!-- Settings Form Panel -->
+            <div class="panel" style="padding: 22px;">
+              <div style="font-size: 15px; font-weight: 700; margin-bottom: 14px;">⚙️ USPhoneVerify &amp; Pricing Configuration</div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                <div class="form-group">
+                  <label class="form-label">API Username / Email *</label>
+                  <input type="text" id="admVerifyUser" class="form-control" placeholder="e.g. your_email@domain.com">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">API Key *</label>
+                  <input type="password" id="admVerifyApiKey" class="form-control" placeholder="Enter new API key to update">
+                </div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 18px;">
+                <div class="form-group">
+                  <label class="form-label">USD Exchange Rate (₦) *</label>
+                  <input type="number" id="admVerifyUsdRate" class="form-control" value="1500" step="10">
+                  <span style="font-size: 11px; color: var(--text-faint);">1 USD in NGN</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Reseller Margin (%) *</label>
+                  <input type="number" id="admVerifyMargin" class="form-control" value="25" min="0" max="200">
+                  <span style="font-size: 11px; color: var(--text-faint);">Markup added</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Min Service Price (₦) *</label>
+                  <input type="number" id="admVerifyMinPrice" class="form-control" value="800" step="50">
+                  <span style="font-size: 11px; color: var(--text-faint);">Floor price</span>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-primary btn-sm" onclick="saveAdminVerificationSettings()" id="btnSaveVerifySettings">💾 Save Configuration</button>
+              </div>
+            </div>
+
+            <!-- Webhook & Status Guide Panel -->
+            <div class="panel" style="padding: 22px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="font-size: 15px; font-weight: 700; margin-bottom: 10px;">🔗 Instant Webhook Integration</div>
+                <div style="font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 14px;">
+                  Configure your webhook URL in your USPhoneVerify account under <strong>Account → Profile</strong> so incoming SMS verification codes and winning priority requests arrive in sub-second real time.
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Your Webhook URL</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" id="admVerifyWebhookUrl" class="form-control mono" style="font-size: 12px;" value="https://olaslog.com/api/verification/webhook" readonly>
+                    <button class="btn btn-outline btn-sm" onclick="copyAdminWebhookUrl()">📋 Copy</button>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background: rgba(91,217,165,0.08); border: 1px solid rgba(91,217,165,0.25); border-radius: 8px; padding: 12px; font-size: 12px; color: var(--text-dim);">
+                <strong style="color: var(--teal);">💡 Automatic 100% Refunds:</strong> If no SMS arrives during the 15-minute window or if the request times out, Olaslog automatically refunds the customer's wallet balance in full.
+              </div>
+            </div>
+          </div>
+
+          <!-- All Platform Verification Orders Table -->
+          <div class="panel" style="padding: 22px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <div style="font-size: 15px; font-weight: 700;">📜 Live Verification Orders Ledger</div>
+                <div style="font-size: 12px; color: var(--text-faint); margin-top: 2px;">Real-time feed of all SMS requests across all users</div>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="adm-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Date &bull; Time</th>
+                    <th>User</th>
+                    <th>Service</th>
+                    <th>Assigned Phone</th>
+                    <th>Status</th>
+                    <th>Received OTP</th>
+                    <th>Cost (₦)</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="admVerifyOrdersTableBody">
+                  <tr>
+                    <td colspan="9" style="text-align: center; padding: 24px; color: var(--text-faint);">Loading verification orders...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </section>

@@ -252,6 +252,50 @@ try {
     for (const t of defaultTemplates) {
         insertTemplate.run(t.key, t.name, t.subject, t.headline, t.body, t.extra);
     }
+
+    // Phone Verifications (USPhoneVerify) Migration
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS phone_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            request_id TEXT NOT NULL UNIQUE,
+            service_name TEXT NOT NULL,
+            phone_number TEXT,
+            state TEXT,
+            areacode TEXT,
+            carrier TEXT,
+            markup INTEGER DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0,
+            cost_ngn REAL NOT NULL,
+            wallet_ref TEXT,
+            status TEXT CHECK(status IN ('awaiting_mdn', 'reserved', 'completed', 'rejected', 'timed_out', 'refunded')) DEFAULT 'reserved',
+            sms_reply TEXT,
+            otp_code TEXT,
+            sms_sender TEXT,
+            sms_received_at DATETIME,
+            expires_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_phone_verifications_user ON phone_verifications(user_id, status);
+        CREATE INDEX IF NOT EXISTS idx_phone_verifications_req ON phone_verifications(request_id);
+
+        CREATE TABLE IF NOT EXISTS verification_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    // Seed default verification settings if not set
+    const insertSetting = db.prepare(`INSERT OR IGNORE INTO verification_settings (key, value) VALUES (?, ?)`);
+    insertSetting.run('usd_rate', '1500');
+    insertSetting.run('margin_percent', '25');
+    insertSetting.run('min_price_ngn', '800');
+    insertSetting.run('api_user', process.env.USPHONEVERIFY_USER || '');
+    insertSetting.run('api_key', process.env.USPHONEVERIFY_API_KEY || '');
+    insertSetting.run('webhook_enabled', '1');
 } catch (migErr) {
     console.warn('DB Migration notice:', migErr.message);
 }
