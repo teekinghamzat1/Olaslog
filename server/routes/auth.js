@@ -72,10 +72,17 @@ router.post('/login', (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
-            return res.status(400).json({ success: false, error: 'Email and password are required' });
+            return res.status(400).json({ success: false, error: 'Email/username and password are required' });
         }
 
-        const user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(email.toLowerCase().trim());
+        const identifier = String(email).toLowerCase().trim().replace(/^@/, '');
+        const user = db.prepare(`
+            SELECT * FROM users 
+            WHERE LOWER(email) = ? 
+               OR LOWER(telegram_username) = ? 
+               OR telegram_id = ?
+        `).get(identifier, identifier, identifier);
+
         if (!user) {
             return res.status(401).json({ success: false, error: 'Invalid email or password' });
         }

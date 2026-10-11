@@ -95,6 +95,10 @@ try {
     if (!userCols.includes('telegram_photo_url')) {
         db.exec("ALTER TABLE users ADD COLUMN telegram_photo_url TEXT;");
     }
+    if (!userCols.includes('has_set_password')) {
+        db.exec("ALTER TABLE users ADD COLUMN has_set_password INTEGER DEFAULT 0;");
+        console.log('🔄 Migrated users table: added has_set_password column');
+    }
 
     // BillStack Dedicated Virtual Bank Accounts table migration
     db.exec(`

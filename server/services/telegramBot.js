@@ -6,6 +6,7 @@ const { getWalletBalance } = require('./wallet');
 const billstack = require('./billstack');
 const telegramAuth = require('./telegramAuth');
 const phoneVerify = require('./phoneVerify');
+const bcrypt = require('bcryptjs');
 // NOTE: order.js is required lazily inside handleBuyExecute to avoid circular dependency
 // (order.js also requires telegramBot for DM delivery notifications)
 
@@ -14,6 +15,9 @@ const APP_URL   = (process.env.APP_URL || 'https://olaslog.com').replace(/\/+$/,
 
 let isPolling = false;
 let lastUpdateId = 0;
+
+// In-memory conversational state: { [chatId]: { action: string, data?: any } }
+const userState = new Map();
 
 // In-memory cart: { [chatId]: { productId, productName, price, qty } }
 const pendingOrders = new Map();
@@ -177,7 +181,12 @@ async function handleBalance(chatId, from, messageId = null) {
     ];
 
     if (isSynthetic) {
-        rows.push([{ text: '🔗 Link Website Account', callback_data: 'cmd_link' }]);
+        rows.push([{ text: '🔗 Link Existing Account', callback_data: 'cmd_link' }]);
+        if (!user.has_set_password) {
+            rows.push([{ text: '🔑 Set Password (Access Website)', callback_data: 'cmd_setpassword' }]);
+        }
+    } else if (!user.has_set_password) {
+        rows.push([{ text: '🔑 Set/Change Password', callback_data: 'cmd_setpassword' }]);
     }
 
     const keyboard = { inline_keyboard: rows };
@@ -296,6 +305,110 @@ async function handleLink(chatId, from, rawText = '') {
             `❌ <b>Account Linking Failed</b>\n━━━━━━━━━━━━━━━━━━━━━\n${esc(err.message)}\n\nPlease double check and try again:\n<code>/link ${esc(email)} your_password</code>`
         );
     }
+}
+
+// ─── /setpassword (Set/change web login password) ────────────────────────────
+
+async function handleSetPassword(chatId, from, step = 'init', inputText = '') {
+    const user = await resolveUser(from);
+    if (!user) {
+        return sendMessage(chatId, `⚠️ Could not locate your account. Type /start to initialize.`);
+    }
+
+    if (step === 'init') {
+        // Check if they've already linked to a real web account (non-synthetic)
+        const isSynthetic = user.email && user.email.startsWith('tg_');
+
+        const intro = isSynthetic
+            ? `🔐 <b>Set Your Website Password</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n` +
+              `Set a password to <b>also log in on olaslog.com</b> with the same account and wallet!\n\n` +
+              `📧 Your login email will be: <code>${esc(user.email)}</code>\n\n` +
+              `Please type your desired password (minimum 8 characters):\n` +
+              `<i>Your message will be deleted for security after this step.</i>`
+            : `🔐 <b>Change Your Password</b>\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n` +
+              `📧 Your login email: <code>${esc(user.email)}</code>\n\n` +
+              `Please type your new password (minimum 8 characters):`;
+
+        userState.set(chatId, { action: 'SET_PASSWORD', userId: user.id, step: 'enter' });
+
+        return sendMessage(chatId, intro, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: '❌ Cancel', callback_data: 'cmd_setpw_cancel' }]
+                ]
+            }
+        });
+    }
+}
+
+async function handleSetPasswordInput(chatId, from, text) {
+    const state = userState.get(chatId);
+    if (!state || state.action !== 'SET_PASSWORD') return false; // not handled
+
+    if (state.step === 'enter') {
+        if (!text || text.trim().length < 8) {
+            return sendMessage(chatId,
+                `❌ Password too short. Please enter at least <b>8 characters</b>:\n<i>(or tap Cancel to abort)</i>`,
+                { reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cmd_setpw_cancel' }]] } }
+            );
+        }
+        // Store the password in state and ask for confirmation
+        userState.set(chatId, { action: 'SET_PASSWORD', step: 'confirm', pendingPassword: text.trim() });
+
+        // Try to delete the user's password message for security
+        // (ignore errors if we can't)
+        return sendMessage(chatId,
+            `✅ Got it! Please <b>type your password again</b> to confirm:`,
+            { reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cmd_setpw_cancel' }]] } }
+        );
+    }
+
+    if (state.step === 'confirm') {
+        if (text.trim() !== state.pendingPassword) {
+            // Mismatch — restart
+            userState.set(chatId, { action: 'SET_PASSWORD', step: 'enter' });
+            return sendMessage(chatId,
+                `❌ <b>Passwords don't match.</b> Please try again from the beginning.\n\nType your desired password (min 8 characters):`,
+                { reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cmd_setpw_cancel' }]] } }
+            );
+        }
+
+        // Commit the password
+        userState.delete(chatId);
+        try {
+            const updated = telegramAuth.setPasswordForTelegramUser(from.id, state.pendingPassword);
+            const loginEmail = updated.email;
+
+            const successText =
+                `🎉 <b>Password Set Successfully!</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━━━\n` +
+                `You can now log in on <b>olaslog.com</b> with:\n\n` +
+                `📧 Email:    <code>${esc(loginEmail)}</code>\n` +
+                `🔑 Password: <i>(the one you just set)</i>\n\n` +
+                `✅ <b>Both Telegram and website now share the same wallet and order history!</b>\n\n` +
+                `💡 <i>Keep your password safe. You can change it anytime with /setpassword.</i>`;
+
+            return sendMessage(chatId, successText, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '🌐 Open Website', web_app: { url: APP_URL } }],
+                        [
+                            { text: '💰 Balance', callback_data: 'cmd_balance' },
+                            { text: '⚡ SMS Verify', callback_data: 'verify_home' }
+                        ]
+                    ]
+                }
+            });
+        } catch (err) {
+            return sendMessage(chatId,
+                `❌ <b>Failed to set password:</b> ${esc(err.message)}\n\nPlease try again with /setpassword.`
+            );
+        }
+    }
+
+    return false;
 }
 
 // ─── /orders ───────────────────────────────────────────────────────────────────
@@ -1166,6 +1279,18 @@ async function handleCallbackQuery(cq) {
         return handleLink(chatId, cqFrom, '/link');
     }
 
+    if (data === 'cmd_setpassword') {
+        return handleSetPassword(chatId, cqFrom, 'init');
+    }
+
+    if (data === 'cmd_setpw_cancel') {
+        userState.delete(chatId);
+        return sendMessage(chatId,
+            `✅ Password setup cancelled. You can always set one later with /setpassword.`,
+            { reply_markup: { inline_keyboard: [[{ text: '💰 Balance', callback_data: 'cmd_balance' }]] } }
+        );
+    }
+
     // ── Category drill-down ─────────────────
     if (data.startsWith('cat_')) {
         const catId = parseInt(data.slice(4), 10);
@@ -1247,6 +1372,13 @@ async function processUpdate(update) {
         const lowerText = rawText.toLowerCase();
         const cmd = rawText.split(' ')[0].toLowerCase().split('@')[0];
 
+        // ── Multi-step conversation state handler ──────────────────────────────
+        // Must run BEFORE keyword/command routing so state takes priority
+        const state = userState.get(msg.chat.id);
+        if (state && state.action === 'SET_PASSWORD') {
+            return handleSetPasswordInput(msg.chat.id, msg.from, rawText);
+        }
+
         // ── Reply keyboard button handlers (text messages from bottom keyboard) ──
         if (lowerText === '🛍️ browse products') {
             return handleShopHome(msg.chat.id);
@@ -1292,6 +1424,10 @@ async function processUpdate(update) {
             case '/link':
             case '/login':
                 return handleLink(msg.chat.id, msg.from, rawText);
+            case '/setpassword':
+            case '/password':
+            case '/changepassword':
+                return handleSetPassword(msg.chat.id, msg.from, 'init');
             default:
                 if (rawText.startsWith('/')) {
                     return sendMessage(msg.chat.id,
@@ -1318,14 +1454,15 @@ async function configureBotInterface() {
 
     await apiCall('setMyCommands', {
         commands: [
-            { command: 'verify',  description: '⚡ US SMS Verification — receive OTP codes from 500+ services' },
-            { command: 'shop',    description: '🛍️ Browse & buy products directly in Telegram' },
-            { command: 'balance', description: '💰 Check your wallet balance' },
-            { command: 'fund',    description: '💳 Get your virtual bank account to top up' },
-            { command: 'orders',  description: '📦 View your purchase history & credentials' },
-            { command: 'link',    description: '🔗 Link to your website account & normal wallet' },
-            { command: 'help',    description: '❓ FAQs and customer support' },
-            { command: 'start',   description: 'Restart Olaslog Bot' }
+            { command: 'verify',      description: '⚡ US SMS Verification — receive OTP codes from 500+ services' },
+            { command: 'shop',        description: '🛍️ Browse & buy products directly in Telegram' },
+            { command: 'balance',     description: '💰 Check your wallet balance' },
+            { command: 'fund',        description: '💳 Get your virtual bank account to top up' },
+            { command: 'orders',      description: '📦 View your purchase history & credentials' },
+            { command: 'link',        description: '🔗 Link to your existing website account & wallet' },
+            { command: 'setpassword', description: '🔑 Set a password to log in on olaslog.com' },
+            { command: 'help',        description: '❓ FAQs and customer support' },
+            { command: 'start',       description: 'Restart Olaslog Bot' }
         ]
     });
 

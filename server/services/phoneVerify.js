@@ -374,6 +374,16 @@ async function getVerificationStatus(id, userId = null) {
     let row = null;
     if (userId) {
         row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ? AND user_id = ?`).get(id, userId);
+        if (!row) {
+            const u = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(userId);
+            if (u && u.telegram_id) {
+                row = db.prepare(`
+                    SELECT pv.* FROM phone_verifications pv
+                    JOIN users u ON pv.user_id = u.id
+                    WHERE pv.id = ? AND u.telegram_id = ?
+                `).get(id, u.telegram_id);
+            }
+        }
     } else {
         row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(id);
     }
@@ -484,7 +494,17 @@ async function fetchAndStoreSMS(row) {
  * Rejects an MDN and instantly refunds 100% of the user's NGN wallet
  */
 async function cancelAndRefund(id, userId) {
-    const row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ? AND user_id = ?`).get(id, userId);
+    let row = db.prepare(`SELECT * FROM phone_verifications WHERE id = ? AND user_id = ?`).get(id, userId);
+    if (!row) {
+        const u = db.prepare('SELECT telegram_id FROM users WHERE id = ?').get(userId);
+        if (u && u.telegram_id) {
+            row = db.prepare(`
+                SELECT pv.* FROM phone_verifications pv
+                JOIN users u ON pv.user_id = u.id
+                WHERE pv.id = ? AND u.telegram_id = ?
+            `).get(id, u.telegram_id);
+        }
+    }
     if (!row) {
         throw new Error('Verification request not found');
     }
@@ -511,7 +531,8 @@ async function cancelAndRefund(id, userId) {
     }
 
     // Perform atomic refund in user's wallet
-    const currentBalance = getWalletBalance(userId);
+    const targetUserId = row.user_id;
+    const currentBalance = getWalletBalance(targetUserId);
     const refundAmount = row.cost_ngn;
     const newBalance = Math.round((currentBalance + refundAmount) * 100) / 100;
     const refundRef = `REF-VER-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -522,7 +543,7 @@ async function cancelAndRefund(id, userId) {
             (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
             VALUES (?, 'refund', ?, ?, ?, ?, 'successful', 'wallet_refund', ?, ?)
         `).run(
-            userId,
+            targetUserId,
             refundAmount,
             currentBalance,
             newBalance,

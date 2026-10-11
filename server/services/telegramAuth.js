@@ -208,8 +208,42 @@ function linkTelegramAccount(tgUser, email, password = null) {
     return db.prepare('SELECT * FROM users WHERE id = ?').get(targetUser.id);
 }
 
+/**
+ * Sets a password for a Telegram-linked user so they can also log in on the website.
+ *
+ * @param {string|number} telegramId - The Telegram user ID
+ * @param {string} newPassword - The plain-text password to set (will be hashed)
+ * @returns {object} Updated user DB record
+ */
+function setPasswordForTelegramUser(telegramId, newPassword) {
+    if (!telegramId) throw new Error('Telegram ID required.');
+    if (!newPassword || newPassword.trim().length < 8) {
+        throw new Error('Password must be at least 8 characters long.');
+    }
+
+    const tgIdStr = String(telegramId);
+    const user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(tgIdStr);
+    if (!user) {
+        throw new Error('Could not find your account. Please send /start first.');
+    }
+
+    const passwordHash = bcrypt.hashSync(newPassword.trim(), 10);
+
+    db.prepare(`
+        UPDATE users
+        SET password_hash = ?,
+            has_set_password = 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `).run(passwordHash, user.id);
+
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+}
+
 module.exports = {
     validateTelegramInitData,
     findOrCreateTelegramUser,
-    linkTelegramAccount
+    linkTelegramAccount,
+    setPasswordForTelegramUser
 };
+
