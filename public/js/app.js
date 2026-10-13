@@ -2803,8 +2803,8 @@ async function fetchVerificationServices() {
                 const defaultSvc = data.services.find(s => s.name === 'WhatsApp') || data.services[0];
                 selectVerifyService(defaultSvc.name);
             }
-        } else {
-            if (grid) grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-dim);">Could not load services</div>`;
+        } else if (grid) {
+            grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--text-dim);">Could not load services</div>`;
         }
     } catch (e) {
         console.error('Error fetching verification services:', e);
@@ -3114,11 +3114,11 @@ function renderActiveVerification(v) {
                     <button class="btn btn-secondary btn-sm" onclick="checkVerificationStatusManual(${v.id})">
                         🔄 Refresh Status
                     </button>
-                    ${!isCompleted ? `
+                    ${isCompleted ? '' : `
                         <button class="btn btn-danger btn-sm" onclick="cancelActiveVerification(${v.id}, '${v.costFormatted || '₦' + v.costNgn}')">
                             ✖ Cancel & 100% Refund
                         </button>
-                    ` : ''}
+                    `}
                 </div>
 
                 ${isCompleted ? `
