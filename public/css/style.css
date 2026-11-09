@@ -3849,3 +3849,43 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
  #view-home .home-how-icon{width:44px;height:44px;font-size:1.3rem}
  #view-home .home-how-number{width:26px;height:26px}
 }
+
+
+/* Olaslog mobile navigation drawer refresh */
+.mobile-sidebar{width:min(390px,88vw);max-width:88vw;padding-bottom:env(safe-area-inset-bottom,0px);background:#fff!important;border:0!important;border-radius:0 24px 24px 0;box-shadow:22px 0 60px rgba(7,38,24,.22)!important;overflow:hidden}
+.mobile-sidebar-head{min-height:88px;padding:18px 22px;border-bottom:1px solid #edf2ee;background:linear-gradient(135deg,#fff 58%,#effcf3 100%)}
+.mobile-sidebar-head .brand-logo{gap:12px;font-size:1.7rem;font-weight:850;color:#102e22}
+.mobile-sidebar-head .brand-mark-img{width:42px!important;height:42px!important;box-shadow:0 7px 18px rgba(7,126,61,.18)}
+.mobile-sidebar .drawer-close-btn{display:grid;place-items:center;width:42px;height:42px;border:1px solid #e1e8e3;border-radius:50%;background:#fff;color:#536159;font-size:27px;line-height:1}
+.mobile-sidebar-user{margin:14px 16px 10px;padding:17px 16px!important;gap:13px!important;border:0!important;border-radius:18px;background:linear-gradient(120deg,#087c43,#075c35)!important;color:#fff;box-shadow:0 9px 22px rgba(7,102,55,.16)}
+.mobile-sidebar-user .avatar{display:grid;place-items:center;flex:0 0 54px;width:54px;height:54px;border:2px solid rgba(255,255,255,.55);border-radius:50%;background:#e5faed;color:#075b35;font-size:1.2rem;font-weight:850}
+.mobile-sidebar-user-copy{min-width:0;flex:1}
+.mobile-sidebar-user-label{margin-bottom:2px;color:#b9ebcc;font-size:.62rem;font-weight:850;letter-spacing:.12em}
+.mobile-sidebar-user-name{overflow:hidden;color:#fff;font-size:1rem;font-weight:800;text-overflow:ellipsis;white-space:nowrap}
+.mobile-sidebar-balance{margin-top:3px;color:#fff;font-size:.94rem;font-weight:850}
+.mobile-sidebar-balance span{margin-right:5px}
+.mobile-sidebar-user-chevron{color:#fff;font-size:2rem;line-height:1}
+.mobile-sidebar-guest{margin:12px 16px}
+.mobile-nav-list{flex:1;min-height:0;padding:10px 16px 14px;gap:5px;overflow-y:auto}
+.mobile-nav-item{display:flex;align-items:center;gap:12px;min-height:57px;padding:8px 10px;border:1px solid transparent;border-radius:15px;color:#27362e!important;font-size:.96rem;font-weight:700;text-decoration:none}
+.mobile-nav-item:hover,.mobile-nav-item.active{background:#e3f8e9!important;color:#075d36!important}
+.mobile-nav-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:15px;background:#f0f6f2;color:#07813e;font-size:1.55rem;font-weight:850}
+.mobile-nav-icon-gold{color:#e9a300}
+.mobile-nav-label{min-width:0;flex:1}
+.mobile-nav-chevron{margin-left:auto;color:#738078;font-size:1.8rem;font-weight:400;line-height:1}
+.mobile-nav-item.admin-only[style*="display: block"]{display:flex!important}
+.mobile-nav-item.admin-only{margin-top:7px;padding-top:13px;border-top:1px solid #e5ece7;border-radius:0;color:#145b38!important}
+.mobile-nav-item.admin-only .mobile-nav-icon{background:#edf8f0;color:#087a3d}
+.mobile-nav-admin-tag{padding:4px 9px;border-radius:999px;background:#e4f8e9;color:#087a3d;font-size:.66rem;font-weight:900;letter-spacing:.05em}
+.mobile-sidebar-promo{display:flex;align-items:center;gap:12px;margin:0 16px 12px;padding:14px;border:1px solid #e0f2e6;border-radius:17px;background:linear-gradient(120deg,#effcf3,#e8f8ee)}
+.mobile-sidebar-promo-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:14px;background:#d3f5dd;font-size:1.4rem}
+.mobile-sidebar-promo div{display:flex;min-width:0;flex-direction:column;gap:3px}
+.mobile-sidebar-promo strong{color:#14583a;font-size:.86rem;line-height:1.3}
+.mobile-sidebar-promo div span{color:#64736a;font-size:.74rem;line-height:1.4}
+.mobile-sidebar-foot{padding:10px 16px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid #edf1ee;background:#fff}
+.mobile-sidebar-theme-row{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 10px;color:#69756e;font-size:.85rem;font-weight:650}
+.mobile-sidebar-logout{display:flex!important;align-items:center;justify-content:center;gap:9px;min-height:52px;margin-top:4px!important;border:1px solid #f2c9c7!important;border-radius:14px!important;background:#fff0ef!important;color:#b83e39!important;font-size:.96rem;font-weight:850}
+.mobile-sidebar-logout:hover{background:#ffe5e3!important}
+.mobile-drawer-overlay{background:rgba(7,19,13,.58);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+@media(max-height:720px){.mobile-sidebar-head{min-height:72px;padding:12px 18px}.mobile-sidebar-user{margin:10px 14px 6px;padding:12px!important}.mobile-sidebar-user .avatar{width:46px;height:46px;flex-basis:46px}.mobile-nav-list{padding-top:6px;gap:2px}.mobile-nav-item{min-height:49px}.mobile-nav-icon{width:41px;height:41px;flex-basis:41px}.mobile-sidebar-promo{margin-bottom:7px;padding:10px}.mobile-sidebar-foot{padding-top:7px}}
+@media(min-width:901px){.mobile-sidebar{width:360px}}
