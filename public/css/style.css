@@ -3638,3 +3638,68 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
         transform: none;
     }
 }
+
+
+/* Olaslog wallet funding redesign — limited to the wallet view */
+#view-wallet { --wallet-green:#078447; --wallet-green-dark:#075b35; }
+#view-wallet > div:first-child { margin-bottom:1.5rem !important; }
+#view-wallet > div:first-child h2 { color:#102d22; font-size:clamp(2rem,5vw,2.8rem) !important; letter-spacing:-.045em; }
+#view-wallet > div:first-child p { max-width:680px; font-size:1.05rem; line-height:1.55; }
+#view-wallet .wallet-grid { grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr) !important; gap:1.25rem !important; align-items:stretch; }
+#view-wallet #vbaCard { padding:clamp(1rem,2.5vw,1.6rem); border:1px solid #dceee4; border-radius:24px; box-shadow:0 12px 34px rgba(9,83,48,.07); background:linear-gradient(145deg,#fff,#fafffc); min-width:0; }
+#view-wallet .wallet-funding-heading { display:flex; align-items:center; gap:1rem; margin-bottom:1.25rem; }
+#view-wallet .wallet-funding-icon { width:58px; height:58px; flex:0 0 58px; display:grid; place-items:center; border-radius:18px; background:#e3f8eb; color:#087b43; font-size:1.8rem; }
+#view-wallet .wallet-funding-heading h3 { margin:0 0 .2rem; color:#123328; font-size:clamp(1.15rem,2vw,1.45rem); font-weight:850; letter-spacing:-.025em; }
+#view-wallet .wallet-funding-heading p { margin:0; color:#66736f; font-size:.9rem; line-height:1.4; }
+#view-wallet .wallet-credit-info { padding:1rem 1.1rem; margin-bottom:1.25rem; border:1px solid #cdeedd; border-radius:18px; background:linear-gradient(115deg,#effbf4,#f9fffb); }
+#view-wallet .wallet-credit-info > div:first-child { color:#087b43 !important; font-size:1rem !important; font-weight:850 !important; margin-bottom:.45rem !important; }
+#view-wallet .wallet-credit-info > div:last-child { color:#59665f !important; font-size:.9rem !important; line-height:1.6 !important; }
+#view-wallet .wallet-generate-form { padding:1.1rem; border:1px solid #dceee4; border-radius:18px; background:#fbfefc; }
+#view-wallet .wallet-generate-form .form-label { display:block; margin-bottom:.5rem; color:#344b40; font-size:.9rem !important; font-weight:750 !important; }
+#view-wallet .wallet-generate-form .form-control { width:100%; min-height:54px; border:1px solid #d6e5dc; border-radius:13px; background:#fff; color:#17372a; font-size:1rem; }
+#view-wallet .wallet-generate-form .form-control:focus { border-color:#16a05b; box-shadow:0 0 0 3px rgba(22,160,91,.12); outline:0; }
+#view-wallet .wallet-generate-form small { color:#718078 !important; line-height:1.45; }
+#view-wallet .wallet-palmpay-fields { border-color:#cfe6d8 !important; border-radius:14px !important; background:#f3fbf6 !important; }
+#view-wallet .wallet-generate-btn { width:100%; min-height:56px; margin-top:.25rem; border:0; border-radius:14px; background:linear-gradient(120deg,#12a653,#087b43); box-shadow:0 9px 20px rgba(8,123,67,.17); font-size:1rem; font-weight:800; }
+#view-wallet .wallet-generate-btn:disabled { opacity:.7; }
+#view-wallet .wallet-active-flow { min-width:0; }
+#view-wallet .wallet-active-heading { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; }
+#view-wallet .vba-status-pulse { display:inline-flex; align-items:center; gap:.5rem; padding:.55rem .85rem; border:1px solid #c6eed8; border-radius:999px; background:#e9fbf0; color:#087b43; font-size:.85rem; font-weight:800; }
+#view-wallet .wallet-bank-account-card { padding:1.2rem; border:1px solid #dce8e1; border-radius:20px; background:linear-gradient(145deg,#fff,#f7fcf9); box-shadow:0 8px 24px rgba(13,67,42,.055); }
+#view-wallet .wallet-bank-account-card > div:first-child { flex-wrap:wrap; gap:.65rem; }
+#view-wallet .wallet-bank-account-card > div:first-child > div { font-size:1.2rem !important; font-weight:850 !important; }
+#view-wallet .wallet-bank-account-card > div:nth-child(2) { color:#718078 !important; letter-spacing:.09em; font-weight:750 !important; }
+#view-wallet .wallet-account-name-row { display:flex; justify-content:space-between; align-items:center; gap:.6rem; margin:0 0 1rem; color:#14382a; font-size:1rem; overflow-wrap:anywhere; }
+#view-wallet .wallet-account-name-row strong { min-width:0; overflow-wrap:anywhere; }
+#view-wallet .wallet-copy-name { flex:0 0 auto; padding:.5rem .75rem; border:1px solid #d5eadc; border-radius:10px; background:#effaf3; color:#087b43; font-size:.78rem; font-weight:750; }
+#view-wallet .wallet-bank-account-card > div:nth-child(4) { color:#718078 !important; letter-spacing:.09em; font-weight:750 !important; }
+#view-wallet .vba-num-box { display:flex; align-items:center; gap:.7rem; min-width:0; padding:.65rem; border:1px solid #dceee4; border-radius:15px; background:#f0fbf4; }
+#view-wallet .vba-account-digits { min-width:0; flex:1 1 auto; color:#087b43; font-size:clamp(1.1rem,3.3vw,1.65rem); font-weight:900; letter-spacing:.09em; overflow-wrap:anywhere; }
+#view-wallet .vba-copy-btn { flex:0 0 auto; min-height:46px; padding:.65rem .85rem; border:0; border-radius:12px; background:linear-gradient(120deg,#12a653,#087b43); color:#fff; font-size:.82rem; font-weight:800; }
+#view-wallet .vba-instruction-step { display:flex; align-items:flex-start; gap:.7rem; margin:.7rem 0; color:#59665f; font-size:.86rem; line-height:1.5; }
+#view-wallet .vba-step-icon { flex:0 0 25px; width:25px; height:25px; display:grid; place-items:center; border-radius:50%; background:#e1f7e9; color:#087b43; font-size:.78rem; font-weight:850; }
+#view-wallet .wallet-alternative-bank-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.75rem; margin-top:1rem; color:#718078; font-size:.82rem; }
+#view-wallet .wallet-alternative-bank-row .btn { border-radius:12px; font-weight:750; }
+#view-wallet .wallet-grid > .card:nth-child(2) { border-radius:22px; padding:1.4rem; }
+#view-wallet .wallet-grid > .card:nth-child(2) #walletPageBalance { font-size:clamp(2rem,5vw,3rem); }
+#view-wallet > .card:last-child { border:1px solid #dceee4; border-radius:22px; box-shadow:0 8px 26px rgba(9,83,48,.045); }
+@media(max-width:900px) {
+ #view-wallet .wallet-grid { grid-template-columns:minmax(0,1fr) !important; }
+}
+@media(max-width:600px) {
+ #view-wallet > div:first-child { margin-bottom:1.1rem !important; }
+ #view-wallet > div:first-child h2 { font-size:2rem !important; }
+ #view-wallet > div:first-child p { font-size:.95rem; }
+ #view-wallet #vbaCard { padding:1rem; border-radius:20px; }
+ #view-wallet .wallet-funding-heading { align-items:flex-start; gap:.75rem; }
+ #view-wallet .wallet-funding-icon { width:50px; height:50px; flex-basis:50px; border-radius:15px; }
+ #view-wallet .wallet-generate-form { padding:.9rem; }
+ #view-wallet .wallet-bank-account-card { padding:.9rem; }
+ #view-wallet .vba-num-box { flex-wrap:wrap; }
+ #view-wallet .vba-account-digits { width:100%; text-align:center; }
+ #view-wallet .vba-copy-btn { width:100%; }
+ #view-wallet .wallet-active-heading { align-items:flex-start; flex-direction:column; }
+ #view-wallet .wallet-alternative-bank-row { align-items:stretch; flex-direction:column; }
+ #view-wallet .wallet-alternative-bank-row .btn { width:100%; }
+ #view-wallet .wallet-grid > .card:nth-child(2) { padding:1.1rem; }
+}
