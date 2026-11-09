@@ -64,7 +64,7 @@
     <link rel="shortcut icon" href="/favicon.ico">
 
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="/css/style.css?v=20261109-how-works-fix2">
+    <link rel="stylesheet" href="/css/style.css?v=mobile-drawer-20261109">
 
     <!-- JSON-LD Structured Data for Search Engines -->
     <script type=?v=20261109-how-works-redesign"application/ld+json">
@@ -258,28 +258,27 @@
 
     <!-- Mobile Slide-Out Sidebar Drawer -->
     <div class="mobile-drawer-overlay" id="mobileDrawerOverlay" onclick="toggleMobileDrawer(false)"></div>
-    <aside class="mobile-sidebar" id="mobileSidebar">
+    <aside class="mobile-sidebar" id="mobileSidebar" aria-label="Main navigation">
         <div class="mobile-sidebar-head">
             <div class="brand-logo" onclick="navigateTo('home'); toggleMobileDrawer(false);" title="Olaslog Home">
                 <img src="/assets/olaslog-icon-app.svg" alt="Olaslog Icon" class="brand-mark-img"
-                    style="width: 32px; height: 32px; border-radius: 8px;">
+                    style="width: 42px; height: 42px; border-radius: 13px;">
                 <div>Olas<span class="brand-highlight">log</span></div>
             </div>
-            <button class="drawer-close-btn" onclick="toggleMobileDrawer(false)">&times;</button>
+            <button class="drawer-close-btn" onclick="toggleMobileDrawer(false)" aria-label="Close navigation menu">&times;</button>
         </div>
 
         <div class="mobile-sidebar-user auth-only" style="display: none;">
             <div class="avatar" id="mobUserAvatar">U</div>
-            <div style="min-width: 0;">
-                <div id="mobUserName"
-                    style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    Customer</div>
-                <div style="font-size: 11.5px; color: var(--teal); font-weight: 600;">₦<span
-                        id="mobUserBalance">0.00</span></div>
+            <div class="mobile-sidebar-user-copy">
+                <div class="mobile-sidebar-user-label">SIGNED IN AS</div>
+                <div id="mobUserName" class="mobile-sidebar-user-name">Customer</div>
+                <div class="mobile-sidebar-balance"><span aria-hidden="true">▣</span> ₦<span id="mobUserBalance">0.00</span></div>
             </div>
+            <span class="mobile-sidebar-user-chevron" aria-hidden="true">›</span>
         </div>
 
-        <div class="guest-only" style="padding: 16px; display: flex; gap: 8px;">
+        <div class="guest-only mobile-sidebar-guest" style="padding: 16px; display: flex; gap: 8px;">
             <button class="btn btn-primary btn-sm" style="flex: 1;"
                 onclick="openAuthModal('login'); toggleMobileDrawer(false);">Sign In</button>
             <button class="btn btn-secondary btn-sm" style="flex: 1;"
@@ -288,32 +287,37 @@
 
         <nav class="mobile-nav-list">
             <a class="mobile-nav-item" onclick="navigateTo('home'); toggleMobileDrawer(false);">
-                <span>🏠</span> Home
+                <span class="mobile-nav-icon" aria-hidden="true">⌂</span><span class="mobile-nav-label">Home</span>
             </a>
             <a class="mobile-nav-item" onclick="navigateTo('shop'); toggleMobileDrawer(false);">
-                <span>🛍️</span> Shop Catalog
+                <span class="mobile-nav-icon" aria-hidden="true">🛒</span><span class="mobile-nav-label">Shop Catalog</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
             <a class="mobile-nav-item" onclick="navigateTo('verification'); toggleMobileDrawer(false);">
-                <span>⚡</span> SMS Verification
+                <span class="mobile-nav-icon mobile-nav-icon-gold" aria-hidden="true">ϟ</span><span class="mobile-nav-label">SMS Verification</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
             <a class="mobile-nav-item auth-only" onclick="navigateTo('dashboard'); toggleMobileDrawer(false);">
-                <span>📊</span> Dashboard
+                <span class="mobile-nav-icon" aria-hidden="true">▥</span><span class="mobile-nav-label">Dashboard</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
             <a class="mobile-nav-item auth-only" onclick="navigateTo('orders'); toggleMobileDrawer(false);">
-                <span>📦</span> Orders &amp; History
+                <span class="mobile-nav-icon" aria-hidden="true">▣</span><span class="mobile-nav-label">Orders &amp; History</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
             <a class="mobile-nav-item auth-only" onclick="navigateTo('wallet'); toggleMobileDrawer(false);">
-                <span>💳</span> Wallet &amp; Top-up
+                <span class="mobile-nav-icon" aria-hidden="true">▤</span><span class="mobile-nav-label">Wallet &amp; Top-up</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
             <a class="mobile-nav-item admin-only" href="/admin" target="_blank"
                 style="color: var(--gold); display: none;">
-                <span>🛡️</span> Admin Console
+                <span class="mobile-nav-icon" aria-hidden="true">⬡</span><span class="mobile-nav-label">Admin Console</span><span class="mobile-nav-admin-tag">ADMIN</span><span class="mobile-nav-chevron" aria-hidden="true">›</span>
             </a>
         </nav>
 
+        <div class="mobile-sidebar-promo">
+            <span class="mobile-sidebar-promo-icon" aria-hidden="true">🔐</span>
+            <div><strong>Buy · Verify · Receive Instantly</strong><span>Digital accounts, virtual numbers &amp; subscriptions.</span></div>
+        </div>
+
         <div class="mobile-sidebar-foot">
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0 10px;">
-                <span style="font-size: 13.5px; font-weight: 500; color: var(--text-dim);">Theme Mode</span>
+            <div class="mobile-sidebar-theme-row">
+                <span>Theme mode</span>
                 <button class="theme-switch" onclick="toggleTheme()" aria-label="Toggle light and dark mode"
                     title="Toggle Light / Dark Mode">
                     <div class="theme-switch-track">
@@ -324,9 +328,9 @@
                     </div>
                 </button>
             </div>
-            <button class="btn btn-danger btn-sm auth-only" style="width: 100%; margin-top: 6px; display: none;"
+            <button class="btn btn-danger btn-sm auth-only mobile-sidebar-logout" style="width: 100%; margin-top: 6px; display: none;"
                 onclick="logoutUser(); toggleMobileDrawer(false);">
-                Log Out
+                <span aria-hidden="true">⇥</span> Log Out
             </button>
         </div>
     </aside>
