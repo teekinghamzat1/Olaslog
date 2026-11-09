@@ -3449,3 +3449,192 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     margin: .35rem 0 0;
     font-size: .84rem;
 }
+
+
+/* ==========================================================
+   SHOP PRODUCT CARD — Olaslog premium product presentation
+   Scoped to the shop catalog only; home cards and other views
+   retain their existing presentation and behaviour.
+   ========================================================== */
+#shopProductsGrid .pcard {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    isolation: isolate;
+    background: linear-gradient(145deg, #ffffff 0%, #fbfffc 100%) !important;
+    border: 1px solid #d8eee1 !important;
+    border-radius: 24px !important;
+    box-shadow: 0 12px 34px rgba(13, 91, 51, .075), 0 2px 8px rgba(14, 45, 32, .035) !important;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+#shopProductsGrid .pcard:hover {
+    transform: translateY(-3px);
+    border-color: #a8ddbd !important;
+    box-shadow: 0 18px 40px rgba(13, 91, 51, .12) !important;
+}
+#shopProductsGrid .pcard-top {
+    height: 7px;
+    flex: 0 0 7px;
+    background: linear-gradient(90deg, #16a34a 0%, #48d18a 52%, #087b43 100%) !important;
+}
+#shopProductsGrid .pcard-body {
+    padding: 22px 22px 20px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+#shopProductsGrid .pcard-body > div:first-child {
+    align-items: center !important;
+    margin-bottom: 18px !important;
+}
+#shopProductsGrid .pcard-icon {
+    width: 68px;
+    height: 68px;
+    border-radius: 19px;
+    margin: 0;
+    background: #eef8f1 !important;
+    color: #087b43 !important;
+    box-shadow: inset 0 0 0 1px rgba(8,123,67,.07);
+}
+#shopProductsGrid .pcard-icon img {
+    width: 42px !important;
+    height: 42px !important;
+}
+#shopProductsGrid .pcard-body .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 12px !important;
+    font-weight: 700;
+    white-space: nowrap;
+}
+#shopProductsGrid .pcard-body > div:nth-child(2) {
+    color: #087b43 !important;
+    font-family: var(--sans) !important;
+    font-size: 12px !important;
+    font-weight: 800;
+    letter-spacing: .11em;
+    line-height: 1.4;
+    margin-bottom: 7px !important;
+}
+#shopProductsGrid .pcard-name {
+    color: #10271e;
+    font-family: var(--sans);
+    font-size: clamp(19px, 2.2vw, 24px);
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: -.025em;
+    overflow-wrap: anywhere;
+    margin-bottom: 12px;
+}
+#shopProductsGrid .pcard-desc {
+    color: #59665f;
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 18px;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+#shopProductsGrid .pcard-price {
+    display: flex;
+    align-items: center;
+    min-height: 82px;
+    padding: 14px 16px;
+    margin: 0 0 17px;
+    border: 1px solid #dceee4;
+    border-radius: 17px;
+    background: linear-gradient(110deg, #f0faf4, #ffffff);
+    color: #087b43;
+    font-family: var(--sans);
+    font-size: clamp(25px, 3vw, 34px);
+    font-weight: 900;
+    letter-spacing: -.035em;
+}
+#shopProductsGrid .pcard-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, .85fr) minmax(0, 1.35fr);
+    gap: 9px;
+    width: 100%;
+    margin-top: auto;
+}
+#shopProductsGrid .pcard-actions .btn {
+    min-width: 0;
+    min-height: 50px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 750;
+    white-space: nowrap;
+    justify-content: center;
+}
+#shopProductsGrid .pcard-actions .btn-outline {
+    background: #f2f5f4;
+    border-color: #edf0ee;
+    color: #172b22;
+}
+#shopProductsGrid .pcard-actions .btn-primary {
+    background: linear-gradient(135deg, #16a34a, #087b43);
+    border-color: #0b8c47;
+    box-shadow: 0 8px 18px rgba(8,123,67,.18);
+}
+@media (max-width: 600px) {
+    #shopProductsGrid .pcard {
+        border-radius: 21px !important;
+    }
+    #shopProductsGrid .pcard-body {
+        padding: 18px 16px 17px;
+    }
+    #shopProductsGrid .pcard-icon {
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+    }
+    #shopProductsGrid .pcard-icon img {
+        width: 36px !important;
+        height: 36px !important;
+    }
+    #shopProductsGrid .pcard-name {
+        font-size: 20px;
+    }
+    #shopProductsGrid .pcard-desc {
+        font-size: 13.5px;
+        -webkit-line-clamp: 5;
+        line-clamp: 5;
+    }
+    #shopProductsGrid .pcard-price {
+        min-height: 72px;
+        font-size: 29px;
+    }
+    #shopProductsGrid .pcard-actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    #shopProductsGrid .pcard-actions .btn {
+        min-height: 48px;
+        font-size: 13px;
+    }
+    #shopProductsGrid .pcard-actions .btn-primary {
+        grid-column: 1 / -1;
+        min-height: 54px;
+        font-size: 15px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    #shopProductsGrid .pcard {
+        transition: none;
+    }
+    #shopProductsGrid .pcard:hover {
+        transform: none;
+    }
+}
