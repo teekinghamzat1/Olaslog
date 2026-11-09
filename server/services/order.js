@@ -55,6 +55,23 @@ async function checkoutCart(userId, items) {
 
     totalCost = Math.round(totalCost * 100) / 100;
 
+    // Until supplier idempotency/reconciliation is available, allow at most one
+    // supplier-backed line per checkout. This prevents a later supplier failure
+    // from leaving earlier remote orders fulfilled but absent from our DB.
+    const supplierLineCount = validatedItems.filter(item =>
+        item.product.sujan_product_id !== null
+        && item.product.sujan_product_id !== undefined
+        && Number(item.product.sujan_product_id) > 0
+    ).length;
+
+    if (supplierLineCount > 0 && validatedItems.length > 1) {
+        const err = new Error(
+            'Please purchase supplier-fulfilled products one at a time for now. Local-stock products can still be checked out together.'
+        );
+        err.code = 'CHECKOUT_SPLIT_REQUIRED';
+        throw err;
+    }
+
     // Step 2: Check wallet balance
     const currentBalance = getWalletBalance(userId);
     if (currentBalance < totalCost) {
