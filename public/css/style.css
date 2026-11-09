@@ -3362,3 +3362,90 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
         font-size: .84rem !important;
     }
 }
+
+
+/* Native service dropdown: compact, accessible and mobile friendly */
+.verify-page .verify-services-grid {
+    display: block !important;
+    width: 100%;
+    max-width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+}
+.verify-page .verify-dropdown-label {
+    display: block;
+    margin: .35rem 0 .55rem;
+    color: var(--text,#10251f);
+    font-size: .84rem;
+    font-weight: 750;
+}
+.verify-page .verify-dropdown-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+.verify-page .verify-dropdown-icon {
+    position: absolute;
+    left: 1rem;
+    z-index: 1;
+    pointer-events: none;
+    font-size: 1.1rem;
+}
+.verify-page .verify-service-select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 58px;
+    appearance: none;
+    -webkit-appearance: none;
+    padding: .85rem 3rem .85rem 3rem;
+    border: 1px solid #b9dfc8;
+    border-radius: 14px;
+    outline: none;
+    background: #f5fff8;
+    color: #15372a;
+    font: inherit;
+    font-size: .92rem;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    box-shadow: 0 4px 14px rgba(8,123,62,.06);
+}
+.verify-page .verify-service-select:focus {
+    border-color: #078447;
+    box-shadow: 0 0 0 3px rgba(8,132,71,.13);
+}
+.verify-page .verify-service-select option {
+    color: #15372a;
+    background: #fff;
+    font-size: 16px;
+}
+.verify-page .verify-dropdown-chevron {
+    position: absolute;
+    right: 1rem;
+    pointer-events: none;
+    color: #087b3e;
+    font-size: 1.4rem;
+}
+.verify-page .verify-dropdown-hint {
+    margin: .55rem 0 0;
+    color: var(--text-dim,#66736f);
+    font-size: .76rem;
+}
+.verify-page .verify-no-services {
+    padding: 1.2rem;
+    border: 1px dashed #c7dfd0;
+    border-radius: 13px;
+    color: var(--text-dim,#66736f);
+    text-align: center;
+}
+.verify-page .verify-no-services span {
+    font-size: 1.5rem;
+}
+.verify-page .verify-no-services p {
+    margin: .35rem 0 0;
+    font-size: .84rem;
+}
