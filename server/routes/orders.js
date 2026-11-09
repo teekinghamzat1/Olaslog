@@ -234,17 +234,19 @@ router.post('/webhook', (req, res) => {
         }
 
         const processWebhook = db.transaction(() => {
-            for (const item of orderData.items) {
+            // Supplier-backed checkout is currently restricted to one product line,
+            // so each credential in this event belongs to that order item.
+            const orderItem = db.prepare(
+                'SELECT id, product_id FROM order_items WHERE order_id = ? LIMIT 1'
+            ).get(localOrder.id);
+            if (!orderItem) throw new Error('Local order has no matching order item');
+
+            for (let index = 0; index < orderData.items.length; index++) {
+                const item = orderData.items[index];
                 const rawCred = item.credential || item.key;
                 if (!rawCred) throw new Error('Completed supplier item is missing its credential');
 
-                const orderItem = db.prepare(
-                    'SELECT oi.id, oi.product_id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND (p.sujan_product_id = ? OR p.id = ?) LIMIT 1'
-                ).get(localOrder.id, Number(item.product_id), Number(item.product_id));
-
-                if (!orderItem) throw new Error('Supplier item could not be matched to a local order item');
-
-                const supplierItemId = String(item.id ?? (sujanOrderId + '-' + orderItem.id));
+                const supplierItemId = String(item.id ?? (sujanOrderId + '-' + (index + 1)));
                 const existingCred = db.prepare(
                     'SELECT id FROM delivered_credentials WHERE order_id = ? AND sujan_item_id = ?'
                 ).get(localOrder.id, supplierItemId);
