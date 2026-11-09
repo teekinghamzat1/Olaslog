@@ -77,6 +77,17 @@ async function run() {
     assert.strictEqual(getWalletBalance(customer.id), startingBalance - providerProduct.price);
     console.log('PASS: mocked provider checkout, credential delivery, and wallet debit');
 
+    const callsBeforeMixedCart = providerCalls;
+    await assert.rejects(
+        checkoutCart(customer.id, [
+            { productId: providerProduct.id, quantity: 1 },
+            { productId: createProduct('Local Basket Item', 'offline-local-basket', 100).id, quantity: 1 }
+        ]),
+        error => error.code === 'CHECKOUT_SPLIT_REQUIRED'
+    );
+    assert.strictEqual(providerCalls, callsBeforeMixedCart, 'Mixed supplier/local cart must be rejected before supplier calls');
+    console.log('PASS: mixed supplier/local cart is rejected before any supplier request');
+
     const expensiveProduct = createProduct('Too Expensive', 'offline-too-expensive', 50000);
     let callsBeforeInsufficientFunds = providerCalls;
     await assert.rejects(
