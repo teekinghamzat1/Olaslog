@@ -67,7 +67,7 @@
     <link rel="stylesheet" href="/css/style.css?v=20261109-why-olaslog-refresh">
 
     <!-- JSON-LD Structured Data for Search Engines -->
-    <script type="application/ld+json">
+    <script type=?v=20261109-how-works-redesign"application/ld+json">
     {
       "@context": "https://schema.org",
       "@graph": [
@@ -436,40 +436,29 @@
                 </div>
             </div>
 
-            <!-- How It Works Section -->
-            <div class="card" style="margin-bottom: 4rem; text-align: center; padding: 3rem 2rem;">
-                <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem;">How Olaslog Works</h2>
-                <p style="color: var(--text-secondary); max-width: 600px; margin: 0 auto 2.5rem;">Zero manual
-                    fulfillment delays. Three seamless steps to receive your credentials.</p>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
-                    <div
-                        style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
-                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">🏦</div>
-                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">1. Fund Your Dedicated
-                            Account</h3>
-                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Top up your wallet in ₦ by
-                            transferring to your dedicated Virtual Bank Account from any Nigerian bank app starting from
-                            ₦100.</p>
-                    </div>
-                    <div
-                        style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
-                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">📦</div>
-                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">2. Pick Digital
-                            Accounts</h3>
-                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Browse live stock for TextPlus,
-                            Talkatone, Google Voice, and VPNs. Review category usage guides.</p>
-                    </div>
-                    <div
-                        style="background: rgba(255, 255, 255, 0.03); padding: 1.75rem; border-radius: 12px; border: 1px solid var(--border-glass);">
-                        <div style="font-size: 2.2rem; margin-bottom: 0.8rem;">⚡</div>
-                        <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">3. Instant Credential
-                            Delivery</h3>
-                        <p style="font-size: 0.88rem; color: var(--text-secondary);">Wallet is debited atomically and
-                            credentials appear immediately on screen and in your order history.</p>
-                    </div>
+            <!-- How Olaslog Works: redesigned three-step guide -->
+            <section class="home-how-section" aria-labelledby="home-how-title">
+                <div class="home-how-heading">
+                    <span class="home-how-eyebrow"><span aria-hidden="true">▱</span> HOW OLASLOG WORKS</span>
+                    <h2 id="home-how-title">Get what you need in <span>3 simple steps</span></h2>
+                    <p>Zero manual fulfilment delays. Top up, purchase and receive your credentials instantly.</p>
                 </div>
-            </div>
+                <div class="home-how-steps">
+                    <article class="home-how-step">
+                        <div class="home-how-icon" aria-hidden="true">🏦</div><span class="home-how-number">1</span>
+                        <div class="home-how-copy"><h3>Fund your dedicated account</h3><p>Top up your wallet in ₦ by transferring to your dedicated Virtual Bank Account from any Nigerian bank app, starting from ₦100.</p></div>
+                    </article>
+                    <article class="home-how-step">
+                        <div class="home-how-icon" aria-hidden="true">🛒</div><span class="home-how-number">2</span>
+                        <div class="home-how-copy"><h3>Make your purchase</h3><p>Browse available products such as Google Voice, TextPlus, Talkatone and VPN subscriptions, then check out securely.</p></div>
+                    </article>
+                    <article class="home-how-step">
+                        <div class="home-how-icon" aria-hidden="true">⚡</div><span class="home-how-number">3</span>
+                        <div class="home-how-copy"><h3>Receive your order instantly</h3><p>Your account details or activation code are delivered to your wallet and order history as soon as your purchase is complete.</p></div>
+                    </article>
+                </div>
+                <button class="home-how-cta" type="button" onclick="navigateTo('shop')"><span aria-hidden="true">🛒</span> Explore the marketplace <span aria-hidden="true">→</span></button>
+            </section>
 
             <!-- FAQ Section -->
             <div style="margin-bottom: 4rem;">
