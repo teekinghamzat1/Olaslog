@@ -2816,52 +2816,61 @@ function renderVerificationServicesList() {
     const grid = document.getElementById('verifyServicesGrid');
     if (!grid) return;
 
-    let filtered = [...state.verificationServices];
+    let filtered = state.verificationServices.map((service, index) => ({ service, index }));
 
-    // Filter by category
     if (currentVerifyFilterCat === 'popular') {
-        filtered = filtered.filter(s => s.popular);
+        filtered = filtered.filter(item => item.service.popular);
     } else if (currentVerifyFilterCat !== 'all') {
-        filtered = filtered.filter(s => (s.category || '').toLowerCase() === currentVerifyFilterCat.toLowerCase());
+        filtered = filtered.filter(item => (item.service.category || '').toLowerCase() === currentVerifyFilterCat.toLowerCase());
     }
 
-    // Filter by search query
     if (currentVerifySearchQuery) {
         const q = currentVerifySearchQuery.toLowerCase();
-        filtered = filtered.filter(s => s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
+        filtered = filtered.filter(item =>
+            item.service.name.toLowerCase().includes(q) ||
+            (item.service.category || '').toLowerCase().includes(q)
+        );
     }
 
     if (filtered.length === 0) {
         grid.innerHTML = `
-            <div style="grid-column: 1 / -1; padding: 3rem 1rem; text-align: center; color: var(--text-dim);">
-                <div style="font-size: 1.8rem; margin-bottom: 0.5rem;">🔍</div>
-                <div>No verification services matched "<strong>${escapeHtml(currentVerifySearchQuery)}</strong>"</div>
+            <div class="verify-no-services">
+                <span>🔍</span>
+                <p>No services found. Try another search.</p>
             </div>
         `;
         return;
     }
 
-    grid.innerHTML = filtered.map(s => {
-        const isSelected = state.selectedVerifyService && state.selectedVerifyService.name === s.name;
-        return `
-            <div class="verify-service-card ${isSelected ? 'selected' : ''}" onclick="selectVerifyService('${escapeHtml(s.name)}')">
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div class="svc-icon">${s.icon || '📱'}</div>
-                        <span style="font-size: 0.7rem; background: ${s.available ? 'rgba(91,217,165,0.15)' : 'rgba(255,255,255,0.06)'}; color: ${s.available ? 'var(--teal)' : 'var(--text-dim)'}; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
-                            ${s.available ? '● In Stock' : 'Limited'}
-                        </span>
-                    </div>
-                    <div class="svc-name">${escapeHtml(s.name)}</div>
-                    <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.5rem;">${escapeHtml(s.category || 'General')}</div>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--edge); padding-top: 0.5rem; margin-top: 0.3rem;">
-                    <span class="svc-price">${s.priceFormatted}</span>
-                    <span style="font-size: 0.72rem; color: var(--text-dim);">${isSelected ? '✓ Selected' : 'Choose →'}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
+    const selected = state.selectedVerifyService;
+    const selectedIndex = selected
+        ? state.verificationServices.findIndex(s => s.name === selected.name)
+        : -1;
+
+    grid.innerHTML = `
+        <label class="verify-dropdown-label" for="verifyServiceSelect">Select a verification service</label>
+        <div class="verify-dropdown-wrap">
+            <span class="verify-dropdown-icon" aria-hidden="true">📱</span>
+            <select id="verifyServiceSelect" class="verify-service-select"
+                aria-label="Choose a verification service"
+                onchange="selectVerifyServiceByIndex(this.value)">
+                <option value="" disabled ${selectedIndex < 0 ? 'selected' : ''}>Choose a service…</option>
+                ${filtered.map(item => {
+                    const s = item.service;
+                    return `<option value="${item.index}" ${item.index === selectedIndex ? 'selected' : ''}>
+                        ${escapeHtml(s.name)} · ${escapeHtml(s.category || 'General')} · ${s.priceFormatted} · ${s.available ? 'In stock' : 'Limited'}
+                    </option>`;
+                }).join('')}
+            </select>
+            <span class="verify-dropdown-chevron" aria-hidden="true">⌄</span>
+        </div>
+        <p class="verify-dropdown-hint">${filtered.length.toLocaleString()} services available in this selection</p>
+    `;
+}
+
+function selectVerifyServiceByIndex(index) {
+    const service = state.verificationServices[Number(index)];
+    if (service) selectVerifyService(service.name);
 }
 
 function filterVerifyServices(query) {
