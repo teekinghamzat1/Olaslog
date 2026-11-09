@@ -67,69 +67,101 @@ async function checkoutCart(userId, items) {
         throw err;
     }
 
-    // Step 3: Fulfill items via Sujan Logs Marketplace API (or local stock fallback)
+    // Step 3: Fulfill items from the correct source.
+    // Supplier-backed products must never silently fall back to local stock:
+    // a timeout may mean the supplier accepted the order but its response was lost.
     const fulfillmentResults = [];
 
     for (const valItem of validatedItems) {
-        const targetSujanId = valItem.product.sujan_product_id || valItem.product.id;
+        const hasSujanProduct = valItem.product.sujan_product_id !== null
+            && valItem.product.sujan_product_id !== undefined
+            && Number(valItem.product.sujan_product_id) > 0;
 
-        try {
-            // Place order with Sujan Logs Marketplace API
-            const sujanRes = await sujanService.placeOrder({
-                productId: targetSujanId,
-                quantity: valItem.quantity,
-                inventoryItemIds: valItem.inventoryItemIds
-            });
+        if (hasSujanProduct) {
+            try {
+                const sujanRes = await sujanService.placeOrder({
+                    productId: Number(valItem.product.sujan_product_id),
+                    quantity: valItem.quantity,
+                    inventoryItemIds: valItem.inventoryItemIds
+                });
 
-            const sujanOrderData = sujanRes.data || sujanRes;
-            const sujanItems = sujanOrderData.items || [];
-            const keys = sujanOrderData.keys || [];
+                const sujanOrderData = sujanRes.data || sujanRes;
+                const sujanItems = Array.isArray(sujanOrderData.items) ? sujanOrderData.items : [];
+                const keys = Array.isArray(sujanOrderData.keys) ? sujanOrderData.keys : [];
+                const deliveredCount = sujanItems.length || keys.length;
 
-            fulfillmentResults.push({
-                item: valItem,
-                source: 'sujan',
-                sujanOrderId: String(sujanOrderData.id || sujanOrderData.order_id || ''),
-                productName: sujanOrderData.product || valItem.product.name,
-                items: sujanItems,
-                keys: keys
-            });
-        } catch (sujanErr) {
-            console.warn(`Sujan API order failed for product ${valItem.product.id}, attempting local stock fallback:`, sujanErr.message);
-            
-            // Check if local stock rows exist as fallback
-            let stockRows;
-            if (Array.isArray(valItem.inventoryItemIds) && valItem.inventoryItemIds.length > 0) {
-                const selectedIds = [...new Set(valItem.inventoryItemIds)];
-                const placeholders = selectedIds.map(() => '?').join(', ');
-                stockRows = db.prepare(`
-                    SELECT id, product_id, encrypted_credential, iv, auth_tag
-                    FROM stock_items
-                    WHERE product_id = ?
-                      AND status = 'available'
-                      AND id IN (${placeholders})
-                `).all(valItem.product.id, ...selectedIds);
-            } else {
-                stockRows = db.prepare(`
-                    SELECT id, product_id, encrypted_credential, iv, auth_tag
-                    FROM stock_items
-                    WHERE product_id = ? AND status = 'available'
-                    ORDER BY id ASC
-                    LIMIT ?
-                `).all(valItem.product.id, valItem.quantity);
-            }
+                if (deliveredCount !== valItem.quantity) {
+                    const uncertainErr = new Error(
+                        `Supplier response for ${valItem.product.name} contained ${deliveredCount} credential(s); expected ${valItem.quantity}. Do not retry until the supplier order is checked.`
+                    );
+                    uncertainErr.code = 'SUPPLIER_UNCERTAIN';
+                    uncertainErr.sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
+                    throw uncertainErr;
+                }
 
-            if (stockRows.length >= valItem.quantity) {
                 fulfillmentResults.push({
                     item: valItem,
-                    source: 'local',
-                    stockRows
+                    source: 'sujan',
+                    sujanOrderId: String(sujanOrderData.id || sujanOrderData.order_id || ''),
+                    productName: sujanOrderData.product || valItem.product.name,
+                    items: sujanItems,
+                    keys
                 });
-            } else {
-                const stockErr = new Error(`Order could not be fulfilled: ${sujanErr.message || 'Out of stock'}`);
-                stockErr.code = 'OUT_OF_STOCK';
-                throw stockErr;
+            } catch (sujanErr) {
+                if (sujanErr.code === 'SUPPLIER_UNCERTAIN') throw sujanErr;
+
+                console.error(
+                    `Sujan API order failed for product ${valItem.product.id}; local fallback is disabled to prevent duplicate fulfilment:`,
+                    sujanErr.message
+                );
+                const supplierErr = new Error(
+                    `The supplier could not confirm this order. Do not retry yet; check the supplier order status first. Details: ${sujanErr.message}`
+                );
+                supplierErr.code = 'SUPPLIER_UNCERTAIN';
+                supplierErr.sujanStatus = sujanErr.status || null;
+                throw supplierErr;
             }
+            continue;
         }
+
+        // Products without a Sujan product ID are local-inventory products.
+        let stockRows;
+        if (Array.isArray(valItem.inventoryItemIds) && valItem.inventoryItemIds.length > 0) {
+            const selectedIds = [...new Set(valItem.inventoryItemIds)];
+            if (selectedIds.length !== valItem.quantity) {
+                const selectionErr = new Error('Selected inventory contains duplicate account IDs.');
+                selectionErr.code = 'OUT_OF_STOCK';
+                throw selectionErr;
+            }
+            const placeholders = selectedIds.map(() => '?').join(', ');
+            stockRows = db.prepare(`
+                SELECT id, product_id, encrypted_credential, iv, auth_tag
+                FROM stock_items
+                WHERE product_id = ?
+                  AND status = 'available'
+                  AND id IN (${placeholders})
+            `).all(valItem.product.id, ...selectedIds);
+        } else {
+            stockRows = db.prepare(`
+                SELECT id, product_id, encrypted_credential, iv, auth_tag
+                FROM stock_items
+                WHERE product_id = ? AND status = 'available'
+                ORDER BY id ASC
+                LIMIT ?
+            `).all(valItem.product.id, valItem.quantity);
+        }
+
+        if (stockRows.length !== valItem.quantity) {
+            const stockErr = new Error('The selected local accounts are no longer available. Refresh the product and try again.');
+            stockErr.code = 'OUT_OF_STOCK';
+            throw stockErr;
+        }
+
+        fulfillmentResults.push({
+            item: valItem,
+            source: 'local',
+            stockRows
+        });
     }
 
     // Step 4: Run local DB updates in SQLite ACID transaction (atomic wallet debit + order save)
