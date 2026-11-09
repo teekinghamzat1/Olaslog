@@ -188,87 +188,83 @@ router.post('/:id/dispute', authenticate, upload.single('proofImage'), (req, res
 
 // Sujan Logs Marketplace Webhook Handler (order.completed)
 // POST /api/orders/webhook
-router.post('/webhook', async (req, res) => {
+router.post('/webhook', (req, res) => {
     try {
-        const rawBody = JSON.stringify(req.body);
-        const signature = req.headers['x-sujan-signature'] ?? req.headers['x-signature'] ?? req.headers['signature'];
         const webhookSecret = process.env.SUJAN_WEBHOOK_SECRET;
+        const signature = req.headers['x-sujan-signature']
+            ?? req.headers['x-signature']
+            ?? req.headers['signature'];
 
-        // If webhook secret is configured, enforce signature verification
-        if (webhookSecret && signature) {
-            const isValid = sujanService.verifyWebhookSignature(rawBody, signature, webhookSecret);
-            if (!isValid) {
-                return res.status(400).json({ success: false, error: 'Invalid webhook signature' });
-            }
+        if (!webhookSecret) {
+            return res.status(503).json({ success: false, error: 'Supplier webhook is not configured' });
+        }
+        if (!signature) {
+            return res.status(401).json({ success: false, error: 'Missing webhook signature' });
+        }
+        if (!Buffer.isBuffer(req.rawBody)) {
+            return res.status(400).json({ success: false, error: 'Raw webhook body is unavailable' });
+        }
+        if (!sujanService.verifyWebhookSignature(req.rawBody, String(signature), webhookSecret)) {
+            return res.status(401).json({ success: false, error: 'Invalid webhook signature' });
         }
 
         const event = req.body;
-        // Handle order.completed event
-        if (event?.event === 'order.completed' || event?.data?.status === 'completed') {
-            const orderData = event.data || event;
-            const sujanOrderId = String(orderData?.id ?? orderData?.order_id ?? '');
-
-            if (sujanOrderId) {
-                // Find matching order in DB
-                const localOrder = db.prepare(`
-                    SELECT id FROM orders 
-                    WHERE sujan_order_id = ?
-                `).get(sujanOrderId);
-
-                if (localOrder && Array.isArray(orderData.items) && orderData.items.length > 0) {
-                    const orderId = localOrder.id;
-
-                    // Ensure items have credentials recorded
-                    for (const item of orderData.items) {
-                        const rawCred = item.credential || item.key;
-                        if (!rawCred) continue;
-
-                        // Check if already stored
-                        const existingCred = db.prepare(`
-                            SELECT id FROM delivered_credentials
-                            WHERE order_id = ? AND (sujan_item_id = ? OR sujan_item_id = ?)
-                        `).get(orderId, String(item.id || ''), String(sujanOrderId));
-
-                        if (!existingCred) {
-                            const enc = encrypt(rawCred);
-                            const publicData = item.public_data || `Account #${item.id || 'AUTO'}`;
-
-                            // Find order_item_id for this product
-                            const orderItem = db.prepare(`
-                                SELECT oi.id FROM order_items oi
-                                JOIN products p ON oi.product_id = p.id
-                                WHERE oi.order_id = ? AND p.sujan_product_id = ?
-                                LIMIT 1
-                            `).get(orderId, item.product_id);
-
-                            db.prepare(`
-                                INSERT INTO delivered_credentials
-                                (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
-                                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
-                            `).run(
-                                orderId,
-                                orderItem ? orderItem.id : null,
-                                orderItem ? orderItem.product_id : null,
-                                item.id || sujanOrderId,
-                                publicData,
-                                enc.encrypted,
-                                enc.iv,
-                                enc.authTag
-                            );
-                        }
-                    }
-
-                    // Update order status to completed
-                    db.prepare(`UPDATE orders SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(orderId);
-                }
-            }
+        if (event?.event !== 'order.completed' && event?.data?.status !== 'completed') {
+            return res.status(200).json({ success: true, message: 'Event ignored' });
         }
 
+        const orderData = event.data || event;
+        const sujanOrderId = String(orderData?.id ?? orderData?.order_id ?? '');
+        if (!sujanOrderId) {
+            return res.status(400).json({ success: false, error: 'Supplier order ID is missing' });
+        }
+
+        const localOrder = db.prepare('SELECT id, status FROM orders WHERE sujan_order_id = ?').get(sujanOrderId);
+        if (!localOrder) {
+            console.error('[Sujan Webhook] No local order found for supplier order:', sujanOrderId);
+            return res.status(409).json({
+                success: false,
+                error: 'Local order is not ready for this supplier event',
+                supplierOrderId: sujanOrderId
+            });
+        }
+
+        if (!Array.isArray(orderData.items) || orderData.items.length === 0) {
+            return res.status(422).json({ success: false, error: 'Completed event contains no order items' });
+        }
+
+        const processWebhook = db.transaction(() => {
+            for (const item of orderData.items) {
+                const rawCred = item.credential || item.key;
+                if (!rawCred) throw new Error('Completed supplier item is missing its credential');
+
+                const orderItem = db.prepare(
+                    'SELECT oi.id, oi.product_id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND (p.sujan_product_id = ? OR p.id = ?) LIMIT 1'
+                ).get(localOrder.id, Number(item.product_id), Number(item.product_id));
+
+                if (!orderItem) throw new Error('Supplier item could not be matched to a local order item');
+
+                const supplierItemId = String(item.id ?? (sujanOrderId + '-' + orderItem.id));
+                const existingCred = db.prepare(
+                    'SELECT id FROM delivered_credentials WHERE order_id = ? AND sujan_item_id = ?'
+                ).get(localOrder.id, supplierItemId);
+                if (existingCred) continue;
+
+                const enc = encrypt(String(rawCred));
+                const publicData = item.public_data || ('Account #' + (item.id || 'AUTO'));
+                db.prepare(
+                    'INSERT INTO delivered_credentials (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)'
+                ).run(localOrder.id, orderItem.id, orderItem.product_id, supplierItemId, publicData, enc.encrypted, enc.iv, enc.authTag);
+            }
+
+            db.prepare('UPDATE orders SET status = ? WHERE id = ?').run('completed', localOrder.id);
+        });
+
+        processWebhook();
         return res.status(200).json({ success: true, message: 'Webhook processed successfully' });
     } catch (err) {
-        console.error('Sujan Webhook processing error:', err);
-        return res.status(500).json({ success: false, error: 'Internal webhook error' });
+        console.error('Sujan Webhook processing error:', err.message);
+        return res.status(500).json({ success: false, error: 'Webhook processing failed' });
     }
 });
-
 module.exports = router;
