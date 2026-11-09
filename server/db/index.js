@@ -294,7 +294,7 @@ try {
 
     // Seed default verification settings if not set
     const insertSetting = db.prepare(`INSERT OR IGNORE INTO verification_settings (key, value) VALUES (?, ?)`);
-    insertSetting.run('usd_rate', '1500');
+    insertSetting.run('usd_rate', '2000');
     insertSetting.run('margin_percent', '25');
     insertSetting.run('min_price_ngn', '800');
     insertSetting.run('api_user', process.env.USPHONEVERIFY_USER || '');
