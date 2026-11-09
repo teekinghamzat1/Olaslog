@@ -39,19 +39,19 @@ async function run() {
         category = { id: result.lastInsertRowid };
     }
 
-    const createProduct = (name, slug, price) => {
+    const createProduct = (name, slug, price, sujanProductId = null) => {
         const result = db.prepare(`
-            INSERT INTO products (category_id, name, slug, price, is_active)
-            VALUES (?, ?, ?, ?, 1)
-        `).run(category.id, name, slug, price);
-        return { id: result.lastInsertRowid, price };
+            INSERT INTO products (category_id, sujan_product_id, name, slug, price, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+        `).run(category.id, sujanProductId, name, slug, price);
+        return { id: result.lastInsertRowid, price, sujanProductId };
     };
 
-    const providerProduct = createProduct('Mock Provider Product', 'mock-provider-product', 1000);
+    const providerProduct = createProduct('Mock Provider Product', 'mock-provider-product', 1000, 910001);
     let providerCalls = 0;
     sujanService.placeOrder = async ({ productId, quantity }) => {
         providerCalls++;
-        assert.strictEqual(productId, providerProduct.id);
+        assert.strictEqual(productId, providerProduct.sujanProductId);
         assert.strictEqual(quantity, 1);
         return {
             data: {
@@ -98,8 +98,10 @@ async function run() {
     const unselectedId = addStock('unselected-account|password-A');
     const selectedId = addStock('selected-account|password-B');
 
+    let localProductProviderCalls = 0;
     sujanService.placeOrder = async () => {
-        throw new Error('Intentional offline provider failure');
+        localProductProviderCalls++;
+        throw new Error('Local products must not call the supplier');
     };
 
     const localOrder = await checkoutCart(customer.id, [{
@@ -107,6 +109,7 @@ async function run() {
         quantity: 1,
         inventoryItemIds: [selectedId]
     }]);
+    assert.strictEqual(localProductProviderCalls, 0, 'Local-only products must not call the supplier');
 
     assert.strictEqual(localOrder.deliveredCredentials.length, 1);
     assert.strictEqual(localOrder.deliveredCredentials[0].credentialText, 'selected-account|password-B');
@@ -114,7 +117,23 @@ async function run() {
     const selected = db.prepare('SELECT status FROM stock_items WHERE id = ?').get(selectedId);
     assert.strictEqual(unselected.status, 'available', 'Unselected stock must remain untouched');
     assert.strictEqual(selected.status, 'sold', 'Only the selected stock item should be sold');
-    console.log('PASS: local fallback delivers only the exact selected inventory item');
+    console.log('PASS: local-only products use local stock without calling the supplier');
+    console.log('PASS: local fulfilment delivers only the exact selected inventory item');
+
+    const uncertainProduct = createProduct('Supplier Timeout Product', 'offline-supplier-timeout', 700, 910002);
+    const uncertainStockId = addStock('must-not-fallback|password-C');
+    db.prepare('UPDATE stock_items SET product_id = ? WHERE id = ?').run(uncertainProduct.id, uncertainStockId);
+    sujanService.placeOrder = async () => {
+        const error = new Error('Simulated network timeout after request');
+        throw error;
+    };
+    await assert.rejects(
+        checkoutCart(customer.id, [{ productId: uncertainProduct.id, quantity: 1 }]),
+        error => error.code === 'SUPPLIER_UNCERTAIN'
+    );
+    const untouchedStock = db.prepare('SELECT status FROM stock_items WHERE id = ?').get(uncertainStockId);
+    assert.strictEqual(untouchedStock.status, 'available', 'Supplier timeout must not trigger local stock delivery');
+    console.log('PASS: supplier timeout fails closed and never falls back to local inventory');
 
     console.log('ALL OFFLINE CHECKOUT TESTS PASSED. No provider, payment, email, or Telegram API calls were made.');
 }
