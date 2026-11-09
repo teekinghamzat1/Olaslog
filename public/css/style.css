@@ -3456,7 +3456,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
    Scoped only to product cards in the Shop catalog and Home featured
    products; other views and page sections retain their presentation.
    ========================================================== */
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard {
+#shopProductsGrid .pcard {, #homeFeaturedGrid .pcard {
     position: relative;
     display: flex;
     flex-direction: column;
@@ -3469,27 +3469,27 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     box-shadow: 0 12px 34px rgba(13, 91, 51, .075), 0 2px 8px rgba(14, 45, 32, .035) !important;
     transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard:hover {
+#shopProductsGrid .pcard:hover {, #homeFeaturedGrid .pcard:hover {
     transform: translateY(-3px);
     border-color: #a8ddbd !important;
     box-shadow: 0 18px 40px rgba(13, 91, 51, .12) !important;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-top {
+#shopProductsGrid .pcard-top {, #homeFeaturedGrid .pcard-top {
     height: 7px;
     flex: 0 0 7px;
     background: linear-gradient(90deg, #16a34a 0%, #48d18a 52%, #087b43 100%) !important;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-body {
+#shopProductsGrid .pcard-body {, #homeFeaturedGrid .pcard-body {
     padding: 22px 22px 20px;
     min-width: 0;
     display: flex;
     flex-direction: column;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-body > div:first-child {
+#shopProductsGrid .pcard-body > div:first-child {, #homeFeaturedGrid .pcard-body > div:first-child {
     align-items: center !important;
     margin-bottom: 18px !important;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-icon {
+#shopProductsGrid .pcard-icon {, #homeFeaturedGrid .pcard-icon {
     width: 68px;
     height: 68px;
     border-radius: 19px;
@@ -3498,11 +3498,11 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     color: #087b43 !important;
     box-shadow: inset 0 0 0 1px rgba(8,123,67,.07);
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-icon img {
+#shopProductsGrid .pcard-icon img {, #homeFeaturedGrid .pcard-icon img {
     width: 42px !important;
     height: 42px !important;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-body .pill {
+#shopProductsGrid .pcard-body .pill {, #homeFeaturedGrid .pcard-body .pill {
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -3513,7 +3513,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     font-weight: 700;
     white-space: nowrap;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-body > div:nth-child(2) {
+#shopProductsGrid .pcard-body > div:nth-child(2) {, #homeFeaturedGrid .pcard-body > div:nth-child(2) {
     color: #087b43 !important;
     font-family: var(--sans) !important;
     font-size: 12px !important;
@@ -3522,7 +3522,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     line-height: 1.4;
     margin-bottom: 7px !important;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-name {
+#shopProductsGrid .pcard-name {, #homeFeaturedGrid .pcard-name {
     color: #10271e;
     font-family: var(--sans);
     font-size: clamp(19px, 2.2vw, 24px);
@@ -3532,7 +3532,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     overflow-wrap: anywhere;
     margin-bottom: 12px;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-desc {
+#shopProductsGrid .pcard-desc {, #homeFeaturedGrid .pcard-desc {
     color: #59665f;
     font-family: var(--sans);
     font-size: 14px;
@@ -3545,7 +3545,7 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     overflow: hidden;
     overflow-wrap: anywhere;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-price {
+#shopProductsGrid .pcard-price {, #homeFeaturedGrid .pcard-price {
     display: flex;
     align-items: center;
     min-height: 82px;
@@ -3560,14 +3560,14 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     font-weight: 900;
     letter-spacing: -.035em;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions {
+#shopProductsGrid .pcard-actions {, #homeFeaturedGrid .pcard-actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, .85fr) minmax(0, 1.35fr);
     gap: 9px;
     width: 100%;
     margin-top: auto;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions .btn {
+#shopProductsGrid .pcard-actions .btn {, #homeFeaturedGrid .pcard-actions .btn {
     min-width: 0;
     min-height: 50px;
     padding: 10px 12px;
@@ -3578,63 +3578,63 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     white-space: nowrap;
     justify-content: center;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions .btn-outline {
+#shopProductsGrid .pcard-actions .btn-outline {, #homeFeaturedGrid .pcard-actions .btn-outline {
     background: #f2f5f4;
     border-color: #edf0ee;
     color: #172b22;
 }
-#shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions .btn-primary {
+#shopProductsGrid .pcard-actions .btn-primary {, #homeFeaturedGrid .pcard-actions .btn-primary {
     background: linear-gradient(135deg, #16a34a, #087b43);
     border-color: #0b8c47;
     box-shadow: 0 8px 18px rgba(8,123,67,.18);
 }
 @media (max-width: 600px) {
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard {
+    #shopProductsGrid .pcard {, #homeFeaturedGrid .pcard {
         border-radius: 21px !important;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-body {
+    #shopProductsGrid .pcard-body {, #homeFeaturedGrid .pcard-body {
         padding: 18px 16px 17px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-icon {
+    #shopProductsGrid .pcard-icon {, #homeFeaturedGrid .pcard-icon {
         width: 58px;
         height: 58px;
         border-radius: 16px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-icon img {
+    #shopProductsGrid .pcard-icon img {, #homeFeaturedGrid .pcard-icon img {
         width: 36px !important;
         height: 36px !important;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-name {
+    #shopProductsGrid .pcard-name {, #homeFeaturedGrid .pcard-name {
         font-size: 20px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-desc {
+    #shopProductsGrid .pcard-desc {, #homeFeaturedGrid .pcard-desc {
         font-size: 13.5px;
         -webkit-line-clamp: 5;
         line-clamp: 5;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-price {
+    #shopProductsGrid .pcard-price {, #homeFeaturedGrid .pcard-price {
         min-height: 72px;
         font-size: 29px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions {
+    #shopProductsGrid .pcard-actions {, #homeFeaturedGrid .pcard-actions {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions .btn {
+    #shopProductsGrid .pcard-actions .btn {, #homeFeaturedGrid .pcard-actions .btn {
         min-height: 48px;
         font-size: 13px;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard-actions .btn-primary {
+    #shopProductsGrid .pcard-actions .btn-primary {, #homeFeaturedGrid .pcard-actions .btn-primary {
         grid-column: 1 / -1;
         min-height: 54px;
         font-size: 15px;
     }
 }
 @media (prefers-reduced-motion: reduce) {
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard {
+    #shopProductsGrid .pcard {, #homeFeaturedGrid .pcard {
         transition: none;
     }
-    #shopProductsGrid .pcard, #homeFeaturedGrid .pcard:hover {
+    #shopProductsGrid .pcard:hover {, #homeFeaturedGrid .pcard:hover {
         transform: none;
     }
 }
