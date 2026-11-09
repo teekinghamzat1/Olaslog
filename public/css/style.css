@@ -3703,3 +3703,82 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
  #view-wallet .wallet-alternative-bank-row .btn { width:100%; }
  #view-wallet .wallet-grid > .card:nth-child(2) { padding:1.1rem; }
 }
+
+
+/* Homepage visual refresh — scoped only to #view-home */
+#view-home .home-redesign-hero{position:relative;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr);gap:1.2rem;align-items:center;overflow:hidden;padding:clamp(1.25rem,4vw,3rem);margin:1.1rem 0 1.25rem;border:1px solid #dcefe4;border-radius:30px;background:radial-gradient(circle at 78% 42%,rgba(94,226,148,.2),transparent 32%),linear-gradient(125deg,#fff 0%,#f3fff8 55%,#e8faef 100%);box-shadow:0 16px 42px rgba(8,77,44,.07)}
+#view-home .home-hero-copy{position:relative;z-index:2;min-width:0}
+#view-home .home-trust-pill{display:inline-flex;align-items:center;gap:.55rem;padding:.65rem 1rem;border:1px solid #bdebd0;border-radius:999px;background:#f1fff6;color:#145b38;font-size:.9rem;font-weight:800}
+#view-home .home-trust-pill span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#0b9b4b;color:#fff}
+#view-home .home-redesign-hero h1{max-width:720px;margin:1.35rem 0 .9rem;color:#102c23;font-size:clamp(2.25rem,5.2vw,4.3rem);line-height:1.04;letter-spacing:-.055em;font-weight:900}
+#view-home .home-redesign-hero h1 span{color:#078747}
+#view-home .home-redesign-hero p{max-width:650px;margin:0;color:#53635d;font-size:clamp(1rem,1.5vw,1.2rem);line-height:1.65}
+#view-home .home-benefits{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}
+#view-home .home-benefits>div{display:flex;align-items:center;gap:.6rem;min-width:120px;padding:.7rem .8rem;border:1px solid #d8f0e2;border-radius:16px;background:rgba(255,255,255,.82);color:#18392b;font-size:.82rem;font-weight:750;line-height:1.25}
+#view-home .home-benefits b{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#e4f9eb;color:#078747;font-size:1.2rem}
+#view-home .home-hero-art{position:relative;display:grid;place-items:center;min-height:310px}
+#view-home .home-orbit{position:absolute;width:min(90%,330px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#baf4ce 0%,#dffbea 58%,rgba(223,251,234,0) 70%)}
+#view-home .home-device{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;width:168px;height:300px;padding:1.25rem .8rem;border:7px solid #183d31;border-radius:32px;background:linear-gradient(160deg,#fff,#e9fff1);box-shadow:0 24px 45px rgba(11,68,42,.24);transform:rotate(7deg)}
+#view-home .home-device-speaker{position:absolute;top:8px;width:55px;height:7px;border-radius:9px;background:#183d31}
+#view-home .home-app-tile{display:grid;place-items:center;width:95px;height:48px;border-radius:13px;color:#fff;font-size:1.45rem;font-weight:900;box-shadow:0 7px 14px rgba(0,0,0,.1)}
+#view-home .home-app-tile.google{background:#fff;color:#16864a;font-size:1.3rem}.home-app-tile.google span{color:#4285f4}
+#view-home .home-app-tile.textplus{background:#08a64e;font-size:1.8rem}
+#view-home .home-app-tile.talk{background:#2589ef}
+#view-home .home-app-tile.vpn{background:#1559c8}
+#view-home .home-float-note{position:absolute;z-index:2;bottom:18px;right:0;padding:.75rem 1rem;border:1px solid #cdebd9;border-radius:14px;background:#fff;color:#1a5135;font-size:.78rem;font-weight:800;box-shadow:0 10px 24px rgba(8,77,44,.12)}
+#view-home .home-float-note span{color:#08a34d;margin-right:.35rem}
+#view-home .home-hero-actions{grid-column:1/-1}
+#view-home .home-browse-btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:64px;padding:1rem 1.25rem;border:0;border-radius:17px;background:linear-gradient(110deg,#12a951,#087b40);color:#fff;font-size:1.15rem;font-weight:850;box-shadow:0 12px 24px rgba(8,123,64,.2);cursor:pointer}
+#view-home .home-browse-btn span{margin-left:.35rem;font-size:1.4rem}
+#view-home .home-wallet-promo{display:flex;align-items:center;gap:1rem;margin:1.25rem 0 2.1rem;padding:1.1rem 1.25rem;border:1px solid #d8eee1;border-radius:22px;background:linear-gradient(110deg,#f2fff7,#fff);color:inherit;text-decoration:none;box-shadow:0 8px 24px rgba(8,77,44,.045)}
+#view-home .home-wallet-icon{display:grid;place-items:center;flex:0 0 64px;height:64px;border-radius:18px;background:#def8e7;color:#078747;font-size:2rem}
+#view-home .home-wallet-copy{display:flex;flex:1;flex-direction:column;gap:.25rem;min-width:0}
+#view-home .home-wallet-copy strong{color:#12382a;font-size:1.1rem;font-weight:850}
+#view-home .home-wallet-copy small{color:#5a6962;font-size:.9rem;line-height:1.5}
+#view-home .home-wallet-arrow{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:50%;background:#e2f8e9;color:#078747;font-size:2rem}
+#view-home .home-popular-categories{margin:0 0 2.5rem}
+#view-home .home-section-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+#view-home .home-section-heading h2{margin:0;color:#12382a;font-size:1.55rem;font-weight:900;letter-spacing:-.035em}
+#view-home .home-section-heading button{border:0;background:none;color:#078747;font-weight:800;white-space:nowrap}
+#view-home .home-category-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.8rem}
+#view-home .home-category-grid button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;min-width:0;min-height:130px;padding:1rem .5rem;border:1px solid #e0eae4;border-radius:19px;background:#fff;color:#19382c;box-shadow:0 5px 16px rgba(8,77,44,.055);cursor:pointer}
+#view-home .home-cat-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:16px;color:#fff;font-size:1.35rem;font-weight:900}
+#view-home .home-cat-icon.google{background:#f1f7f3;color:#16864a;border:1px solid #e2eee6}
+#view-home .home-cat-icon.textplus{background:#08a64e}
+#view-home .home-cat-icon.talk{background:#2589ef}
+#view-home .home-cat-icon.vpn{background:#1559c8;font-size:1rem}
+#view-home .home-cat-icon.more{background:#e8f8ee;color:#078747;font-size:1.8rem}
+#view-home .home-category-grid b{font-size:.86rem;text-align:center}
+@media(max-width:760px){
+ #view-home .home-redesign-hero{grid-template-columns:minmax(0,1fr) minmax(105px,.55fr);gap:.5rem;padding:1.2rem;border-radius:23px}
+ #view-home .home-redesign-hero h1{font-size:clamp(2rem,8vw,2.8rem);margin:.95rem 0 .7rem}
+ #view-home .home-redesign-hero p{font-size:.92rem;line-height:1.5}
+ #view-home .home-hero-art{min-height:230px}
+ #view-home .home-device{width:112px;height:220px;border-width:5px;border-radius:25px;gap:.55rem;padding:1rem .5rem}
+ #view-home .home-device-speaker{width:38px;height:5px}
+ #view-home .home-app-tile{width:68px;height:36px;border-radius:10px;font-size:1rem}
+ #view-home .home-app-tile.textplus{font-size:1.35rem}
+ #view-home .home-app-tile.vpn{font-size:.8rem}
+ #view-home .home-float-note{right:-.4rem;bottom:0;font-size:.65rem;padding:.55rem .65rem}
+ #view-home .home-benefits{grid-column:1/-1;gap:.45rem;margin-top:1rem}
+ #view-home .home-benefits>div{flex:1;min-width:0;padding:.55rem .45rem;gap:.35rem;font-size:.68rem}
+ #view-home .home-benefits b{width:27px;height:27px;font-size:.95rem}
+ #view-home .home-hero-actions{grid-column:1/-1}
+ #view-home .home-browse-btn{min-height:56px;font-size:1rem}
+ #view-home .home-wallet-promo{padding:.85rem;gap:.7rem;border-radius:17px}
+ #view-home .home-wallet-icon{flex-basis:48px;height:48px;border-radius:14px;font-size:1.5rem}
+ #view-home .home-wallet-copy strong{font-size:.93rem}
+ #view-home .home-wallet-copy small{font-size:.78rem}
+ #view-home .home-wallet-arrow{flex-basis:32px;height:32px;font-size:1.5rem}
+ #view-home .home-section-heading h2{font-size:1.25rem}
+ #view-home .home-category-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}
+ #view-home .home-category-grid button{min-height:112px;padding:.75rem .3rem}
+ #view-home .home-cat-icon{width:46px;height:46px}
+}
+@media(max-width:390px){
+ #view-home .home-redesign-hero{grid-template-columns:minmax(0,1fr) 92px}
+ #view-home .home-redesign-hero h1{font-size:1.8rem}
+ #view-home .home-device{width:92px;height:190px}
+ #view-home .home-app-tile{width:58px;height:32px}
+ #view-home .home-benefits>div{flex-direction:column;text-align:center}
+}
