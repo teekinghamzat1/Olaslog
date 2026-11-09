@@ -3211,3 +3211,154 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
  .verify-page .verify-steps p { font-size:.68rem; }
  .verify-page .verify-history-heading { align-items:flex-start; }
 }
+
+
+/* ==========================================================
+   VERIFICATION HUB — overflow and single-column service list
+   Follow-up fix after real-device mobile review.
+   ========================================================== */
+.verify-page,
+.verify-page * {
+    box-sizing: border-box;
+}
+.verify-page {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+}
+.verify-page > *,
+.verify-page .verify-workspace,
+.verify-page .verify-panel,
+.verify-page .verify-services-panel,
+.verify-page .verify-checkout-column,
+.verify-page .verify-history-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+.verify-page .verify-workspace {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+}
+.verify-page .verify-services-panel,
+.verify-page .verify-checkout-panel,
+.verify-page .verify-how-panel {
+    min-width: 0;
+    overflow: hidden;
+}
+/* Service directory is deliberately a vertical list, not a card grid. */
+.verify-page .verify-services-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+.verify-page .verify-service-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .85rem;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: .85rem;
+}
+.verify-page .verify-service-card > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.verify-page .verify-service-card > div:first-child > div:first-child {
+    align-items: center !important;
+    gap: .55rem;
+}
+.verify-page .verify-service-card .svc-icon {
+    flex: 0 0 42px;
+    margin: 0 .15rem 0 0;
+}
+.verify-page .verify-service-card .svc-name {
+    overflow-wrap: anywhere;
+}
+.verify-page .verify-service-card > div:last-child {
+    display: flex !important;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    gap: .25rem;
+    min-width: max-content;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+}
+.verify-page .verify-price-summary,
+.verify-page .verify-price-summary > div,
+.verify-page .verify-selected-heading,
+.verify-page .verify-hero-copy {
+    min-width: 0;
+}
+.verify-page .verify-price-summary .verify-price-cell {
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+.verify-page .verify-request-btn {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.verify-page .verify-wallet-chip {
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+.verify-page .table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+}
+@media (max-width: 900px) {
+    .verify-page .verify-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .verify-page .verify-services-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        max-height: 440px !important;
+    }
+}
+@media (max-width: 600px) {
+    .verify-page {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    .verify-page .verify-hero,
+    .verify-page .verify-workspace,
+    .verify-page .verify-history-panel {
+        width: 100%;
+        min-width: 0;
+    }
+    .verify-page .verify-services-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+        max-height: 420px !important;
+        overflow-x: hidden;
+    }
+    .verify-page .verify-service-card {
+        padding: .75rem;
+    }
+    .verify-page .verify-service-card > div:last-child {
+        min-width: 78px;
+    }
+    .verify-page .verify-price-summary {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .verify-page .verify-price-summary .verify-price-cell strong {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        text-align: right;
+    }
+    .verify-page .verify-request-btn {
+        padding: .85rem .75rem !important;
+        font-size: .84rem !important;
+    }
+}
