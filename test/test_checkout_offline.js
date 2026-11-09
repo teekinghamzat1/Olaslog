@@ -1,5 +1,9 @@
 'use strict';
 
+if (process.env.CI !== 'true' || process.env.OLASLOG_OFFLINE_TEST !== '1') {
+    throw new Error('Offline checkout tests may only run in the isolated CI environment.');
+}
+
 process.env.NODE_ENV = 'test';
 process.env.SUJAN_API_KEY = 'mock_offline_test';
 process.env.TELEGRAM_BOT_TOKEN = '';
