@@ -1034,208 +1034,119 @@
         <!-- ================================================================
              VIEW: VERIFICATION (US SMS Phone Verification Hub)
              ================================================================ -->
-        <section id="view-verification" class="app-view" style="display: none;">
-            <!-- Verification Hub Hero & Header -->
-            <div class="card" style="background: radial-gradient(350px 200px at 90% 0%, rgba(91,217,165,0.18), transparent 70%), linear-gradient(150deg, #102D20, #0A2319); border: 1px solid var(--edge-strong); margin-bottom: 2rem; padding: 2rem; border-radius: var(--r-md); position: relative; overflow: hidden;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1.5rem;">
-                    <div style="max-width: 680px;">
-                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(91, 217, 165, 0.15); border: 1px solid rgba(91, 217, 165, 0.3); color: var(--teal); padding: 4px 12px; border-radius: 99px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.9rem;">
-                            <span>🇺🇸</span> Instant US Phone Numbers &bull; Real Carrier Non-VoIP
-                        </div>
-                        <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 0.6rem; letter-spacing: -0.02em;">
-                            US SMS Verification <span style="color: var(--teal);">Hub</span>
-                        </h2>
-                        <p style="color: var(--text-dim); font-size: 1rem; line-height: 1.6; margin-bottom: 1.2rem;">
-                            Receive instant temporary SMS verification codes for <strong>WhatsApp, Telegram, Google, OpenAI, TikTok, Instagram</strong>, and 500+ services. Deducted from your wallet with a <strong>100% money-back guarantee</strong> if no SMS arrives!
-                        </p>
-                        <div style="display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: var(--text-dim);">
-                            <span style="display: flex; align-items: center; gap: 0.4rem;"><strong style="color: var(--teal);">✓</strong> 15-Minute Dedicated Number Window</span>
-                            <span style="display: flex; align-items: center; gap: 0.4rem;"><strong style="color: var(--teal);">✓</strong> Instant 100% Refund on Cancel or Timeout</span>
-                            <span style="display: flex; align-items: center; gap: 0.4rem;"><strong style="color: var(--teal);">✓</strong> Real-Time Automated OTP Detection</span>
-                        </div>
-                    </div>
-
-                    <!-- Live Balance Pill & Wallet Top-up CTA -->
-                    <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--edge); padding: 1.25rem; border-radius: 14px; min-width: 240px; text-align: right;">
-                        <div style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; margin-bottom: 0.3rem;">Your Available Balance</div>
-                        <div style="font-family: var(--display); font-size: 2rem; font-weight: 800; color: var(--text); margin-bottom: 0.75rem;">
-                            <span style="color: var(--teal);">₦</span><span id="verifyWalletBalance">0.00</span>
-                        </div>
-                        <button class="btn btn-emerald btn-sm" style="width: 100%;" onclick="navigateTo('wallet')">
-                            + Top-up Wallet 💳
-                        </button>
-                    </div>
-                </div>
+        <section id="view-verification" class="app-view verify-page" style="display: none;">
+    <div class="verify-hero">
+        <div class="verify-hero-copy">
+            <div class="verify-eyebrow"><span>🇺🇸</span> Instant US Phone Numbers</div>
+            <h2>US SMS<br>Verification <span>Hub</span></h2>
+            <p>Get temporary US numbers to receive SMS verification codes for <strong>WhatsApp, Telegram, Google, OpenAI, TikTok, Instagram</strong> and 500+ services.</p>
+            <div class="verify-benefits">
+                <div><span class="verify-benefit-icon">ϟ</span><span><strong>Instant delivery</strong><small>Get a number in seconds</small></span></div>
+                <div><span class="verify-benefit-icon">◇</span><span><strong>100% refund</strong><small>If no SMS arrives</small></span></div>
+                <div><span class="verify-benefit-icon">◷</span><span><strong>15-minute window</strong><small>Dedicated number</small></span></div>
             </div>
-
-            <!-- Active Verification Banner (Rendered dynamically when user has an active number) -->
-            <div id="verifyActiveContainer" style="display: none; margin-bottom: 2.5rem;">
-                <!-- Populated dynamically by renderActiveVerification() in app.js -->
+        </div>
+        <div class="verify-hero-art" aria-hidden="true">
+            <div class="verify-orbit"></div>
+            <div class="verify-phone">
+                <div class="verify-phone-notch"></div>
+                <div class="verify-phone-message">••••</div>
+                <span>Verification code</span>
+                <strong>123 456</strong>
+                <div class="verify-phone-check">✓</div>
             </div>
+        </div>
+        <div class="verify-wallet-chip">
+            <span>Your available balance</span>
+            <strong>₦<span id="verifyWalletBalance">0.00</span></strong>
+            <button type="button" onclick="navigateTo('wallet')">＋ Add funds</button>
+        </div>
+    </div>
 
-            <!-- Main Order Grid: Service Selector on Left / Details & Quick Checkout on Right -->
-            <div class="verify-layout-grid" style="margin-bottom: 3rem;">
-                
-                <!-- Left: Services Directory & Search -->
-                <div class="card" style="padding: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
-                        <h3 style="font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; margin: 0;">
-                            <span>📱</span> Select Verification Service
-                        </h3>
-                        <span id="verifyServicesCount" style="font-size: 0.8rem; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 6px;">
-                            Loading services...
-                        </span>
-                    </div>
+    <div id="verifyActiveContainer" class="verify-active-wrap" style="display:none; margin-bottom:1.25rem;">
+        <!-- Active number is rendered here by app.js -->
+    </div>
 
-                    <!-- Search & Filter Controls -->
-                    <div style="margin-bottom: 1rem;">
-                        <div class="search-box" style="margin-bottom: 0.85rem;">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="verifySearchInput" class="form-control" placeholder="Search service (e.g. WhatsApp, Google, Telegram, OpenAI...)" oninput="filterVerifyServices(this.value)">
-                        </div>
-
-                        <!-- Category Filter Chips -->
-                        <div style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 6px;" id="verifyCategoryChips">
-                            <button class="pill active" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('all', this)">All</button>
-                            <button class="pill" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('popular', this)">🔥 Popular</button>
-                            <button class="pill" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('Social', this)">Social</button>
-                            <button class="pill" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('Tech & AI', this)">Tech & AI</button>
-                            <button class="pill" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('Shopping', this)">Shopping</button>
-                            <button class="pill" style="cursor: pointer; padding: 4px 12px; border-radius: 99px; font-size: 0.78rem; font-weight: 600;" onclick="filterVerifyCategory('Finance', this)">Finance</button>
-                        </div>
-                    </div>
-
-                    <!-- Services Grid Container -->
-                    <div id="verifyServicesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.85rem; max-height: 480px; overflow-y: auto; padding-right: 4px;">
-                        <!-- Populated dynamically via JS -->
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 0; color: var(--text-dim);">
-                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⏳</div>
-                            <div>Loading available verification services...</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right: Selected Service Checkout & Geo-Targeting -->
-                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-                    
-                    <!-- Selected Service Confirmation Card -->
-                    <div class="card" id="verifyCheckoutCard" style="padding: 1.5rem; border: 1px solid var(--teal-glow); background: radial-gradient(160px 100px at 90% 0%, rgba(91,217,165,0.12), transparent 70%), var(--panel);">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
-                            <div id="selectedServiceIcon" style="width: 48px; height: 48px; border-radius: 12px; background: rgba(91,217,165,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.6rem;">💬</div>
-                            <div>
-                                <h4 id="selectedServiceName" style="font-size: 1.25rem; font-weight: 700; margin: 0;">WhatsApp</h4>
-                                <span id="selectedServiceCategory" style="font-size: 0.75rem; color: var(--teal); font-weight: 600;">Social &bull; Instant Code</span>
-                            </div>
-                        </div>
-
-                        <!-- Price & Guarantee Box -->
-                        <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--edge); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                                <span style="font-size: 0.82rem; color: var(--text-dim);">Service Cost</span>
-                                <span id="selectedServicePrice" style="font-family: var(--display); font-size: 1.4rem; font-weight: 800; color: var(--teal);">₦1,200</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-dim);">
-                                <span>Country:</span>
-                                <span style="color: var(--text); font-weight: 600;">🇺🇸 United States (+1)</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-dim); margin-top: 0.25rem;">
-                                <span>Duration:</span>
-                                <span style="color: var(--text); font-weight: 600;">15 Minutes Waiting Window</span>
-                            </div>
-                        </div>
-
-                        <!-- Optional Advanced Geo-Targeting (State / Area Code) -->
-                        <div style="margin-bottom: 1.25rem;">
-                            <div style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); padding: 0.4rem 0;" onclick="toggleVerifyAdvancedOptions()">
-                                <span>⚙️ Advanced Filters (Optional)</span>
-                                <span id="verifyAdvancedArrow" style="font-size: 0.8rem;">▼</span>
-                            </div>
-
-                            <div id="verifyAdvancedOptions" style="display: none; padding-top: 0.75rem; flex-direction: column; gap: 0.75rem;">
-                                <div>
-                                    <label class="form-label" style="font-size: 0.78rem;">3-Digit US Area Code (e.g. 212, 310, 415)</label>
-                                    <input type="text" id="verifyAreacodeInput" class="form-control" maxlength="3" placeholder="Leave empty for any area code">
-                                </div>
-                                <div>
-                                    <label class="form-label" style="font-size: 0.78rem;">US State Abbreviation (e.g. CA, NY, TX, FL)</label>
-                                    <input type="text" id="verifyStateInput" class="form-control" maxlength="2" placeholder="Leave empty for any state" style="text-transform: uppercase;">
-                                </div>
-                                <div>
-                                    <label class="form-label" style="font-size: 0.78rem;">Reuse Specific Phone Number (MDN)</label>
-                                    <input type="text" id="verifyMdnInput" class="form-control" placeholder="e.g. 15302286946 (optional)">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Insufficient Balance Notification -->
-                        <div id="verifyInsufficientFundsBox" style="display: none; background: rgba(226, 105, 94, 0.12); border: 1px solid rgba(226, 105, 94, 0.3); border-radius: 10px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.82rem; color: #fca5a5;">
-                            <div>⚠️ <strong>Insufficient Balance!</strong></div>
-                            <div>You need <span id="verifyShortfallText" style="font-weight: 700;">₦0.00</span> more to order this number.</div>
-                            <button class="btn btn-emerald btn-sm" style="width: 100%; margin-top: 0.5rem;" onclick="navigateTo('wallet')">
-                                Top-up Wallet Now 💳
-                            </button>
-                        </div>
-
-                        <!-- Request Button -->
-                        <button class="btn btn-emerald btn-lg" id="btnRequestNumber" style="width: 100%; font-weight: 700;" onclick="submitVerificationOrder()">
-                            ⚡ Request Verification Number
-                        </button>
-                        <div style="font-size: 0.75rem; text-align: center; color: var(--text-dim); margin-top: 0.6rem;">
-                            🔒 No-Risk Guarantee: Automatic 100% refund if SMS does not arrive.
-                        </div>
-                    </div>
-
-                    <!-- Instructions Card -->
-                    <div class="card" style="padding: 1.25rem; font-size: 0.82rem; color: var(--text-dim);">
-                        <div style="font-weight: 700; color: var(--text); margin-bottom: 0.6rem; font-size: 0.9rem;">
-                            💡 How It Works in 3 Quick Steps:
-                        </div>
-                        <ol style="margin-left: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                            <li>Select your service above and click <strong>Request Number</strong>.</li>
-                            <li>Copy the assigned US phone number and enter it into the app or website.</li>
-                            <li>Your OTP confirmation code appears right here on your screen automatically!</li>
-                        </ol>
-                    </div>
-
-                </div>
+    <div class="verify-workspace">
+        <section class="verify-panel verify-services-panel">
+            <div class="verify-panel-heading">
+                <div><span class="verify-kicker">STEP 01</span><h3>Choose a service</h3><p>Find the app you want to verify.</p></div>
+                <span id="verifyServicesCount" class="verify-count">Loading services…</span>
             </div>
-
-            <!-- Verification History Card -->
-            <div class="card" style="padding: 1.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
-                    <div>
-                        <h3 style="font-size: 1.2rem; font-weight: 700; margin: 0;">📜 My Verification History</h3>
-                        <p style="font-size: 0.82rem; color: var(--text-dim); margin-top: 0.2rem;">Previous numbers, received SMS codes and receipts</p>
-                    </div>
-                    <button class="btn btn-secondary btn-sm" onclick="loadVerificationHistory()">
-                        🔄 Refresh History
-                    </button>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Date &bull; Time</th>
-                                <th>Service</th>
-                                <th>Phone Number</th>
-                                <th>Status</th>
-                                <th>OTP Code</th>
-                                <th>SMS Message</th>
-                                <th>Cost</th>
-                            </tr>
-                        </thead>
-                        <tbody id="verifyHistoryTableBody">
-                            <tr>
-                                <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-dim);">
-                                    No phone verification orders yet. Select a service above to get your first US verification number!
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <label class="verify-search">
+                <span aria-hidden="true">⌕</span>
+                <input type="text" id="verifySearchInput" placeholder="Search WhatsApp, Google, Telegram…" oninput="filterVerifyServices(this.value)" aria-label="Search verification services">
+            </label>
+            <div class="verify-category-row" id="verifyCategoryChips">
+                <button class="pill active" type="button" onclick="filterVerifyCategory('all', this)">All</button>
+                <button class="pill" type="button" onclick="filterVerifyCategory('popular', this)">Popular</button>
+                <button class="pill" type="button" onclick="filterVerifyCategory('Social', this)">Social</button>
+                <button class="pill" type="button" onclick="filterVerifyCategory('Tech & AI', this)">Tech &amp; AI</button>
+                <button class="pill" type="button" onclick="filterVerifyCategory('Shopping', this)">Shopping</button>
+                <button class="pill" type="button" onclick="filterVerifyCategory('Finance', this)">Finance</button>
+            </div>
+            <div id="verifyServicesGrid" class="verify-services-grid">
+                <div class="verify-loading"><span>◌</span><p>Loading available verification services…</p></div>
             </div>
         </section>
+
+        <div class="verify-checkout-column">
+            <section class="verify-panel verify-checkout-panel" id="verifyCheckoutCard">
+                <div class="verify-selected-heading">
+                    <div id="selectedServiceIcon" class="verify-selected-icon">💬</div>
+                    <div><span class="verify-kicker">STEP 02</span><h3 id="selectedServiceName">WhatsApp</h3><p id="selectedServiceCategory">Social · 15 Minute Window</p></div>
+                </div>
+                <div class="verify-price-summary">
+                    <div><span>Country</span><strong>🇺🇸 United States</strong></div>
+                    <div><span>Duration</span><strong>◷ 15 minutes</strong></div>
+                    <div class="verify-price-cell"><span>Service cost</span><strong id="selectedServicePrice">Loading…</strong></div>
+                </div>
+                <div class="verify-advanced">
+                    <button type="button" class="verify-advanced-toggle" onclick="toggleVerifyAdvancedOptions()" aria-controls="verifyAdvancedOptions">
+                        <span>☷ &nbsp; Advanced filters <small>Optional</small></span><span id="verifyAdvancedArrow">⌄</span>
+                    </button>
+                    <div id="verifyAdvancedOptions" class="verify-advanced-fields" style="display:none; flex-direction:column; gap:.75rem;">
+                        <div><label class="form-label" for="verifyAreacodeInput">US area code</label><input type="text" id="verifyAreacodeInput" class="form-control" maxlength="3" inputmode="numeric" placeholder="Any area code"></div>
+                        <div><label class="form-label" for="verifyStateInput">US state abbreviation</label><input type="text" id="verifyStateInput" class="form-control" maxlength="2" placeholder="Any state" style="text-transform:uppercase;"></div>
+                        <div><label class="form-label" for="verifyMdnInput">Reuse phone number (MDN)</label><input type="text" id="verifyMdnInput" class="form-control" placeholder="Optional phone number"></div>
+                    </div>
+                </div>
+                <div id="verifyInsufficientFundsBox" class="verify-insufficient" style="display:none;">
+                    <strong>⚠ Insufficient balance</strong>
+                    <p>You need <span id="verifyShortfallText">₦0.00</span> more to request this number.</p>
+                    <button class="btn btn-emerald btn-sm" type="button" onclick="navigateTo('wallet')">Add funds to wallet</button>
+                </div>
+                <button class="btn btn-emerald btn-lg verify-request-btn" id="btnRequestNumber" type="button" onclick="submitVerificationOrder()">
+                    <span>ϟ</span> Request verification number <b>›</b>
+                </button>
+                <p class="verify-refund-note"><span>✓</span> No-risk guarantee. Automatic 100% refund if SMS doesn't arrive.</p>
+            </section>
+
+            <section class="verify-panel verify-how-panel">
+                <span class="verify-kicker">SIMPLE PROCESS</span>
+                <h3>How it works</h3>
+                <div class="verify-steps">
+                    <div><span class="verify-step-number">1</span><strong>Choose service</strong><p>Select the app you want to verify.</p></div>
+                    <div><span class="verify-step-number">2</span><strong>Get US number</strong><p>Receive a temporary number instantly.</p></div>
+                    <div><span class="verify-step-number">3</span><strong>Receive code</strong><p>Your OTP appears here automatically.</p></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="card verify-history-panel">
+        <div class="verify-panel-heading verify-history-heading">
+            <div><span class="verify-kicker">YOUR ACTIVITY</span><h3>Verification history</h3><p>Previous numbers, SMS codes and receipts.</p></div>
+            <button class="btn btn-secondary btn-sm" type="button" onclick="loadVerificationHistory()">↻ Refresh</button>
+        </div>
+        <div class="table-responsive">
+            <table class="custom-table">
+                <thead><tr><th>Date · Time</th><th>Service</th><th>Phone Number</th><th>Status</th><th>OTP Code</th><th>SMS Message</th><th>Cost</th></tr></thead>
+                <tbody id="verifyHistoryTableBody"><tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--text-dim);">No phone verification orders yet. Choose a service above to get started.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
+</section>
 
     </main>
 

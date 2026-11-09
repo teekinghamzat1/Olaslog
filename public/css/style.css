@@ -3102,3 +3102,112 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
     background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
 }
 
+
+
+/* ==========================================================
+   US SMS VERIFICATION HUB — clean responsive redesign
+   Scoped to .verify-page to avoid changing other Olaslog views.
+   ========================================================== */
+.verify-page { --verify-green:#087b3e; --verify-deep:#063b2a; --verify-mint:#e8fbf1; --verify-ink:#10251f; --verify-muted:#66736f; color:var(--verify-ink); }
+.verify-page .verify-hero { position:relative; display:grid; grid-template-columns:minmax(0,1.35fr) minmax(220px,.65fr); gap:1.5rem; align-items:center; overflow:hidden; padding:clamp(1.35rem,3vw,2.6rem); margin-bottom:1.25rem; border:1px solid #d7eee2; border-radius:26px; background:radial-gradient(circle at 82% 48%,rgba(90,220,153,.25),transparent 30%),linear-gradient(120deg,#f1fff7 0%,#fff 58%,#e9fbf1 100%); box-shadow:0 14px 38px rgba(12,83,49,.07); }
+.verify-page .verify-hero-copy { position:relative; z-index:1; max-width:690px; }
+.verify-page .verify-eyebrow { display:inline-flex; align-items:center; gap:.55rem; padding:.55rem .9rem; border:1px solid #b9ebce; border-radius:99px; background:#dcfce9; color:#075c32; font-size:.82rem; font-weight:750; margin-bottom:1.1rem; }
+.verify-page .verify-hero h2 { margin:0 0 .8rem; color:#0b2e24; font-size:clamp(2.15rem,5vw,3.65rem); line-height:1.02; letter-spacing:-.055em; font-weight:850; }
+.verify-page .verify-hero h2 span { color:#078447; }
+.verify-page .verify-hero-copy>p { max-width:650px; margin:0; color:#455650; font-size:clamp(.95rem,1.5vw,1.08rem); line-height:1.65; }
+.verify-page .verify-hero-copy>p strong { color:#1a3028; }
+.verify-page .verify-benefits { display:flex; flex-wrap:wrap; gap:1rem 1.35rem; margin-top:1.5rem; }
+.verify-page .verify-benefits>div { display:flex; align-items:center; gap:.65rem; min-width:145px; }
+.verify-page .verify-benefit-icon { display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px; border-radius:14px; background:#e1f9ea; color:#078447; font-size:1.55rem; font-weight:800; }
+.verify-page .verify-benefits strong,.verify-page .verify-benefits small { display:block; }
+.verify-page .verify-benefits strong { color:#142b22; font-size:.86rem; }
+.verify-page .verify-benefits small { color:#66736f; font-size:.75rem; margin-top:2px; }
+.verify-page .verify-hero-art { position:relative; min-height:245px; display:grid; place-items:center; }
+.verify-page .verify-orbit { position:absolute; width:min(100%,310px); aspect-ratio:1; border-radius:50%; background:linear-gradient(140deg,#bdf4d1,#e7fff0); }
+.verify-page .verify-phone { position:relative; z-index:1; width:150px; height:255px; padding:52px 12px 18px; transform:rotate(8deg); border:7px solid #f9fffb; border-radius:30px; background:linear-gradient(155deg,#07583b,#042d22); box-shadow:0 22px 40px rgba(4,57,34,.25),inset 0 0 0 1px rgba(255,255,255,.3); color:#fff; text-align:center; }
+.verify-page .verify-phone-notch { position:absolute; top:7px; left:50%; width:65px; height:13px; transform:translateX(-50%); border-radius:0 0 10px 10px; background:#061b15; }
+.verify-page .verify-phone-message { display:inline-grid; place-items:center; width:74px; height:42px; border-radius:12px 12px 12px 3px; background:#fff; color:#07583b; font-size:1.1rem; letter-spacing:3px; margin:6px auto 15px; }
+.verify-page .verify-phone span { display:block; font-size:.72rem; opacity:.85; }
+.verify-page .verify-phone>strong { display:block; margin-top:5px; font-size:1.45rem; letter-spacing:.03em; }
+.verify-page .verify-phone-check { display:grid; place-items:center; width:42px; height:42px; margin:15px auto 0; border-radius:50%; background:#26c76b; font-size:1.5rem; font-weight:800; }
+.verify-page .verify-wallet-chip { position:absolute; right:1.3rem; bottom:1.15rem; z-index:2; display:flex; align-items:center; gap:.6rem; padding:.55rem .75rem; border:1px solid #d8eee1; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 8px 22px rgba(11,70,42,.09); }
+.verify-page .verify-wallet-chip>span { color:#66736f; font-size:.7rem; }
+.verify-page .verify-wallet-chip>strong { color:#087b3e; font-size:1rem; white-space:nowrap; }
+.verify-page .verify-wallet-chip button { padding:.4rem .6rem; border:0; border-radius:8px; background:#e2f9eb; color:#087b3e; font-size:.72rem; font-weight:750; white-space:nowrap; cursor:pointer; }
+.verify-page .verify-workspace { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr); gap:1.2rem; align-items:start; margin-bottom:1.2rem; }
+.verify-page .verify-panel,.verify-page .verify-history-panel { padding:clamp(1rem,2.2vw,1.5rem); border:1px solid var(--border-glass,#e3eee8); border-radius:22px; background:var(--panel,#fff); box-shadow:0 10px 28px rgba(12,67,42,.055); }
+.verify-page .verify-panel-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.1rem; }
+.verify-page .verify-kicker { display:block; color:#078447; font-size:.68rem; font-weight:800; letter-spacing:.13em; margin-bottom:.35rem; }
+.verify-page .verify-panel h3 { margin:0; color:var(--text,#10251f); font-size:1.22rem; font-weight:800; letter-spacing:-.025em; }
+.verify-page .verify-panel-heading p { margin:.25rem 0 0; color:var(--text-dim,#66736f); font-size:.82rem; }
+.verify-page .verify-count { padding:.38rem .65rem; border-radius:99px; background:#edf9f1; color:#087b3e; font-size:.72rem; font-weight:750; white-space:nowrap; }
+.verify-page .verify-search { display:flex; align-items:center; gap:.65rem; padding:.1rem .85rem; margin-bottom:.85rem; border:1px solid var(--border-glass,#dce9e1); border-radius:13px; background:var(--input-bg,rgba(120,150,130,.06)); color:#078447; }
+.verify-page .verify-search>span { font-size:1.6rem; line-height:1; }
+.verify-page .verify-search input { width:100%; min-width:0; padding:.8rem 0; border:0; outline:0; background:transparent; color:var(--text,#10251f); font:inherit; font-size:.88rem; }
+.verify-page .verify-category-row { display:flex; gap:.45rem; overflow-x:auto; padding-bottom:.55rem; scrollbar-width:thin; }
+.verify-page .verify-category-row .pill { flex:0 0 auto; padding:.42rem .8rem!important; border:1px solid var(--border-glass,#dce9e1); border-radius:99px!important; background:transparent; color:var(--text-dim,#66736f); font-size:.75rem!important; font-weight:700!important; }
+.verify-page .verify-category-row .pill.active { border-color:#a9e7bf; background:#e5f9ec; color:#087b3e; }
+.verify-page .verify-services-grid { display:grid!important; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:.65rem!important; max-height:520px!important; padding:2px 3px 5px 0; overflow-y:auto; }
+.verify-page .verify-loading { grid-column:1/-1; padding:2rem .5rem; text-align:center; color:var(--text-dim); }
+.verify-page .verify-loading>span { color:#078447; font-size:2rem; }
+.verify-page .verify-loading p { margin:.35rem 0 0; font-size:.84rem; }
+.verify-page .verify-checkout-column { display:flex; flex-direction:column; gap:1.2rem; min-width:0; }
+.verify-page .verify-checkout-panel { border-color:#ccebd8; background:linear-gradient(150deg,var(--panel,#fff),rgba(231,250,239,.45)); }
+.verify-page .verify-selected-heading { display:flex; align-items:center; gap:.85rem; margin-bottom:1.1rem; }
+.verify-page .verify-selected-icon { display:grid; place-items:center; width:56px; height:56px; flex:0 0 56px; border-radius:16px; background:#e0f9e9; font-size:1.8rem; }
+.verify-page .verify-selected-heading h3 { font-size:1.3rem; }
+.verify-page .verify-selected-heading p { margin:.2rem 0 0; color:var(--text-dim); font-size:.8rem; }
+.verify-page .verify-price-summary { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; padding:1rem; margin-bottom:1rem; border:1px solid var(--border-glass,#e3eee8); border-radius:15px; background:rgba(120,150,130,.055); }
+.verify-page .verify-price-summary>div { min-width:0; }
+.verify-page .verify-price-summary>div span { display:block; margin-bottom:.35rem; color:var(--text-dim); font-size:.72rem; }
+.verify-page .verify-price-summary>div strong { display:block; color:var(--text); font-size:.88rem; overflow-wrap:anywhere; }
+.verify-page .verify-price-summary .verify-price-cell { grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; padding-top:.75rem; border-top:1px solid var(--border-glass,#dce9e1); }
+.verify-page .verify-price-summary .verify-price-cell strong { color:#078447; font-size:1.55rem; font-weight:850; }
+.verify-page .verify-advanced { margin-bottom:1rem; }
+.verify-page .verify-advanced-toggle { display:flex; justify-content:space-between; align-items:center; width:100%; padding:.8rem .85rem; border:1px solid var(--border-glass,#dce9e1); border-radius:12px; background:transparent; color:var(--text); font:inherit; font-size:.85rem; font-weight:700; text-align:left; cursor:pointer; }
+.verify-page .verify-advanced-toggle small { color:var(--text-dim); font-weight:500; }
+.verify-page .verify-advanced-fields { padding:.9rem .2rem .2rem; }
+.verify-page .verify-insufficient { margin-bottom:1rem; padding:.85rem; border:1px solid rgba(220,90,75,.25); border-radius:12px; background:rgba(220,90,75,.08); color:var(--text); font-size:.82rem; }
+.verify-page .verify-insufficient p { margin:.3rem 0 .65rem; }
+.verify-page .verify-request-btn { display:flex!important; align-items:center; justify-content:center; gap:.6rem; width:100%; min-height:60px; padding:.9rem 1rem!important; border-radius:15px!important; background:linear-gradient(110deg,#18a957,#006b35)!important; box-shadow:0 10px 22px rgba(0,126,61,.2); color:#fff!important; font-size:1rem!important; font-weight:800!important; }
+.verify-page .verify-request-btn>span { color:#d8ff67; font-size:1.35rem; }
+.verify-page .verify-request-btn>b { margin-left:auto; font-size:1.45rem; }
+.verify-page .verify-refund-note { display:flex; align-items:flex-start; justify-content:center; gap:.4rem; margin:.85rem 0 0; color:var(--text-dim); font-size:.75rem; line-height:1.5; text-align:center; }
+.verify-page .verify-refund-note span { color:#078447; font-weight:900; }
+.verify-page .verify-how-panel h3 { margin-bottom:.9rem; }
+.verify-page .verify-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7rem; }
+.verify-page .verify-steps>div { min-width:0; }
+.verify-page .verify-step-number { display:grid; place-items:center; width:34px; height:34px; margin-bottom:.55rem; border-radius:11px; background:#def8e8; color:#087b3e; font-weight:850; }
+.verify-page .verify-steps strong { display:block; color:var(--text); font-size:.8rem; }
+.verify-page .verify-steps p { margin:.25rem 0 0; color:var(--text-dim); font-size:.73rem; line-height:1.45; }
+.verify-page .verify-history-panel { margin-bottom:1.2rem; }
+.verify-page .verify-history-heading { align-items:center; }
+@media (max-width:900px) {
+ .verify-page .verify-hero { grid-template-columns:minmax(0,1fr) 190px; }
+ .verify-page .verify-hero-art { min-height:210px; }
+ .verify-page .verify-phone { transform:scale(.86) rotate(8deg); }
+ .verify-page .verify-workspace { grid-template-columns:1fr; }
+ .verify-page .verify-services-grid { max-height:330px!important; }
+}
+@media (max-width:600px) {
+ .verify-page .verify-hero { display:block; padding:1.2rem; border-radius:19px; }
+ .verify-page .verify-hero h2 { font-size:2.35rem; }
+ .verify-page .verify-hero-copy>p { font-size:.9rem; }
+ .verify-page .verify-hero-art { display:none; }
+ .verify-page .verify-benefits { display:grid; grid-template-columns:1fr; gap:.65rem; margin-top:1.15rem; }
+ .verify-page .verify-benefits>div { min-width:0; }
+ .verify-page .verify-wallet-chip { position:static; width:max-content; max-width:100%; margin-top:1rem; flex-wrap:wrap; }
+ .verify-page .verify-workspace { gap:.85rem; }
+ .verify-page .verify-panel,.verify-page .verify-history-panel { padding:1rem; border-radius:17px; }
+ .verify-page .verify-panel-heading { gap:.5rem; }
+ .verify-page .verify-panel h3 { font-size:1.08rem; }
+ .verify-page .verify-services-grid { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:300px!important; }
+ .verify-page .verify-price-summary { gap:.65rem; padding:.8rem; }
+ .verify-page .verify-price-summary>div strong { font-size:.8rem; }
+ .verify-page .verify-price-summary .verify-price-cell strong { font-size:1.35rem; }
+ .verify-page .verify-request-btn { min-height:56px; font-size:.88rem!important; }
+ .verify-page .verify-steps { gap:.5rem; }
+ .verify-page .verify-steps strong { font-size:.72rem; }
+ .verify-page .verify-steps p { font-size:.68rem; }
+ .verify-page .verify-history-heading { align-items:flex-start; }
+}
