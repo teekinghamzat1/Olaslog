@@ -2846,6 +2846,10 @@ function renderVerificationServicesList() {
     const selectedIndex = selected
         ? state.verificationServices.findIndex(s => s.name === selected.name)
         : -1;
+    // If search/category filtering hides the current selection, keep the
+    // placeholder selected. Do not let the browser silently select the
+    // first filtered option without firing onchange.
+    const selectedIsVisible = filtered.some(item => item.index === selectedIndex);
 
     grid.innerHTML = `
         <label class="verify-dropdown-label" for="verifyServiceSelect">Select a verification service</label>
@@ -2854,7 +2858,7 @@ function renderVerificationServicesList() {
             <select id="verifyServiceSelect" class="verify-service-select"
                 aria-label="Choose a verification service"
                 onchange="selectVerifyServiceByIndex(this.value)">
-                <option value="" disabled ${selectedIndex < 0 ? 'selected' : ''}>Choose a service…</option>
+                <option value="" disabled ${!selectedIsVisible ? 'selected' : ''}>Choose a service…</option>
                 ${filtered.map(item => {
                     const s = item.service;
                     return `<option value="${item.index}" ${item.index === selectedIndex ? 'selected' : ''}>
