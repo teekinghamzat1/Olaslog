@@ -4,6 +4,7 @@
 
 const state = {
     currentUser: null,
+    isCheckoutInProgress: false,
     cart: JSON.parse(localStorage.getItem('olaslog_cart') || '[]'),
     catalog: [],
     categories: [],
@@ -830,10 +831,10 @@ function createProductCardHTML(p) {
                 <div class="pcard-desc">${escapeHtml(p.description || 'Instant automated credential delivery to your account.')}</div>
                 <div class="pcard-price">₦${p.price.toLocaleString()}</div>
                 <div class="pcard-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openAccountPreviewModal(${p.id})">🔍 Preview</button>
+                    <button class="btn btn-outline btn-sm" onclick="openAccountPreviewModal(${p.id})">Details</button>
                     <button class="btn btn-outline btn-sm" onclick="openProductRulesModal(${p.id})">Rules</button>
-                    <button class="btn btn-primary btn-sm" ${inStock ? '' : 'disabled style="opacity:0.5;cursor:not-allowed;"'} onclick="quickAddToCart(${p.id})">
-                        ${inStock ? '+ Cart' : 'Sold Out'}
+                    <button class="btn btn-primary btn-sm" ${inStock ? '' : 'disabled style="opacity:0.5;cursor:not-allowed;"'} onclick="openAccountPreviewModal(${p.id})">
+                        ${inStock ? 'Buy Now ⚡' : 'Sold Out'}
                     </button>
                 </div>
             </div>
@@ -953,8 +954,8 @@ async function openAccountPreviewModal(productId) {
 
         if (!data.success || !data.stock) {
             listContainer.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger);">⚠️ Could not retrieve stock information. Please try again.</div>`;
-            setPreviewMode('instant'); // still let them add to cart
-            document.getElementById('previewModalStockBadge').textContent = 'In Stock';
+            setPreviewMode('error');
+            document.getElementById('previewModalStockBadge').textContent = 'Unavailable';
             return;
         }
 
@@ -1116,8 +1117,29 @@ async function confirmPreviewBuyNow() {
         return;
     }
 
-    confirmPreviewAddToCart();
-    await executeCheckout();
+    if (!currentPreviewStock) {
+        showToast('Stock information is not ready. Please refresh the preview.', 'error');
+        return;
+    }
+
+    const product = state.catalog.find(p => p.id === currentPreviewStock.productId);
+    if (!product) {
+        showToast('This product is no longer available. Please refresh the shop.', 'error');
+        return;
+    }
+
+    const ids = Array.from(selectedAccountIds);
+    if (Array.isArray(currentPreviewStock.options) && currentPreviewStock.options.length && ids.length === 0) {
+        showToast('Please select at least one account before purchasing.', 'info');
+        return;
+    }
+
+    closeModal('accountPreviewModal');
+    await executeDirectCheckout([{
+        productId: product.id,
+        quantity: ids.length || 1,
+        inventoryItemIds: ids.length ? ids : undefined
+    }], product.name);
 }
 
 // ============================================================================
@@ -1296,6 +1318,71 @@ function toggleCartDrawer(forceOpen = null) {
 function redirectToFundShortfall() {
     toggleCartDrawer(false);
     navigateTo('wallet');
+}
+
+async function initiateInstantCheckout(productId) {
+    const product = state.catalog.find(p => p.id === Number(productId));
+    if (!product) {
+        showToast('This product is no longer available. Please refresh the shop.', 'error');
+        return;
+    }
+
+    await executeDirectCheckout([{ productId: product.id, quantity: 1 }], product.name);
+}
+
+async function executeDirectCheckout(items, productName = 'your purchase') {
+    if (!state.currentUser) {
+        showToast('Please sign in to complete your purchase.', 'info');
+        openAuthModal('login');
+        return;
+    }
+
+    if (state.isCheckoutInProgress) {
+        showToast('Your purchase is already being processed. Please wait.', 'info');
+        return;
+    }
+
+    if (!Array.isArray(items) || !items.length) {
+        showToast('No product was selected for purchase.', 'error');
+        return;
+    }
+
+    state.isCheckoutInProgress = true;
+    try {
+        const res = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.status === 402 || data.code === 'INSUFFICIENT_FUNDS') {
+            showToast(data.error || 'Your wallet balance is too low. Please fund your wallet.', 'error');
+            navigateTo('wallet');
+            return;
+        }
+
+        if (!res.ok || !data.success || !data.data) {
+            showToast(data.error || `Could not complete ${productName}. Please try again.`, 'error');
+            return;
+        }
+
+        state.currentUser.balance = data.data.remainingBalance;
+        updateAuthUI();
+
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('success'); } catch (_) {}
+        }
+
+        openDeliveryModal(data.data);
+        showToast('Purchase successful! Your credentials are ready.', 'success');
+        await loadCatalog();
+    } catch (err) {
+        console.error('[Direct Checkout] Error:', err);
+        showToast('Purchase could not be completed. Please check your connection and try again.', 'error');
+    } finally {
+        state.isCheckoutInProgress = false;
+    }
 }
 
 async function executeCheckout() {
