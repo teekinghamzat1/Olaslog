@@ -3812,3 +3812,40 @@ h1, h2, h3, .brand-name, .hero-title, .page-title, .appbar-title {
  #view-home .home-why-card p{font-size:.83rem}
  #view-home .home-why-bottom{align-items:flex-start;flex-direction:column;gap:.5rem;padding:.9rem}
 }
+
+
+/* Homepage: How Olaslog Works — responsive three-step guide */
+#view-home .home-how-section{position:relative;overflow:hidden;margin:2.5rem 0 4rem;padding:clamp(1.15rem,3.5vw,2.6rem);border:1px solid #dceee3;border-radius:28px;background:linear-gradient(145deg,#fff 0%,#f8fffa 58%,#effbf3 100%);box-shadow:0 14px 38px rgba(9,73,43,.055)}
+#view-home .home-how-heading{max-width:760px;margin:0 auto 2rem;text-align:center}
+#view-home .home-how-eyebrow{display:inline-flex;align-items:center;gap:.55rem;margin-bottom:1rem;padding:.55rem .9rem;border:1px solid #ccebd8;border-radius:999px;background:#f0fff5;color:#167347;font-size:.74rem;font-weight:850;letter-spacing:.12em}
+#view-home .home-how-eyebrow span{font-size:1.1rem}
+#view-home .home-how-heading h2{margin:0 auto .85rem;color:#112e23;font-size:clamp(1.9rem,4.5vw,3rem);font-weight:900;line-height:1.1;letter-spacing:-.05em}
+#view-home .home-how-heading h2 span{color:#078747}
+#view-home .home-how-heading p{max-width:620px;margin:0 auto;color:#64716a;font-size:clamp(.92rem,1.6vw,1.08rem);line-height:1.65}
+#view-home .home-how-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9rem}
+#view-home .home-how-step{position:relative;display:flex;flex-direction:column;align-items:flex-start;min-width:0;min-height:230px;padding:1.25rem;border:1px solid #e1eee6;border-radius:20px;background:rgba(255,255,255,.94);box-shadow:0 5px 17px rgba(12,74,44,.035)}
+#view-home .home-how-icon{display:grid;place-items:center;width:62px;height:62px;margin-bottom:1.05rem;border-radius:18px;background:#e5f8eb;font-size:1.8rem}
+#view-home .home-how-number{position:absolute;top:1.35rem;right:1.25rem;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:linear-gradient(145deg,#24b85d,#087b3e);color:#fff;font-size:.95rem;font-weight:900;box-shadow:0 4px 10px rgba(8,123,62,.2)}
+#view-home .home-how-copy h3{margin:0 0 .55rem;color:#15372a;font-size:1.08rem;font-weight:850;line-height:1.3;letter-spacing:-.025em}
+#view-home .home-how-copy p{margin:0;color:#68756e;font-size:.88rem;line-height:1.6}
+#view-home .home-how-cta{display:flex;align-items:center;justify-content:center;gap:.7rem;width:100%;min-height:62px;margin-top:1.15rem;padding:.9rem 1.2rem;border:0;border-radius:17px;background:linear-gradient(100deg,#0a9c4d,#08763b);color:#fff;font-size:1.02rem;font-weight:850;box-shadow:0 10px 22px rgba(8,123,62,.18);cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}
+#view-home .home-how-cta:hover{transform:translateY(-2px);box-shadow:0 14px 26px rgba(8,123,62,.24)}
+@media(max-width:760px){
+ #view-home .home-how-section{margin:1.8rem 0 2.5rem;padding:1.15rem;border-radius:22px}
+ #view-home .home-how-heading{margin-bottom:1.35rem;text-align:left}
+ #view-home .home-how-heading h2{font-size:1.9rem;line-height:1.12}
+ #view-home .home-how-heading p{font-size:.9rem}
+ #view-home .home-how-steps{grid-template-columns:minmax(0,1fr);gap:.7rem}
+ #view-home .home-how-step{display:grid;grid-template-columns:62px 30px minmax(0,1fr);align-items:start;gap:.65rem;min-height:0;padding:1rem;border-radius:17px}
+ #view-home .home-how-icon{grid-column:1;grid-row:1;width:54px;height:54px;margin:0;border-radius:15px;font-size:1.5rem}
+ #view-home .home-how-number{position:static;grid-column:2;grid-row:1;width:29px;height:29px;margin-top:.15rem;font-size:.85rem}
+ #view-home .home-how-copy{grid-column:3;grid-row:1;min-width:0}
+ #view-home .home-how-copy h3{font-size:.98rem}
+ #view-home .home-how-copy p{font-size:.82rem;line-height:1.5}
+ #view-home .home-how-cta{min-height:56px;font-size:.94rem}
+}
+@media(max-width:360px){
+ #view-home .home-how-step{grid-template-columns:48px 27px minmax(0,1fr);gap:.5rem;padding:.85rem}
+ #view-home .home-how-icon{width:44px;height:44px;font-size:1.3rem}
+ #view-home .home-how-number{width:26px;height:26px}
+}
