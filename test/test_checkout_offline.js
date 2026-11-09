@@ -148,7 +148,15 @@ async function run() {
     );
     const untouchedStock = db.prepare('SELECT status FROM stock_items WHERE id = ?').get(uncertainStockId);
     assert.strictEqual(untouchedStock.status, 'available', 'Supplier timeout must not trigger local stock delivery');
-    console.log('PASS: supplier timeout fails closed and never falls back to local inventory');
+    const uncertaintyAudit = db.prepare(`
+        SELECT details FROM audit_logs
+        WHERE action = 'SUPPLIER_ORDER_UNCERTAIN' AND target_id = ?
+        ORDER BY id DESC LIMIT 1
+    `).get(String(customer.id));
+    assert(uncertaintyAudit, 'Supplier timeout must be recorded for manual reconciliation');
+    const auditDetails = JSON.parse(uncertaintyAudit.details);
+    assert.strictEqual(auditDetails.productId, uncertainProduct.id);
+    console.log('PASS: supplier timeout fails closed, preserves local stock, and records a reconciliation audit');
 
     console.log('ALL OFFLINE CHECKOUT TESTS PASSED. No provider, payment, email, or Telegram API calls were made.');
 }
