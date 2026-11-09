@@ -135,7 +135,6 @@ async function checkoutCart(userId, items) {
                     );
                     uncertainErr.code = 'SUPPLIER_UNCERTAIN';
                     uncertainErr.sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
-                    recordSupplierUncertainty(userId, valItem, uncertainErr);
                     throw uncertainErr;
                 }
 
