@@ -13,7 +13,6 @@ jobs:
     env:
       NODE_ENV: test
       OLASLOG_OFFLINE_TEST: '1'
-      OLASLOG_DB_PATH: ${{ runner.temp }}/olaslog-offline-test.sqlite
       SUJAN_API_KEY: mock_offline_test
       TELEGRAM_BOT_TOKEN: ''
       TELEGRAM_CHAT_ID: ''
@@ -37,4 +36,6 @@ jobs:
           node --check server/routes/checkout.js
           node --check test/test_checkout_offline.js
       - name: Run isolated checkout tests
+        env:
+          OLASLOG_DB_PATH: ${{ runner.temp }}/olaslog-offline-test.sqlite
         run: node test/test_checkout_offline.js
