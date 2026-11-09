@@ -6,6 +6,28 @@ const emailService = require('./email');
 const telegram = require('./telegram');
 const telegramBot = require('./telegramBot');
 
+function recordSupplierUncertainty(userId, item, error) {
+    try {
+        db.prepare(`
+            INSERT INTO audit_logs (admin_id, action, target_entity, target_id, details)
+            VALUES (NULL, 'SUPPLIER_ORDER_UNCERTAIN', 'CHECKOUT', ?, ?)
+        `).run(
+            String(userId),
+            JSON.stringify({
+                productId: item.product.id,
+                sujanProductId: item.product.sujan_product_id,
+                quantity: item.quantity,
+                supplierOrderId: error.sujanOrderId || null,
+                supplierStatus: error.sujanStatus || null,
+                message: error.message,
+                recordedAt: new Date().toISOString()
+            })
+        );
+    } catch (auditError) {
+        console.error('[Order] Could not record uncertain supplier checkout:', auditError.message);
+    }
+}
+
 /**
  * Performs atomic checkout for a cart with Sujan Logs Marketplace API integration
  * @param {number} userId
@@ -113,6 +135,7 @@ async function checkoutCart(userId, items) {
                     );
                     uncertainErr.code = 'SUPPLIER_UNCERTAIN';
                     uncertainErr.sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
+                    recordSupplierUncertainty(userId, valItem, uncertainErr);
                     throw uncertainErr;
                 }
 
@@ -125,7 +148,10 @@ async function checkoutCart(userId, items) {
                     keys
                 });
             } catch (sujanErr) {
-                if (sujanErr.code === 'SUPPLIER_UNCERTAIN') throw sujanErr;
+                if (sujanErr.code === 'SUPPLIER_UNCERTAIN') {
+                    recordSupplierUncertainty(userId, valItem, sujanErr);
+                    throw sujanErr;
+                }
 
                 console.error(
                     `Sujan API order failed for product ${valItem.product.id}; local fallback is disabled to prevent duplicate fulfilment:`,
@@ -136,6 +162,7 @@ async function checkoutCart(userId, items) {
                 );
                 supplierErr.code = 'SUPPLIER_UNCERTAIN';
                 supplierErr.sujanStatus = sujanErr.status || null;
+                recordSupplierUncertainty(userId, valItem, supplierErr);
                 throw supplierErr;
             }
             continue;
@@ -297,11 +324,17 @@ async function checkoutCart(userId, items) {
                 }
             } else if (source === 'local') {
                 for (const stockRow of fulfillment.stockRows) {
-                    db.prepare(`
+                    const stockUpdate = db.prepare(`
                         UPDATE stock_items
                         SET status = 'sold', order_id = ?, sold_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
+                        WHERE id = ? AND status = 'available'
                     `).run(orderId, stockRow.id);
+
+                    if (stockUpdate.changes !== 1) {
+                        const stockErr = new Error('One or more selected accounts were purchased by another customer. Please refresh and try again.');
+                        stockErr.code = 'OUT_OF_STOCK';
+                        throw stockErr;
+                    }
 
                     db.prepare(`
                         INSERT INTO delivered_credentials
