@@ -1868,9 +1868,9 @@ async function renderBillStackAccountForm() {
     const userPhone = (state.currentUser && state.currentUser.phone) ? state.currentUser.phone : '';
 
     container.innerHTML = `
-        <div id="vbaPromptSection">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-                <div style="width: 44px; height: 44px; border-radius: 12px; background: var(--teal-soft); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+        <div id="vbaPromptSection" class="wallet-funding-flow">
+            <div class="wallet-funding-heading">
+                <div class="wallet-funding-icon">
                     🏦
                 </div>
                 <div>
@@ -1880,7 +1880,7 @@ async function renderBillStackAccountForm() {
             </div>
 
             <!-- Features Banner -->
-            <div style="background: rgba(91, 217, 165, 0.08); border: 1px solid rgba(91, 217, 165, 0.25); border-radius: var(--radius-md); padding: 0.9rem 1.1rem; margin-bottom: 1.25rem;">
+            <div class="wallet-credit-info">
                 <div style="font-size: 0.85rem; font-weight: 700; color: var(--teal); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
                     ⚡ Instant Automated Wallet Credit
                 </div>
@@ -1889,12 +1889,12 @@ async function renderBillStackAccountForm() {
                 </div>
             </div>
 
-            <form id="vbaCreateForm" onsubmit="handleCreateVirtualAccount(event)">
+            <form id="vbaCreateForm" class="wallet-generate-form" onsubmit="handleCreateVirtualAccount(event)">
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label" style="font-size: 0.85rem; font-weight: 700;">
                         Preferred Bank Provider <span style="color: var(--danger);">*</span>
                     </label>
-                    <select id="vbaBankSelect" class="form-control" style="cursor: pointer;" onchange="handleBankSelectChange(this.value)">
+                    <select id="vbaBankSelect" class="form-control wallet-bank-select" style="cursor: pointer;" onchange="handleBankSelectChange(this.value)">
                         ${banks.map(b => `<option value="${b.id}" ${b.id === defaultBank ? 'selected' : ''}>${escapeHtml(b.name)}${b.id === defaultBank ? ' (Default - No BVN)' : ''}</option>`).join('')}
                     </select>
                 </div>
@@ -1903,12 +1903,12 @@ async function renderBillStackAccountForm() {
                     <label class="form-label" style="font-size: 0.85rem; font-weight: 700;">
                         Phone Number <span style="color: var(--danger);">*</span>
                     </label>
-                    <input type="tel" id="vbaPhoneInput" class="form-control" placeholder="e.g. 08012345678" value="${escapeHtml(userPhone)}" required style="font-family: var(--mono); font-size: 1rem;">
+                    <input type="tel" id="vbaPhoneInput" class="form-control wallet-phone-input" placeholder="e.g. 08012345678" value="${escapeHtml(userPhone)}" required style="font-family: var(--mono); font-size: 1rem;">
                     <small style="color: var(--text-dim); font-size: 0.75rem; margin-top: 4px; display: block;">Required for account registration and confirmation.</small>
                 </div>
 
                 <!-- PalmPay Specific ID Fields -->
-                <div id="palmpayFields" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem;">
+                <div id="palmpayFields" class="wallet-palmpay-fields" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); padding: 0.85rem; margin-bottom: 1rem;">
                     <div style="font-size: 0.8rem; font-weight: 700; color: var(--teal); margin-bottom: 0.5rem;">PalmPay Verification Requirement:</div>
                     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 0.75rem;">
                         <div class="form-group" style="margin-bottom: 0;">
@@ -1925,7 +1925,7 @@ async function renderBillStackAccountForm() {
                     </div>
                 </div>
 
-                <button type="submit" id="vbaSubmitBtn" class="btn btn-primary" style="width: 100%; padding: 0.85rem; font-weight: 700; font-size: 1rem;">
+                <button type="submit" id="vbaSubmitBtn" class="btn btn-primary wallet-generate-btn">
                     Generate My Dedicated Bank Account 🏦
                 </button>
             </form>
@@ -2009,8 +2009,8 @@ function renderActiveVirtualAccount(acc, allAccounts = []) {
     const formattedNum = rawNum.length === 10 ? `${rawNum.slice(0, 3)} ${rawNum.slice(3, 6)} ${rawNum.slice(6)}` : rawNum;
 
     container.innerHTML = `
-        <div id="vbaActiveAccountSection">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+        <div id="vbaActiveAccountSection" class="wallet-active-flow">
+            <div class="wallet-active-heading">
                 <div>
                     <span class="vba-status-pulse">
                         <span class="vba-pulse-dot"></span> Active Dedicated Account
@@ -2020,7 +2020,7 @@ function renderActiveVirtualAccount(acc, allAccounts = []) {
                 <div class="vba-card-chip" title="EMV Secured"></div>
             </div>
 
-            <div class="vba-bank-card">
+            <div class="vba-bank-card wallet-bank-account-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
                     <div style="font-size: 1.15rem; font-weight: 800; color: var(--text);">
                         🏦 ${escapeHtml(acc.bankName || 'Virtual Bank')}
@@ -2033,9 +2033,7 @@ function renderActiveVirtualAccount(acc, allAccounts = []) {
                 <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; margin-bottom: 2px;">
                     Account Name
                 </div>
-                <div style="font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.85rem;">
-                    ${escapeHtml(acc.accountName || 'Olaslog Customer')}
-                </div>
+                <div class="wallet-account-name-row"><strong>${escapeHtml(acc.accountName || 'Olaslog Customer')}</strong><button type="button" class="wallet-copy-name" onclick="copyWalletText('${escapeHtml(acc.accountName || 'Olaslog Customer')}')">Copy name</button></div>
 
                 <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; letter-spacing: 0.05em; margin-bottom: 2px;">
                     Account Number
@@ -2064,7 +2062,7 @@ function renderActiveVirtualAccount(acc, allAccounts = []) {
                 </div>
             </div>
 
-            <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <div class="wallet-alternative-bank-row">
                 <span style="font-size: 0.75rem; color: var(--text-dim);">Need another bank?</span>
                 <button type="button" class="btn btn-outline btn-sm" onclick="renderBillStackAccountForm()">
                     ➕ Generate Alternative Bank Account
@@ -2072,6 +2070,14 @@ function renderActiveVirtualAccount(acc, allAccounts = []) {
             </div>
         </div>
     `;
+}
+
+
+function copyWalletText(value) {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+        showToast('Account name copied to clipboard!', 'success');
+    }).catch(() => showToast(value, 'info'));
 }
 
 function copyVirtualAccountNumber(number) {
