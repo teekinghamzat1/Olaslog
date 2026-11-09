@@ -97,12 +97,26 @@ async function checkoutCart(userId, items) {
             console.warn(`Sujan API order failed for product ${valItem.product.id}, attempting local stock fallback:`, sujanErr.message);
             
             // Check if local stock rows exist as fallback
-            const stockRows = db.prepare(`
-                SELECT id, product_id, encrypted_credential, iv, auth_tag
-                FROM stock_items
-                WHERE product_id = ? AND status = 'available'
-                LIMIT ?
-            `).all(valItem.product.id, valItem.quantity);
+            let stockRows;
+            if (Array.isArray(valItem.inventoryItemIds) && valItem.inventoryItemIds.length > 0) {
+                const selectedIds = [...new Set(valItem.inventoryItemIds)];
+                const placeholders = selectedIds.map(() => '?').join(', ');
+                stockRows = db.prepare(`
+                    SELECT id, product_id, encrypted_credential, iv, auth_tag
+                    FROM stock_items
+                    WHERE product_id = ?
+                      AND status = 'available'
+                      AND id IN (${placeholders})
+                `).all(valItem.product.id, ...selectedIds);
+            } else {
+                stockRows = db.prepare(`
+                    SELECT id, product_id, encrypted_credential, iv, auth_tag
+                    FROM stock_items
+                    WHERE product_id = ? AND status = 'available'
+                    ORDER BY id ASC
+                    LIMIT ?
+                `).all(valItem.product.id, valItem.quantity);
+            }
 
             if (stockRows.length >= valItem.quantity) {
                 fulfillmentResults.push({
