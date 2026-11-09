@@ -91,6 +91,25 @@ async function run() {
     assert.strictEqual(getWalletBalance(customer.id), startingBalance - providerProduct.price);
     console.log('PASS: mocked provider checkout, credential delivery, and wallet debit');
 
+    const malformedProviderProduct = createProduct('Malformed Provider Response', 'offline-malformed-provider', 250, 910003);
+    const balanceBeforeMalformedResponse = getWalletBalance(customer.id);
+    sujanService.placeOrder = async () => ({
+        data: {
+            // Deliberately omit the supplier order ID and return an empty credential.
+            items: [{ id: 'OFFLINE-BAD-ITEM', credential: '   ' }]
+        }
+    });
+    await assert.rejects(
+        checkoutCart(customer.id, [{ productId: malformedProviderProduct.id, quantity: 1 }]),
+        error => error.code === 'SUPPLIER_UNCERTAIN'
+    );
+    assert.strictEqual(
+        getWalletBalance(customer.id),
+        balanceBeforeMalformedResponse,
+        'An unverifiable supplier response must not debit the customer wallet'
+    );
+    console.log('PASS: incomplete supplier response is not delivered or charged');
+
     const callsBeforeMixedCart = providerCalls;
     await assert.rejects(
         checkoutCart(customer.id, [
