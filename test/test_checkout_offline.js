@@ -29,6 +29,16 @@ telegram.notifyLowStock = async () => ({ skipped: true });
 telegramBot.notifyUserOrderDelivered = async () => ({ skipped: true });
 
 async function run() {
+    const crypto = require('crypto');
+    const webhookSecret = 'offline-webhook-secret';
+    const webhookPayload = Buffer.from('{"event":"order.completed","data":{"id":"OFFLINE-1"}}');
+    const webhookSignature = crypto.createHmac('sha256', webhookSecret).update(webhookPayload).digest('hex');
+    assert.strictEqual(sujanService.verifyWebhookSignature(webhookPayload, webhookSignature, webhookSecret), true);
+    assert.strictEqual(sujanService.verifyWebhookSignature(Buffer.from('tampered'), webhookSignature, webhookSecret), false);
+    assert.strictEqual(sujanService.verifyWebhookSignature(webhookPayload, 'not-a-valid-signature', webhookSecret), false);
+    assert.strictEqual(sujanService.verifyWebhookSignature(webhookPayload, webhookSignature, ''), false);
+    console.log('PASS: Sujan webhook HMAC verification accepts valid raw bodies and rejects invalid signatures');
+
     // This runs only in a fresh, disposable CI database.
     seedDatabase();
 
