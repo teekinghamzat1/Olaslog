@@ -64,7 +64,7 @@
     <link rel="shortcut icon" href="/favicon.ico">
 
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="/css/style.css?v=20261109-product-card-css-valid">
+    <link rel="stylesheet" href="/css/style.css?v=20261109-homepage-refresh">
 
     <!-- JSON-LD Structured Data for Search Engines -->
     <script type="application/ld+json">
@@ -338,93 +338,49 @@
              VIEW: HOME (Public Landing Page)
              ================================================================ -->
         <section id="view-home" class="app-view">
-            <div class="hero-section">
-                <div class="hero-grid">
-                    <!-- Left Column: Pitch & Action -->
-                    <div class="hero-content">
-                        <div class="hero-pill">
-                            <span class="pulse-dot"></span>
-                            <span>⚡ Instant Automated Delivery • Secure Bank Transfer Supported</span>
-                        </div>
-                        <h1 class="hero-title">
-                            Buy Verified Digital Accounts &amp; Virtual Numbers <br>
-                            <span class="gradient-text">Instant Automated Delivery to Your Vault</span>
-                        </h1>
-                        <p class="hero-subtitle">
-                            Nigeria's trusted self-service marketplace for verified Google Voice, TextPlus, Talkatone, and
-                            premium VPN subscriptions. Pre-fund your wallet via your dedicated virtual bank account in
-                            Naira (₦), purchase atomically, and receive credentials immediately.
-                        </p>
-
-                        <div class="hero-cta-group">
-                            <button class="btn btn-emerald btn-lg hero-cta-btn" onclick="navigateTo('shop')">
-                                <span>Browse Available Stock</span>
-                                <span>🛒</span>
-                            </button>
-                            <button class="btn btn-secondary btn-lg hero-cta-btn" onclick="openFundModalShortcut()">
-                                <span>Fund Wallet (from ₦100)</span>
-                                <span>🏦</span>
-                            </button>
-                        </div>
-
-                        <!-- Fintech Trust & Speed Badges -->
-                        <div class="hero-trust-badges">
-                            <div class="trust-badge-item">
-                                <span class="trust-icon">⚡</span>
-                                <div>
-                                    <div class="trust-title">Instant Dispatch</div>
-                                    <div class="trust-desc">Under 2 seconds</div>
-                                </div>
-                            </div>
-                            <div class="trust-badge-item">
-                                <span class="trust-icon">🔒</span>
-                                <div>
-                                    <div class="trust-title">Encrypted Vault</div>
-                                    <div class="trust-desc">AES-256 Storage</div>
-                                </div>
-                            </div>
-                            <div class="trust-badge-item">
-                                <span class="trust-icon">🛡️</span>
-                                <div>
-                                    <div class="trust-title">100% Guarantee</div>
-                                    <div class="trust-desc">Instant wallet refunds</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Column: Branded Visual with Floating Cards -->
-                    <div class="hero-visual">
-                        <div class="hero-img-wrapper">
-                            <div class="hero-img-glow"></div>
-                            <img src="/assets/hero_olaslog_person_dark.jpg"
-                                alt="Olaslog customer receiving verified digital accounts and instant credentials"
-                                width="540" height="540"
-                                class="hero-person-img" id="heroPersonImg" fetchpriority="high" decoding="async">
-
-                            <!-- Top Floating Badge -->
-                            <div class="hero-float-card float-card-top">
-                                <div class="float-icon-box">⚡</div>
-                                <div class="float-card-info">
-                                    <div class="float-card-title">Google Voice USA (Verified)</div>
-                                    <div class="float-card-sub"><span class="badge-dot-green"></span> Dispatched in 1.4s
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Bottom Floating Badge -->
-                            <div class="hero-float-card float-card-bottom">
-                                <div class="float-icon-box"
-                                    style="background: rgba(30, 155, 68, 0.2); color: var(--gold);">₦</div>
-                                <div class="float-card-info">
-                                    <div class="float-card-title">Instant Wallet Payment</div>
-                                    <div class="float-card-sub">Zero transaction delay • 24/7</div>
-                                </div>
-                            </div>
-                        </div>
+            <section class="home-redesign-hero">
+                <div class="home-hero-copy">
+                    <div class="home-trust-pill"><span>✓</span> Trusted Digital Marketplace</div>
+                    <h1>Buy Verified Digital Accounts <span>&amp; Virtual Numbers</span></h1>
+                    <p>Nigeria’s trusted self-service marketplace for Google Voice, TextPlus, Talkatone and premium VPN subscriptions.</p>
+                    <div class="home-benefits">
+                        <div><b>⚡</b><span>Instant<br>Delivery</span></div>
+                        <div><b>✓</b><span>Secure<br>Payments</span></div>
+                        <div><b>▱</b><span>Verified<br>Products</span></div>
                     </div>
                 </div>
-            </div>
+                <div class="home-hero-art" aria-label="Digital account services illustration">
+                    <div class="home-orbit"></div>
+                    <div class="home-device">
+                        <div class="home-device-speaker"></div>
+                        <div class="home-app-tile google">G<span>☎</span></div>
+                        <div class="home-app-tile textplus">t+</div>
+                        <div class="home-app-tile talk">☎</div>
+                        <div class="home-app-tile vpn">VPN</div>
+                    </div>
+                    <div class="home-float-note"><span>●</span> Ready for instant delivery</div>
+                </div>
+                <div class="home-hero-actions">
+                    <button class="home-browse-btn" onclick="navigateTo('shop')">🛒 &nbsp; Browse Available Stock <span>→</span></button>
+                </div>
+            </section>
+
+            <a class="home-wallet-promo" href="javascript:void(0)" onclick="navigateTo('wallet')">
+                <span class="home-wallet-icon">▤</span>
+                <span class="home-wallet-copy"><strong>Fund Your Wallet &amp; Shop Instantly</strong><small>Top up via your dedicated virtual bank account in Naira (₦) and get instant access to your purchases.</small></span>
+                <span class="home-wallet-arrow">›</span>
+            </a>
+
+            <section class="home-popular-categories">
+                <div class="home-section-heading"><h2>Popular Categories</h2><button onclick="navigateTo('shop')">View All →</button></div>
+                <div class="home-category-grid">
+                    <button onclick="navigateTo('shop'); setTimeout(() => filterCategory('usa-gmail'), 100);"><span class="home-cat-icon google">G</span><b>Google Voice</b></button>
+                    <button onclick="navigateTo('shop'); setTimeout(() => filterCategory('usa-texting-app'), 100);"><span class="home-cat-icon textplus">t+</span><b>TextPlus</b></button>
+                    <button onclick="navigateTo('shop'); setTimeout(() => filterCategory('usa-texting-app'), 100);"><span class="home-cat-icon talk">☎</span><b>Talkatone</b></button>
+                    <button onclick="navigateTo('shop'); setTimeout(() => filterCategory('1-month-paid-vpn'), 100);"><span class="home-cat-icon vpn">VPN</span><b>VPN</b></button>
+                    <button onclick="navigateTo('shop')"><span class="home-cat-icon more">▦</span><b>More</b></button>
+                </div>
+            </section>
 
             <!-- Live Platform Metrics -->
             <div class="stats-grid">
