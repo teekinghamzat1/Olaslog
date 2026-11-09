@@ -19,6 +19,7 @@ jobs:
       SMTP_HOST: ''
       SMTP_USER: ''
       SMTP_PASS: ''
+      OLASLOG_DB_PATH: /tmp/olaslog-offline-test.sqlite
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -36,6 +37,4 @@ jobs:
           node --check server/routes/checkout.js
           node --check test/test_checkout_offline.js
       - name: Run isolated checkout tests
-        env:
-          OLASLOG_DB_PATH: ${{ runner.temp }}/olaslog-offline-test.sqlite
         run: node test/test_checkout_offline.js
