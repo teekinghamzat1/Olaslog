@@ -8,6 +8,7 @@ const API_ENDPOINT = 'https://www.usphoneverify.com/api_command.php';
 // In-memory cache for provider service list (5 minutes TTL)
 let servicesCache = null;
 let servicesCacheTime = 0;
+let servicesCachePricingKey = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Curated list of popular services with icons & categories
@@ -45,14 +46,14 @@ function getSettings() {
 
         const user = map.api_user || process.env.USPHONEVERIFY_USER || '';
         const apiKey = map.api_key || process.env.USPHONEVERIFY_API_KEY || '';
-        const usdRate = parseFloat(map.usd_rate || process.env.USPHONEVERIFY_USD_RATE || '1500');
+        const usdRate = parseFloat(map.usd_rate || process.env.USPHONEVERIFY_USD_RATE || '2000');
         const marginPercent = parseFloat(map.margin_percent || process.env.USPHONEVERIFY_MARGIN_PERCENT || '25');
         const minPriceNgn = parseFloat(map.min_price_ngn || process.env.USPHONEVERIFY_MIN_PRICE || '800');
 
         return {
             user,
             apiKey,
-            usdRate: isNaN(usdRate) || usdRate <= 0 ? 1500 : usdRate,
+            usdRate: isNaN(usdRate) || usdRate <= 0 ? 2000 : usdRate,
             marginPercent: isNaN(marginPercent) || marginPercent < 0 ? 25 : marginPercent,
             minPriceNgn: isNaN(minPriceNgn) || minPriceNgn <= 0 ? 800 : minPriceNgn,
             isConfigured: Boolean(user && apiKey)
@@ -61,7 +62,7 @@ function getSettings() {
         return {
             user: process.env.USPHONEVERIFY_USER || '',
             apiKey: process.env.USPHONEVERIFY_API_KEY || '',
-            usdRate: 1500,
+            usdRate: 2000,
             marginPercent: 25,
             minPriceNgn: 800,
             isConfigured: Boolean(process.env.USPHONEVERIFY_USER && process.env.USPHONEVERIFY_API_KEY)
@@ -78,6 +79,14 @@ function updateSetting(key, value) {
         VALUES (?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
     `).run(key, String(value));
+
+    // Cached service entries contain NGN prices, so invalidate them whenever
+    // a setting that affects verification pricing changes.
+    if (['usd_rate', 'margin_percent', 'min_price_ngn'].includes(key)) {
+        servicesCache = null;
+        servicesCacheTime = 0;
+        servicesCachePricingKey = null;
+    }
 }
 
 /**
@@ -169,9 +178,11 @@ async function getProviderBalance() {
 async function listServices(forceRefresh = false) {
     const s = getSettings();
     const now = Date.now();
+    const pricingKey = `${s.usdRate}:${s.marginPercent}:${s.minPriceNgn}`;
 
-    // Check memory cache
-    if (!forceRefresh && servicesCache && (now - servicesCacheTime < CACHE_TTL_MS)) {
+    // Cached entries include converted NGN prices. Reuse them only while
+    // both the TTL and the pricing settings remain unchanged.
+    if (!forceRefresh && servicesCache && servicesCachePricingKey === pricingKey && (now - servicesCacheTime < CACHE_TTL_MS)) {
         return servicesCache;
     }
 
@@ -235,6 +246,7 @@ async function listServices(forceRefresh = false) {
 
     servicesCache = enriched;
     servicesCacheTime = now;
+    servicesCachePricingKey = pricingKey;
     return enriched;
 }
 
