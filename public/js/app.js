@@ -928,6 +928,7 @@ async function openAccountPreviewModal(productId) {
 
     // Store productId globally for the instant-footer buttons
     window._previewProductId = productId;
+    currentPreviewStock = null;
 
     document.getElementById('previewModalProductTitle').textContent = `🔍 ${product.name}`;
     document.getElementById('previewModalSubtitle').textContent = 'Checking live stock — please wait…';
@@ -1035,8 +1036,8 @@ async function openAccountPreviewModal(productId) {
 
     } catch (err) {
         listContainer.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--danger);">⚠️ Network error. Please check your connection and try again.</div>`;
-        setPreviewMode('instant');
-        document.getElementById('previewModalStockBadge').textContent = 'In Stock';
+        setPreviewMode('error');
+        document.getElementById('previewModalStockBadge').textContent = 'Unavailable';
     }
 }
 
@@ -1386,6 +1387,11 @@ async function executeDirectCheckout(items, productName = 'your purchase') {
 }
 
 async function executeCheckout() {
+    if (state.isCheckoutInProgress) {
+        showToast('Your checkout is already being processed. Please wait.', 'info');
+        return;
+    }
+
     if (!state.currentUser) {
         showToast('Please sign in to proceed with checkout', 'info');
         toggleCartDrawer(false);
@@ -1399,6 +1405,7 @@ async function executeCheckout() {
     }
 
     const checkoutBtn = document.getElementById('checkoutBtn');
+    state.isCheckoutInProgress = true;
     checkoutBtn.disabled = true;
     checkoutBtn.textContent = 'Reserving Stock & Debiting Wallet...';
 
@@ -1451,9 +1458,12 @@ async function executeCheckout() {
             checkoutBtn.textContent = '⚡ Complete Instant Purchase';
         }
     } catch (err) {
-        showToast('Checkout transaction failed', 'error');
+        console.error('[Cart Checkout] Error:', err);
+        showToast('Checkout transaction failed. Please check your connection and try again.', 'error');
         checkoutBtn.disabled = false;
         checkoutBtn.textContent = '⚡ Complete Instant Purchase';
+    } finally {
+        state.isCheckoutInProgress = false;
     }
 }
 
