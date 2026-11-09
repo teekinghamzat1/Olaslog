@@ -127,21 +127,28 @@ async function checkoutCart(userId, items) {
                 const sujanOrderData = sujanRes.data || sujanRes;
                 const sujanItems = Array.isArray(sujanOrderData.items) ? sujanOrderData.items : [];
                 const keys = Array.isArray(sujanOrderData.keys) ? sujanOrderData.keys : [];
+                const sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
                 const deliveredCount = sujanItems.length || keys.length;
+                const credentialsAreComplete = sujanItems.length > 0
+                    ? sujanItems.every(entry => entry && typeof (entry.credential || entry.key) === 'string'
+                        && (entry.credential || entry.key).trim().length > 0)
+                    : keys.every(key => typeof key === 'string' && key.trim().length > 0);
 
-                if (deliveredCount !== valItem.quantity) {
+                // Without a supplier order ID, Olaslog cannot correlate a later
+                // webhook or investigate an uncertain fulfilment. Never mark it paid.
+                if (!sujanOrderId || deliveredCount !== valItem.quantity || !credentialsAreComplete) {
                     const uncertainErr = new Error(
-                        `Supplier response for ${valItem.product.name} contained ${deliveredCount} credential(s); expected ${valItem.quantity}. Do not retry until the supplier order is checked.`
+                        `Supplier response for ${valItem.product.name} could not be safely verified (order ID present: ${Boolean(sujanOrderId)}, credentials received: ${deliveredCount}, expected: ${valItem.quantity}, credentials complete: ${credentialsAreComplete}). Do not retry until the supplier order is checked.`
                     );
                     uncertainErr.code = 'SUPPLIER_UNCERTAIN';
-                    uncertainErr.sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
+                    uncertainErr.sujanOrderId = sujanOrderId;
                     throw uncertainErr;
                 }
 
                 fulfillmentResults.push({
                     item: valItem,
                     source: 'sujan',
-                    sujanOrderId: String(sujanOrderData.id || sujanOrderData.order_id || ''),
+                    sujanOrderId,
                     productName: sujanOrderData.product || valItem.product.name,
                     items: sujanItems,
                     keys
