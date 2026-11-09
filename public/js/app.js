@@ -157,7 +157,13 @@ function updateAuthUI() {
     const isAdmin = isAuth && state.currentUser.role === 'admin';
 
     document.querySelectorAll('.auth-only').forEach(el => {
-        el.style.display = isAuth ? (el.tagName === 'SPAN' || el.tagName === 'DIV' ? 'flex' : 'block') : 'none';
+        // Navigation links must remain flex rows when made visible.
+        // Setting anchors to display:block stacks their icon and label,
+        // which causes the mobile drawer items to overlap.
+        const visibleDisplay = el.classList.contains('mobile-nav-item')
+            ? 'flex'
+            : (el.tagName === 'SPAN' || el.tagName === 'DIV' ? 'flex' : 'block');
+        el.style.display = isAuth ? visibleDisplay : 'none';
     });
 
     document.querySelectorAll('.guest-only').forEach(el => {
@@ -165,7 +171,9 @@ function updateAuthUI() {
     });
 
     document.querySelectorAll('.admin-only').forEach(el => {
-        el.style.display = isAdmin ? 'block' : 'none';
+        // Keep the Admin Console navigation item in the same horizontal row layout.
+        const visibleDisplay = el.classList.contains('mobile-nav-item') ? 'flex' : 'block';
+        el.style.display = isAdmin ? visibleDisplay : 'none';
     });
 
     const mobUserEl = document.querySelector('.mobile-sidebar-user');
