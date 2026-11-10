@@ -277,7 +277,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
             userId,
             txType,
             delta,
-            currentBalance,
+            ledgerBalance,
             targetBalance,
             reference,
             channel,
