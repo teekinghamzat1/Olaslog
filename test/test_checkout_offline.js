@@ -21,7 +21,7 @@ const sujanService = require('../server/services/sujan');
 const emailService = require('../server/services/email');
 const telegram = require('../server/services/telegram');
 const telegramBot = require('../server/services/telegramBot');
-const { checkoutCart } = require('../server/services/order');
+const { checkoutCart, completeSupplierCheckoutFromWebhook } = require('../server/services/order');
 
 // Hard-disable outbound notifications for this test process.
 emailService.sendPurchaseEmail = async () => ({ skipped: true });
@@ -200,6 +200,41 @@ async function run() {
     const auditDetails = JSON.parse(uncertaintyAudit.details);
     assert.strictEqual(auditDetails.productId, uncertainProduct.id);
     console.log('PASS: supplier timeout fails closed, keeps funds reserved, preserves local stock, and records a reconciliation audit');
+
+    // Simulate a supplier-confirmed checkout whose local commit was interrupted.
+    // The signed webhook recovery path must use the existing reservation exactly once.
+    const recoveryProduct = createProduct('Webhook Recovery Product', 'offline-webhook-recovery', 300, 910004);
+    const recoveryCheckoutId = 'offline-recovery-checkout-1';
+    const recoveryAmount = recoveryProduct.price;
+    const recoveryBeforeLedger = getLedgerBalance(customer.id);
+    db.prepare(`
+        INSERT INTO wallet_reservations (checkout_id, user_id, amount, status)
+        VALUES (?, ?, ?, 'active')
+    `).run(recoveryCheckoutId, customer.id, recoveryAmount);
+    db.prepare(`
+        INSERT INTO checkout_attempts (checkout_id, user_id, amount, status, supplier_order_id, request_json)
+        VALUES (?, ?, ?, 'supplier_confirmed', ?, ?)
+    `).run(
+        recoveryCheckoutId,
+        customer.id,
+        recoveryAmount,
+        'OFFLINE-RECOVERY-SUPPLIER-1',
+        JSON.stringify([{ productId: recoveryProduct.id, quantity: 1, inventoryItemIds: null }])
+    );
+    const recovered = completeSupplierCheckoutFromWebhook('OFFLINE-RECOVERY-SUPPLIER-1', {
+        items: [{ id: 'OFFLINE-RECOVERY-ITEM-1', credential: 'recovered-user|recovered-password' }]
+    });
+    assert(recovered && !recovered.alreadyCompleted, 'Webhook must recover a confirmed pending checkout');
+    assert.strictEqual(getLedgerBalance(customer.id), recoveryBeforeLedger - recoveryAmount);
+    assert.strictEqual(getReservedBalance(customer.id), malformedProviderProduct.price + uncertainProduct.price);
+    const recoveredAgain = completeSupplierCheckoutFromWebhook('OFFLINE-RECOVERY-SUPPLIER-1', {
+        items: [{ id: 'OFFLINE-RECOVERY-ITEM-1', credential: 'recovered-user|recovered-password' }]
+    });
+    assert(recoveredAgain && recoveredAgain.alreadyCompleted, 'Webhook retry must not charge or create a second order');
+    assert.strictEqual(getLedgerBalance(customer.id), recoveryBeforeLedger - recoveryAmount);
+    const recoveredOrder = db.prepare('SELECT COUNT(*) AS count FROM orders WHERE sujan_order_id = ?').get('OFFLINE-RECOVERY-SUPPLIER-1');
+    assert.strictEqual(recoveredOrder.count, 1);
+    console.log('PASS: signed webhook recovery completes a supplier-confirmed checkout exactly once');
 
     console.log('ALL OFFLINE CHECKOUT TESTS PASSED. No provider, payment, email, or Telegram API calls were made.');
 }
