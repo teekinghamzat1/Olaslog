@@ -530,15 +530,15 @@ async function checkoutCart(userId, items) {
  * It only acts on a durable active reservation and is safe to retry.
  */
 function completeSupplierCheckoutFromWebhook(sujanOrderId, orderData) {
+    const existingOrder = db.prepare('SELECT id, order_number FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
+    if (existingOrder) return { alreadyCompleted: true, orderId: existingOrder.id };
+
     const attempt = db.prepare(`
         SELECT * FROM checkout_attempts
         WHERE supplier_order_id = ? AND status IN ('supplier_confirmed', 'supplier_uncertain')
         ORDER BY id DESC LIMIT 1
     `).get(String(sujanOrderId));
     if (!attempt) return null;
-
-    const existingOrder = db.prepare('SELECT id, order_number FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
-    if (existingOrder) return { alreadyCompleted: true, orderId: existingOrder.id };
 
     let requestedItems;
     try { requestedItems = JSON.parse(attempt.request_json); }
