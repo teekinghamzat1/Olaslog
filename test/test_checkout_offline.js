@@ -15,7 +15,7 @@ process.env.SMTP_PASS = '';
 const assert = require('assert');
 const db = require('../server/db');
 const { seedDatabase } = require('../server/db/seed');
-const { getWalletBalance } = require('../server/services/wallet');
+const { getWalletBalance, getLedgerBalance, getReservedBalance } = require('../server/services/wallet');
 const { encrypt } = require('../server/services/crypto');
 const sujanService = require('../server/services/sujan');
 const emailService = require('../server/services/email');
@@ -93,6 +93,7 @@ async function run() {
 
     const malformedProviderProduct = createProduct('Malformed Provider Response', 'offline-malformed-provider', 250, 910003);
     const balanceBeforeMalformedResponse = getWalletBalance(customer.id);
+    const ledgerBeforeMalformedResponse = getLedgerBalance(customer.id);
     sujanService.placeOrder = async () => ({
         data: {
             // Deliberately omit the supplier order ID and return an empty credential.
@@ -104,11 +105,19 @@ async function run() {
         error => error.code === 'SUPPLIER_UNCERTAIN'
     );
     assert.strictEqual(
-        getWalletBalance(customer.id),
-        balanceBeforeMalformedResponse,
-        'An unverifiable supplier response must not debit the customer wallet'
+        getLedgerBalance(customer.id),
+        ledgerBeforeMalformedResponse,
+        'An unverifiable supplier response must not create a wallet debit'
     );
-    console.log('PASS: incomplete supplier response is not delivered or charged');
+    assert.strictEqual(
+        getWalletBalance(customer.id),
+        balanceBeforeMalformedResponse - malformedProviderProduct.price,
+        'Funds for an uncertain supplier order must remain reserved and unavailable'
+    );
+    assert.strictEqual(getReservedBalance(customer.id), malformedProviderProduct.price);
+    const malformedAttempt = db.prepare("SELECT status FROM checkout_attempts WHERE user_id = ? AND status = 'supplier_uncertain' ORDER BY id DESC LIMIT 1").get(customer.id);
+    assert(malformedAttempt, 'Uncertain supplier checkout must be durably recorded');
+    console.log('PASS: incomplete supplier response keeps funds reserved without charging the wallet');
 
     const callsBeforeMixedCart = providerCalls;
     await assert.rejects(
@@ -164,6 +173,8 @@ async function run() {
     console.log('PASS: local-only products use local stock without calling the supplier');
     console.log('PASS: local fulfilment delivers only the exact selected inventory item');
 
+    const balanceBeforeTimeout = getWalletBalance(customer.id);
+    const ledgerBeforeTimeout = getLedgerBalance(customer.id);
     const uncertainProduct = createProduct('Supplier Timeout Product', 'offline-supplier-timeout', 700, 910002);
     const uncertainStockId = addStock('must-not-fallback|password-C');
     db.prepare('UPDATE stock_items SET product_id = ? WHERE id = ?').run(uncertainProduct.id, uncertainStockId);
@@ -175,6 +186,9 @@ async function run() {
         checkoutCart(customer.id, [{ productId: uncertainProduct.id, quantity: 1 }]),
         error => error.code === 'SUPPLIER_UNCERTAIN'
     );
+    assert.strictEqual(getLedgerBalance(customer.id), ledgerBeforeTimeout, 'An ambiguous supplier timeout must not debit the wallet ledger');
+    assert.strictEqual(getWalletBalance(customer.id), balanceBeforeTimeout - uncertainProduct.price, 'An ambiguous supplier timeout must keep the amount reserved');
+    assert.strictEqual(getReservedBalance(customer.id), malformedProviderProduct.price + uncertainProduct.price);
     const untouchedStock = db.prepare('SELECT status FROM stock_items WHERE id = ?').get(uncertainStockId);
     assert.strictEqual(untouchedStock.status, 'available', 'Supplier timeout must not trigger local stock delivery');
     const uncertaintyAudit = db.prepare(`
@@ -185,7 +199,7 @@ async function run() {
     assert(uncertaintyAudit, 'Supplier timeout must be recorded for manual reconciliation');
     const auditDetails = JSON.parse(uncertaintyAudit.details);
     assert.strictEqual(auditDetails.productId, uncertainProduct.id);
-    console.log('PASS: supplier timeout fails closed, preserves local stock, and records a reconciliation audit');
+    console.log('PASS: supplier timeout fails closed, keeps funds reserved, preserves local stock, and records a reconciliation audit');
 
     console.log('ALL OFFLINE CHECKOUT TESTS PASSED. No provider, payment, email, or Telegram API calls were made.');
 }
