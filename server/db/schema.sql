@@ -266,9 +266,14 @@ CREATE TABLE IF NOT EXISTS phone_verification_attempts (
     )),
     request_json TEXT,
     error_message TEXT,
+    recovery_status TEXT NOT NULL DEFAULT 'open' CHECK(recovery_status IN ('open', 'investigating', 'resolved_no_issue')),
+    resolution_note TEXT,
+    resolved_by INTEGER,
+    resolved_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_phone_verify_attempts_user
     ON phone_verification_attempts(user_id, status);
