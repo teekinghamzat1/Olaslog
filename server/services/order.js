@@ -525,6 +525,112 @@ async function checkoutCart(userId, items) {
 }
 
 /**
+ * Finalizes a supplier checkout from a signed completion webhook when the
+ * original request received supplier confirmation but could not commit locally.
+ * It only acts on a durable active reservation and is safe to retry.
+ */
+function completeSupplierCheckoutFromWebhook(sujanOrderId, orderData) {
+    const attempt = db.prepare(`
+        SELECT * FROM checkout_attempts
+        WHERE supplier_order_id = ? AND status IN ('supplier_confirmed', 'supplier_uncertain')
+        ORDER BY id DESC LIMIT 1
+    `).get(String(sujanOrderId));
+    if (!attempt) return null;
+
+    const existingOrder = db.prepare('SELECT id, order_number FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
+    if (existingOrder) return { alreadyCompleted: true, orderId: existingOrder.id };
+
+    let requestedItems;
+    try { requestedItems = JSON.parse(attempt.request_json); }
+    catch (_) { throw new Error('Stored checkout request cannot be read'); }
+    if (!Array.isArray(requestedItems) || requestedItems.length !== 1) {
+        throw new Error('Supplier recovery only supports one stored supplier product line');
+    }
+
+    const eventItems = Array.isArray(orderData?.items) ? orderData.items : [];
+    const expectedQuantity = Number(requestedItems[0].quantity);
+    if (!eventItems.length || eventItems.length !== expectedQuantity) {
+        throw new Error('Supplier completion does not contain the expected number of credentials');
+    }
+    if (!eventItems.every(item => item && typeof (item.credential || item.key) === 'string'
+        && String(item.credential || item.key).trim().length > 0)) {
+        throw new Error('Supplier completion contains an empty credential');
+    }
+
+    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(requestedItems[0].productId));
+    if (!product) throw new Error('The product for this supplier checkout no longer exists');
+
+    const finalize = db.transaction(() => {
+        const freshAttempt = db.prepare('SELECT * FROM checkout_attempts WHERE checkout_id = ?').get(attempt.checkout_id);
+        if (!freshAttempt || !['supplier_confirmed', 'supplier_uncertain'].includes(freshAttempt.status)) {
+            const completed = db.prepare('SELECT id FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
+            if (completed) return { alreadyCompleted: true, orderId: completed.id };
+            throw new Error('Supplier checkout is no longer awaiting reconciliation');
+        }
+
+        const reservation = db.prepare(`
+            SELECT * FROM wallet_reservations WHERE checkout_id = ? AND user_id = ? AND status = 'active'
+        `).get(attempt.checkout_id, attempt.user_id);
+        if (!reservation || Math.abs(reservation.amount - attempt.amount) > 0.001) {
+            throw new Error('The customer's wallet reservation is missing');
+        }
+        const ledgerBalance = getLedgerBalance(attempt.user_id);
+        if (ledgerBalance < attempt.amount) throw new Error('Reserved funds are no longer available');
+
+        const timestamp = Date.now();
+        const orderNumber = `ORD-${timestamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newBalance = Math.round((ledgerBalance - attempt.amount) * 100) / 100;
+        const walletRef = `PUR-${timestamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        db.prepare(`
+            INSERT INTO wallet_transactions
+            (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
+            VALUES (?, 'purchase', ?, ?, ?, ?, 'successful', 'wallet', ?, ?)
+        `).run(attempt.user_id, attempt.amount, ledgerBalance, newBalance, walletRef,
+            `Recovered supplier purchase - ${orderNumber}`,
+            JSON.stringify({ orderNumber, totalCost: attempt.amount, supplierOrderId: String(sujanOrderId), recoveredFromWebhook: true }));
+
+        const orderResult = db.prepare(`
+            INSERT INTO orders (order_number, sujan_order_id, user_id, total_amount, status)
+            VALUES (?, ?, ?, ?, 'completed')
+        `).run(orderNumber, String(sujanOrderId), attempt.user_id, attempt.amount);
+        const orderId = orderResult.lastInsertRowid;
+        const qty = expectedQuantity;
+        const itemResult = db.prepare(`
+            INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(orderId, product.id, qty, product.price, attempt.amount);
+        const orderItemId = itemResult.lastInsertRowid;
+
+        for (let index = 0; index < eventItems.length; index++) {
+            const supplierItem = eventItems[index];
+            const credential = String(supplierItem.credential || supplierItem.key);
+            const encrypted = encrypt(credential);
+            db.prepare(`
+                INSERT INTO delivered_credentials
+                (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
+                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
+            `).run(orderId, orderItemId, product.id,
+                supplierItem.id === undefined || supplierItem.id === null ? String(sujanOrderId) + '-' + (index + 1) : String(supplierItem.id),
+                supplierItem.public_data || ('Account #' + (supplierItem.id || 'AUTO')),
+                encrypted.encrypted, encrypted.iv, encrypted.authTag);
+        }
+
+        db.prepare(`
+            UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ? AND status = 'active'
+        `).run(attempt.checkout_id);
+        db.prepare(`
+            UPDATE checkout_attempts SET status = 'completed', error_message = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(attempt.checkout_id);
+
+        return { alreadyCompleted: false, orderId, orderNumber };
+    });
+    return finalize.immediate();
+}
+
+/**
  * Retrieves an order and all its delivered credentials (decrypted)
  * @param {number} orderId
  * @param {number} [userId]
@@ -577,6 +683,7 @@ function getOrderWithCredentials(orderId, userId = null) {
 
 module.exports = {
     checkoutCart,
+    completeSupplierCheckoutFromWebhook,
     getOrderWithCredentials
 };
 
