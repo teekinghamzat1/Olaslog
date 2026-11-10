@@ -91,6 +91,10 @@ async function run() {
         assert.strictEqual(getReservedBalance(customer.id), phoneReservedBeforeTimeout + 500, 'Ambiguous phone provider response must keep estimated funds held');
         const uncertainPhoneAttempt = db.prepare("SELECT status FROM phone_verification_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
         assert.strictEqual(uncertainPhoneAttempt.status, 'provider_uncertain');
+        // This is a disposable test database. Release the simulated unresolved hold
+        // after proving it was retained, so the other checkout tests start clean.
+        const uncertainPhone = db.prepare("SELECT attempt_id FROM phone_verification_attempts WHERE user_id = ? AND status = 'provider_uncertain' ORDER BY id DESC LIMIT 1").get(customer.id);
+        db.prepare("UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP WHERE checkout_id = ? AND status = 'active'").run(uncertainPhone.attempt_id);
         console.log('PASS: US Phone Verify timeout keeps funds reserved and records an uncertain attempt');
     } finally {
         global.fetch = originalFetch;
