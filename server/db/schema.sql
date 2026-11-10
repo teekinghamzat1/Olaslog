@@ -250,6 +250,31 @@ CREATE TABLE IF NOT EXISTS verification_settings (
 );
 
 
+-- Durable US Phone Verify purchase attempts. Unknown provider outcomes keep
+-- their wallet reservation active until support can reconcile the request.
+CREATE TABLE IF NOT EXISTS phone_verification_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    service_name TEXT NOT NULL,
+    reserved_amount REAL NOT NULL CHECK(reserved_amount > 0),
+    actual_amount REAL,
+    provider_request_id TEXT,
+    status TEXT NOT NULL CHECK(status IN (
+        'reserved', 'provider_pending', 'provider_uncertain',
+        'provider_confirmed', 'completed', 'rejected', 'failed'
+    )),
+    request_json TEXT,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_phone_verify_attempts_user
+    ON phone_verification_attempts(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_phone_verify_attempts_provider
+    ON phone_verification_attempts(provider_request_id);
+
 -- Durable checkout attempts and wallet reservations.
 -- Active reservations reduce spendable balance until the checkout is resolved.
 CREATE TABLE IF NOT EXISTS wallet_reservations (
