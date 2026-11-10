@@ -11,6 +11,7 @@ const syncScheduler = require('../services/syncScheduler');
 const emailService = require('../services/email');
 const telegram = require('../services/telegram');
 const phoneVerify = require('../services/phoneVerify');
+const phoneVerifyRecovery = require('../services/phoneVerifyRecovery');
 
 // Enforce admin auth on all sub-routes
 router.use(authenticate, requireAdmin);
@@ -1477,6 +1478,41 @@ router.get('/verification/orders', (req, res) => {
         return res.json({ success: true, orders: rows });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Durable recovery queue for provider requests whose outcome was not confirmed.
+router.get('/verification/recovery', (req, res) => {
+    try {
+        return res.json({ success: true, attempts: phoneVerifyRecovery.listUnresolvedAttempts(req.query.limit) });
+    } catch (err) {
+        console.error('[Admin] Recovery queue error:', err);
+        return res.status(500).json({ success: false, error: 'Could not load recovery queue' });
+    }
+});
+
+// Mark an unresolved attempt as under investigation. This does not contact the provider.
+router.post('/verification/recovery/:attemptId/review', (req, res) => {
+    try {
+        const result = phoneVerifyRecovery.markInvestigating(req.params.attemptId, req.body.note);
+        logAudit(req.user.id, 'REVIEW_PHONE_VERIFY_ATTEMPT', 'phone_verification_attempts', req.params.attemptId, result.note);
+        return res.json({ success: true, message: 'Attempt marked as under investigation.' });
+    } catch (err) {
+        return res.status(409).json({ success: false, error: err.message });
+    }
+});
+
+// Release a hold only after an administrator confirms with the provider that no number was issued.
+router.post('/verification/recovery/:attemptId/resolve-no-issue', (req, res) => {
+    try {
+        const result = phoneVerifyRecovery.resolveNoIssue(
+            req.params.attemptId, req.user.id, req.body.providerConfirmedNoNumber, req.body.note
+        );
+        logAudit(req.user.id, 'RESOLVE_PHONE_VERIFY_NO_ISSUE', 'phone_verification_attempts',
+            req.params.attemptId, JSON.stringify({ ...result, note: String(req.body.note).trim() }));
+        return res.json({ success: true, message: 'Provider-confirmed failed request resolved. The wallet hold has been released.' });
+    } catch (err) {
+        return res.status(409).json({ success: false, error: err.message });
     }
 });
 

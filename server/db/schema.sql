@@ -248,3 +248,67 @@ CREATE TABLE IF NOT EXISTS verification_settings (
     value TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Durable US Phone Verify purchase attempts. Unknown provider outcomes keep
+-- their wallet reservation active until support can reconcile the request.
+CREATE TABLE IF NOT EXISTS phone_verification_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    service_name TEXT NOT NULL,
+    reserved_amount REAL NOT NULL CHECK(reserved_amount > 0),
+    actual_amount REAL,
+    provider_request_id TEXT,
+    status TEXT NOT NULL CHECK(status IN (
+        'reserved', 'provider_pending', 'provider_uncertain',
+        'provider_confirmed', 'completed', 'rejected', 'failed'
+    )),
+    request_json TEXT,
+    error_message TEXT,
+    recovery_status TEXT NOT NULL DEFAULT 'open' CHECK(recovery_status IN ('open', 'investigating', 'resolved_no_issue')),
+    resolution_note TEXT,
+    resolved_by INTEGER,
+    resolved_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_phone_verify_attempts_user
+    ON phone_verification_attempts(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_phone_verify_attempts_provider
+    ON phone_verification_attempts(provider_request_id);
+
+-- Durable checkout attempts and wallet reservations.
+-- Active reservations reduce spendable balance until the checkout is resolved.
+CREATE TABLE IF NOT EXISTS wallet_reservations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK(amount > 0),
+    status TEXT NOT NULL CHECK(status IN ('active', 'committed', 'released')) DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_reservations_user_status
+    ON wallet_reservations(user_id, status);
+
+CREATE TABLE IF NOT EXISTS checkout_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK(amount > 0),
+    status TEXT NOT NULL CHECK(status IN ('reserved', 'supplier_pending', 'supplier_uncertain', 'supplier_confirmed', 'completed', 'failed')) DEFAULT 'reserved',
+    supplier_order_id TEXT,
+    request_json TEXT NOT NULL,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_checkout_attempts_supplier_order
+    ON checkout_attempts(supplier_order_id);
+CREATE INDEX IF NOT EXISTS idx_checkout_attempts_user_status
+    ON checkout_attempts(user_id, status);

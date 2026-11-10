@@ -9,22 +9,33 @@ const MIN_FUNDING = parseInt(process.env.MIN_FUNDING_AMOUNT || '100', 10);
  * @param {number} userId
  * @returns {number}
  */
-function getWalletBalance(userId) {
+function getLedgerBalance(userId) {
     const row = db.prepare(`
-        SELECT 
-            COALESCE(SUM(CASE 
-                WHEN type IN ('funding', 'refund', 'credit') AND status = 'successful' THEN amount 
+        SELECT
+            COALESCE(SUM(CASE
+                WHEN type IN ('funding', 'refund', 'credit') AND status = 'successful' THEN amount
                 WHEN type = 'adjustment' AND status = 'successful' AND amount >= 0 THEN amount
                 ELSE 0 END), 0) -
-            COALESCE(SUM(CASE 
-                WHEN type IN ('purchase', 'debit') AND status = 'successful' THEN amount 
+            COALESCE(SUM(CASE
+                WHEN type IN ('purchase', 'debit') AND status = 'successful' THEN amount
                 WHEN type = 'adjustment' AND status = 'successful' AND amount < 0 THEN ABS(amount)
-                ELSE 0 END), 0) as balance
-        FROM wallet_transactions
-        WHERE user_id = ?
+                ELSE 0 END), 0) AS balance
+        FROM wallet_transactions WHERE user_id = ?
     `).get(userId);
-    
     return row ? Math.round(row.balance * 100) / 100 : 0;
+}
+
+function getReservedBalance(userId) {
+    const row = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) AS amount
+        FROM wallet_reservations WHERE user_id = ? AND status = 'active'
+    `).get(userId);
+    return row ? Math.round(row.amount * 100) / 100 : 0;
+}
+
+// Spendable balance excludes money already held for unresolved checkouts.
+function getWalletBalance(userId) {
+    return Math.round((getLedgerBalance(userId) - getReservedBalance(userId)) * 100) / 100;
 }
 
 /**
@@ -37,7 +48,7 @@ function getWalletBalance(userId) {
  * @param {object} [metadata]
  */
 function recordFunding(userId, amount, reference, paymentChannel = 'virtual_bank_account', status = 'pending', metadata = {}) {
-    const currentBalance = getWalletBalance(userId);
+    const currentBalance = getLedgerBalance(userId);
     const newBalance = status === 'successful' ? currentBalance + amount : currentBalance;
 
     const stmt = db.prepare(`
@@ -87,7 +98,7 @@ function completeFunding(reference, finalStatus = 'successful', extraMetadata = 
         };
     }
 
-    const currentBalance = getWalletBalance(existing.user_id);
+    const currentBalance = getLedgerBalance(existing.user_id);
     const newBalance = finalStatus === 'successful' ? currentBalance + existing.amount : currentBalance;
 
     let mergedMetadata = {};
@@ -127,7 +138,7 @@ function completeFunding(reference, finalStatus = 'successful', extraMetadata = 
  * @param {string} reason
  */
 function recordRefund(userId, amount, orderId, disputeId, adminId, reason = '') {
-    const currentBalance = getWalletBalance(userId);
+    const currentBalance = getLedgerBalance(userId);
     const newBalance = currentBalance + amount;
     const reference = `REF-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
@@ -188,8 +199,10 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         throw new Error('User not found');
     }
 
-    const currentBalance = getWalletBalance(userId);
-    let targetBalance = currentBalance;
+    const spendableBalance = getWalletBalance(userId);
+    const ledgerBalance = getLedgerBalance(userId);
+    const reservedBalance = getReservedBalance(userId);
+    let targetBalance = ledgerBalance;
     let delta = 0;
     let txType = 'funding';
     let channel = 'admin_credit';
@@ -200,7 +213,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(delta) || delta <= 0) {
             throw new Error('Credit amount must be greater than ₦0');
         }
-        targetBalance = Math.round((currentBalance + delta) * 100) / 100;
+        targetBalance = Math.round((ledgerBalance + delta) * 100) / 100;
         txType = 'funding';
         channel = 'admin_credit';
         desc = reason ? `Admin Credit: ${reason}` : 'Admin manual balance credit';
@@ -209,10 +222,10 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(delta) || delta <= 0) {
             throw new Error('Debit amount must be greater than ₦0');
         }
-        if (delta > currentBalance) {
-            throw new Error(`Debit amount (₦${delta.toLocaleString()}) exceeds user's current balance (₦${currentBalance.toLocaleString()})`);
+        if (delta > spendableBalance) {
+            throw new Error(`Debit amount (₦${delta.toLocaleString()}) exceeds user's spendable balance (₦${spendableBalance.toLocaleString()})`);
         }
-        targetBalance = Math.round((currentBalance - delta) * 100) / 100;
+        targetBalance = Math.round((ledgerBalance - delta) * 100) / 100;
         txType = 'debit';
         channel = 'admin_debit';
         desc = reason ? `Admin Debit: ${reason}` : 'Admin manual balance debit';
@@ -221,11 +234,12 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(target) || target < 0) {
             throw new Error('Target balance must be a non-negative number');
         }
-        const diff = Math.round((target - currentBalance) * 100) / 100;
+        const targetLedgerBalance = Math.round((target + reservedBalance) * 100) / 100;
+        const diff = Math.round((targetLedgerBalance - ledgerBalance) * 100) / 100;
         if (diff === 0) {
             throw new Error('Target balance is identical to the current balance');
         }
-        targetBalance = target;
+        targetBalance = targetLedgerBalance;
         if (diff > 0) {
             delta = diff;
             txType = 'funding';
@@ -263,7 +277,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
             userId,
             txType,
             delta,
-            currentBalance,
+            ledgerBalance,
             targetBalance,
             reference,
             channel,
@@ -274,7 +288,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         return {
             id: result.lastInsertRowid,
             reference,
-            balanceBefore: currentBalance,
+            balanceBefore: ledgerBalance,
             balanceAfter: targetBalance,
             amount: delta,
             type: txType,
@@ -289,6 +303,8 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
 
 module.exports = {
     getWalletBalance,
+    getLedgerBalance,
+    getReservedBalance,
     recordFunding,
     completeFunding,
     recordRefund,

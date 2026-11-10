@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../db');
-const { getWalletBalance } = require('./wallet');
+const { getWalletBalance, getLedgerBalance, getReservedBalance } = require('./wallet');
 
 const API_ENDPOINT = 'https://www.usphoneverify.com/api_command.php';
 
@@ -258,113 +258,188 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
     if (!service) throw new Error('Service name is required');
 
     const s = getSettings();
-
-    // 1. Estimate cost from service list
     const services = await listServices();
     const serviceInfo = services.find(x => x.name.toLowerCase() === service.toLowerCase());
     const estimatedNgn = serviceInfo ? serviceInfo.priceNgn : calculateNgnPrice(0.60, s);
     const estimatedUsd = serviceInfo ? parseFloat(serviceInfo.usdPrice) : 0.60;
 
-    // 2. Verify user has enough wallet balance
-    const currentBalance = getWalletBalance(userId);
-    if (currentBalance < estimatedNgn) {
-        const shortfall = Math.round((estimatedNgn - currentBalance) * 100) / 100;
-        const err = new Error('Insufficient wallet balance to request this verification number');
-        err.code = 'INSUFFICIENT_FUNDS';
-        err.required = estimatedNgn;
-        err.currentBalance = currentBalance;
-        err.shortfall = shortfall;
-        throw err;
-    }
+    const crypto = require('crypto');
+    const attemptId = `phoneverify:${crypto.randomUUID()}`;
+    const walletRef = `VER-REQ-${crypto.randomUUID()}`;
+    let reservedAmount = estimatedNgn;
 
-    // 3. Make the API call to USPhoneVerify
+    // Reserve funds before contacting the provider. BEGIN IMMEDIATE serializes
+    // competing requests so they cannot both spend the same available balance.
+    const reserveFunds = db.transaction(() => {
+        const ledger = getLedgerBalance(userId);
+        const held = getReservedBalance(userId);
+        const spendable = Math.round((ledger - held) * 100) / 100;
+        if (spendable < estimatedNgn) {
+            const err = new Error('Insufficient wallet balance to request this verification number');
+            err.code = 'INSUFFICIENT_FUNDS';
+            err.required = estimatedNgn;
+            err.currentBalance = spendable;
+            err.shortfall = Math.round((estimatedNgn - spendable) * 100) / 100;
+            throw err;
+        }
+        db.prepare(`
+            INSERT INTO wallet_reservations (checkout_id, user_id, amount, status)
+            VALUES (?, ?, ?, 'active')
+        `).run(attemptId, userId, estimatedNgn);
+        db.prepare(`
+            INSERT INTO phone_verification_attempts
+            (attempt_id, user_id, service_name, reserved_amount, status, request_json)
+            VALUES (?, ?, ?, ?, 'reserved', ?)
+        `).run(attemptId, userId, service, estimatedNgn, JSON.stringify({ service, areacode, state, markup, mdn }));
+    }).immediate;
+    reserveFunds();
+
+    const updateAttempt = (status, values = {}) => db.prepare(`
+        UPDATE phone_verification_attempts
+        SET status = ?, provider_request_id = COALESCE(?, provider_request_id),
+            actual_amount = COALESCE(?, actual_amount), error_message = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE attempt_id = ?
+    `).run(status, values.requestId || null, values.amount ?? null, values.error || null, attemptId);
+
+    const releaseReservation = () => db.prepare(`
+        UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP
+        WHERE checkout_id = ? AND status = 'active'
+    `).run(attemptId);
+
     const apiParams = { service };
     if (mdn) apiParams.mdn = mdn;
     if (areacode) apiParams.areacode = areacode;
     else if (state) apiParams.state = state;
     if (markup) apiParams.markup = markup;
 
-    const apiRes = await callApi('request', apiParams);
+    let apiRes;
+    try {
+        updateAttempt('provider_pending');
+        apiRes = await callApi('request', apiParams);
+    } catch (err) {
+        // A timeout/network error does not prove the provider did not issue a number.
+        updateAttempt('provider_uncertain', { error: err.message });
+        const uncertain = new Error('The verification request could not be confirmed. Your wallet funds are temporarily held while we check its status. Please do not submit another request yet.');
+        uncertain.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw uncertain;
+    }
 
-    if (apiRes.status !== 'ok' || !Array.isArray(apiRes.message) || apiRes.message.length === 0) {
-        const errorMsg = apiRes.message || 'No verification numbers currently available for this service. Please retry in a few minutes.';
+    if (!apiRes || apiRes.status !== 'ok') {
+        releaseReservation();
+        updateAttempt('failed', { error: typeof apiRes?.message === 'string' ? apiRes.message : 'Provider rejected the request' });
+        const errorMsg = apiRes?.message || 'No verification numbers currently available for this service. Please retry in a few minutes.';
         throw new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
+    }
+
+    if (!Array.isArray(apiRes.message) || apiRes.message.length === 0 || !apiRes.message[0] || apiRes.message[0].id == null) {
+        updateAttempt('provider_uncertain', { error: 'Provider returned an incomplete success response without a request ID' });
+        const uncertain = new Error('The provider response could not be confirmed. Your wallet funds are temporarily held. Please contact support before retrying.');
+        uncertain.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw uncertain;
     }
 
     const item = apiRes.message[0];
     const requestId = String(item.id);
-    const actualUsdPrice = parseFloat(item.price) || estimatedUsd;
+    const parsedUsd = Number.parseFloat(item.price);
+    const actualUsdPrice = Number.isFinite(parsedUsd) && parsedUsd > 0 ? parsedUsd : estimatedUsd;
     const finalNgnPrice = calculateNgnPrice(actualUsdPrice, s);
+    updateAttempt('provider_confirmed', { requestId, amount: finalNgnPrice });
 
-    // Re-verify balance in case final price is higher
-    if (currentBalance < finalNgnPrice) {
-        // Auto-reject at provider since user cannot afford
-        try { await callApi('reject', { id: requestId }); } catch (_) {}
-        const err = new Error('Insufficient wallet balance for this number');
-        err.code = 'INSUFFICIENT_FUNDS';
+    // Adjust the hold to the provider's actual price. If the extra amount is
+    // unavailable, reject at the provider; retain the hold if rejection is unclear.
+    const adjustHold = db.transaction(() => {
+        const ledger = getLedgerBalance(userId);
+        const heldByOthers = db.prepare(`
+            SELECT COALESCE(SUM(amount), 0) AS amount FROM wallet_reservations
+            WHERE user_id = ? AND status = 'active' AND checkout_id <> ?
+        `).get(userId, attemptId).amount;
+        const spendableBeforeThisHold = Math.round((ledger - heldByOthers - reservedAmount) * 100) / 100;
+        if (finalNgnPrice > reservedAmount && spendableBeforeThisHold < finalNgnPrice) return false;
+        db.prepare(`
+            UPDATE wallet_reservations SET amount = ?
+            WHERE checkout_id = ? AND status = 'active'
+        `).run(finalNgnPrice, attemptId);
+        reservedAmount = finalNgnPrice;
+        return true;
+    }).immediate;
+
+    if (!adjustHold()) {
+        try {
+            const rejectRes = await callApi('reject', { id: requestId });
+            if (rejectRes && rejectRes.status === 'ok') {
+                releaseReservation();
+                updateAttempt('rejected', { requestId, amount: finalNgnPrice, error: 'Actual price exceeded available wallet balance; provider rejection confirmed' });
+            } else {
+                updateAttempt('provider_uncertain', { requestId, amount: finalNgnPrice, error: 'Could not confirm provider rejection after actual price exceeded available balance' });
+            }
+        } catch (rejectError) {
+            updateAttempt('provider_uncertain', { requestId, amount: finalNgnPrice, error: `Provider rejection uncertain: ${rejectError.message}` });
+        }
+        const err = new Error('The provider price is higher than your available wallet balance. The request is being checked before any held funds are released.');
+        err.code = 'PHONE_VERIFY_UNCERTAIN';
         err.required = finalNgnPrice;
-        err.currentBalance = currentBalance;
         throw err;
     }
 
-    // 4. Atomic Database Debit & Record Creation
-    const timestamp = Date.now();
-    const walletRef = `VER-REQ-${timestamp}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newBalance = Math.round((currentBalance - finalNgnPrice) * 100) / 100;
-
-    const tillSeconds = parseInt(item.till_expiration || '900', 10);
+    const tillSeconds = Math.max(1, parseInt(item.till_expiration || '900', 10) || 900);
     const expiresAt = new Date(Date.now() + tillSeconds * 1000).toISOString();
+    const initialStatus = item.status === 'Awaiting MDN' || !item.mdn ? 'awaiting_mdn' : 'reserved';
 
-    let initialStatus = 'reserved';
-    if (item.status === 'Awaiting MDN' || !item.mdn) {
-        initialStatus = 'awaiting_mdn';
+    let localId;
+    let newBalance;
+    try {
+        const commitPurchase = db.transaction(() => {
+            const attempt = db.prepare(`
+                SELECT status FROM wallet_reservations WHERE checkout_id = ? AND user_id = ?
+            `).get(attemptId, userId);
+            if (!attempt || attempt.status !== 'active') throw new Error('Wallet reservation is no longer active');
+
+            const ledgerBalance = getLedgerBalance(userId);
+            const allReservations = getReservedBalance(userId);
+            const ledgerAvailable = Math.round((ledgerBalance - allReservations) * 100) / 100;
+            if (ledgerAvailable < 0) throw new Error('Wallet balance changed while verification was being processed');
+
+            newBalance = Math.round((ledgerBalance - finalNgnPrice) * 100) / 100;
+            db.prepare(`
+                INSERT INTO wallet_transactions
+                (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
+                VALUES (?, 'purchase', ?, ?, ?, ?, 'successful', 'wallet', ?, ?)
+            `).run(
+                userId, finalNgnPrice, ledgerBalance, newBalance, walletRef,
+                `US Phone Verification: ${service}`,
+                JSON.stringify({ requestId, service, mdn: item.mdn, priceUsd: actualUsdPrice, priceNgn: finalNgnPrice, attemptId })
+            );
+
+            const result = db.prepare(`
+                INSERT INTO phone_verifications
+                (user_id, request_id, service_name, phone_number, state, areacode, carrier, markup, cost_usd, cost_ngn, wallet_ref, status, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                userId, requestId, service, item.mdn || null, item.state || state || null,
+                areacode || null, item.carrier || null, parseInt(item.markup || '0', 10),
+                actualUsdPrice, finalNgnPrice, walletRef, initialStatus, expiresAt
+            );
+            localId = result.lastInsertRowid;
+            db.prepare(`
+                UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
+                WHERE checkout_id = ? AND status = 'active'
+            `).run(attemptId);
+            db.prepare(`
+                UPDATE phone_verification_attempts SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                WHERE attempt_id = ?
+            `).run(attemptId);
+        }).immediate;
+        commitPurchase();
+    } catch (err) {
+        // Provider has issued a number. Keep the reservation and attempt for support recovery.
+        updateAttempt('provider_uncertain', { requestId, amount: finalNgnPrice, error: `Local save failed after provider confirmation: ${err.message}` });
+        const uncertain = new Error('The provider issued a number, but Olaslog could not finish saving the purchase. Your funds remain held while support resolves it.');
+        uncertain.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw uncertain;
     }
 
-    const executeOrder = db.transaction(() => {
-        // Record wallet debit in immutable ledger
-        db.prepare(`
-            INSERT INTO wallet_transactions
-            (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
-            VALUES (?, 'purchase', ?, ?, ?, ?, 'successful', 'wallet', ?, ?)
-        `).run(
-            userId,
-            finalNgnPrice,
-            currentBalance,
-            newBalance,
-            walletRef,
-            `US Phone Verification: ${service}`,
-            JSON.stringify({ requestId, service, mdn: item.mdn, priceUsd: actualUsdPrice, priceNgn: finalNgnPrice })
-        );
-
-        // Record verification in phone_verifications
-        const res = db.prepare(`
-            INSERT INTO phone_verifications
-            (user_id, request_id, service_name, phone_number, state, areacode, carrier, markup, cost_usd, cost_ngn, wallet_ref, status, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            userId,
-            requestId,
-            service,
-            item.mdn || null,
-            item.state || state || null,
-            areacode || null,
-            item.carrier || null,
-            parseInt(item.markup || '0', 10),
-            actualUsdPrice,
-            finalNgnPrice,
-            walletRef,
-            initialStatus,
-            expiresAt
-        );
-
-        return res.lastInsertRowid;
-    });
-
-    const localId = executeOrder();
-
-    // Trigger background poller so incoming SMS is pushed automatically to Telegram
     startVerificationPoller();
-
     return {
         id: localId,
         requestId,
@@ -378,7 +453,7 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
         costFormatted: `₦${finalNgnPrice.toLocaleString()}`,
         tillExpiration: tillSeconds,
         expiresAt,
-        newBalance
+        newBalance: getWalletBalance(userId)
     };
 }
 
@@ -591,14 +666,22 @@ async function cancelAndRefund(id, userId) {
         };
     }
 
-    // Call provider reject command (best-effort)
+    // Do not refund unless the provider confirms the number was rejected.
+    let rejectResult;
     try {
-        await callApi('reject', { id: row.request_id });
+        rejectResult = await callApi('reject', { id: row.request_id });
     } catch (e) {
-        console.warn(`[PhoneVerify] Provider reject warning for ${row.request_id}:`, e.message);
+        const err = new Error('The provider cancellation could not be confirmed. No refund has been issued yet; please try again or contact support.');
+        err.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw err;
+    }
+    if (!rejectResult || rejectResult.status !== 'ok') {
+        const err = new Error('The provider has not confirmed cancellation. No refund has been issued.');
+        err.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw err;
     }
 
-    // Perform atomic refund in user's wallet
+    // Perform atomic, one-time refund in user's wallet
     const targetUserId = row.user_id;
     const currentBalance = getWalletBalance(targetUserId);
     const refundAmount = row.cost_ngn;
@@ -606,6 +689,10 @@ async function cancelAndRefund(id, userId) {
     const refundRef = `REF-VER-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const executeRefund = db.transaction(() => {
+        const current = db.prepare('SELECT status FROM phone_verifications WHERE id = ?').get(row.id);
+        if (!current || ['completed', 'rejected', 'refunded', 'timed_out'].includes(current.status)) {
+            return false;
+        }
         db.prepare(`
             INSERT INTO wallet_transactions
             (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
@@ -620,14 +707,19 @@ async function cancelAndRefund(id, userId) {
             JSON.stringify({ verificationId: row.id, requestId: row.request_id, service: row.service_name })
         );
 
-        db.prepare(`
+        const update = db.prepare(`
             UPDATE phone_verifications
             SET status = 'refunded', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND status IN ('reserved', 'awaiting_mdn')
         `).run(row.id);
-    });
+        if (update.changes !== 1) throw new Error('Verification was already resolved; refund was not repeated');
+        return true;
+    }).immediate;
 
-    executeRefund();
+    if (!executeRefund()) {
+        const latest = db.prepare('SELECT * FROM phone_verifications WHERE id = ?').get(row.id);
+        return { success: true, alreadyRefunded: true, verification: formatVerificationRow(latest), balance: getWalletBalance(targetUserId) };
+    }
 
     const updatedRow = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(row.id);
 
@@ -652,7 +744,12 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
         const newBalance = Math.round((currentBalance + refundAmount) * 100) / 100;
         const refundRef = `REF-EXP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        db.transaction(() => {
+        const refunded = db.transaction(() => {
+            const current = db.prepare('SELECT status FROM phone_verifications WHERE id = ?').get(row.id);
+            if (!current || ['completed', 'refunded', 'timed_out'].includes(current.status)) return false;
+
+            const latestLedger = getLedgerBalance(row.user_id);
+            const latestNewBalance = Math.round((latestLedger + refundAmount) * 100) / 100;
             db.prepare(`
                 INSERT INTO wallet_transactions
                 (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
@@ -660,19 +757,22 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
             `).run(
                 row.user_id,
                 refundAmount,
-                currentBalance,
-                newBalance,
+                latestLedger,
+                latestNewBalance,
                 refundRef,
                 `Auto-Refund: ${row.service_name} (${reason})`,
                 JSON.stringify({ verificationId: row.id, requestId: row.request_id, reason })
             );
 
-            db.prepare(`
+            const update = db.prepare(`
                 UPDATE phone_verifications
                 SET status = 'timed_out', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = ? AND status IN ('reserved', 'awaiting_mdn')
             `).run(row.id);
-        })();
+            if (update.changes !== 1) throw new Error('Verification was already resolved; refund was not repeated');
+            return true;
+        }).immediate();
+        if (!refunded) return;
 
         console.log(`[PhoneVerify] Auto-refunded ₦${refundAmount} to user #${row.user_id} for timed out verification #${row.id}`);
 

@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.resolve(__dirname, 'database.sqlite');
+const dbPath = process.env.OLASLOG_DB_PATH || path.resolve(__dirname, 'database.sqlite');
 const db = new Database(dbPath);
 
 // Enable WAL mode and foreign keys for high performance & reliability
@@ -300,6 +300,14 @@ try {
     insertSetting.run('api_user', process.env.USPHONEVERIFY_USER || '');
     insertSetting.run('api_key', process.env.USPHONEVERIFY_API_KEY || '');
     insertSetting.run('webhook_enabled', '1');
+
+    // Durable phone verification recovery workflow migration.
+    const phoneAttemptCols = db.prepare('PRAGMA table_info(phone_verification_attempts)').all().map(c => c.name);
+    if (!phoneAttemptCols.includes('recovery_status')) db.exec("ALTER TABLE phone_verification_attempts ADD COLUMN recovery_status TEXT NOT NULL DEFAULT 'open' CHECK(recovery_status IN ('open', 'investigating', 'resolved_no_issue'));");
+    if (!phoneAttemptCols.includes('resolution_note')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolution_note TEXT;');
+    if (!phoneAttemptCols.includes('resolved_by')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;');
+    if (!phoneAttemptCols.includes('resolved_at')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolved_at DATETIME;');
+    db.exec("CREATE INDEX IF NOT EXISTS idx_phone_verify_recovery ON phone_verification_attempts(status, recovery_status, created_at);");
 } catch (migErr) {
     console.warn('DB Migration notice:', migErr.message);
 }

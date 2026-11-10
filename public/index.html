@@ -1184,10 +1184,9 @@
                 style="display: none; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <button class="btn btn-secondary btn-sm" onclick="toggleSelectAllAccounts()"
                     id="selectAllAccountsBtn">Select All</button>
-                <button class="btn btn-primary" style="flex: 1; min-width: 170px;"
+                <button class="btn btn-emerald" style="flex: 1; min-width: 170px;" onclick="confirmPreviewBuyNow()">Buy Selected Now ⚡</button>
+                <button class="btn btn-outline" style="flex: 1; min-width: 170px;"
                     onclick="confirmPreviewAddToCart()">Add Selected to Cart 🛒</button>
-                <button class="btn btn-emerald" style="flex: 1; min-width: 170px;" onclick="confirmPreviewBuyNow()">Buy
-                    Selected Now ⚡</button>
                 <button class="btn btn-secondary" style="flex: 0 0 auto; min-width: 85px;"
                     onclick="closeModal('accountPreviewModal')">Close</button>
             </div>
@@ -1195,12 +1194,10 @@
             <!-- Footer: instant dispatch mode (no options, auto-fulfilled) -->
             <div class="modal-footer" id="previewFooterInstant"
                 style="display: none; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <button class="btn btn-primary" style="flex: 1; min-width: 170px;"
-                    onclick="quickAddToCart(window._previewProductId); closeModal('accountPreviewModal');">Add to Cart
-                    🛒</button>
                 <button class="btn btn-emerald" style="flex: 1; min-width: 170px;"
-                    onclick="closeModal('accountPreviewModal'); initiateInstantCheckout(window._previewProductId);">Buy
-                    Now ⚡</button>
+                    onclick="closeModal('accountPreviewModal'); initiateInstantCheckout(window._previewProductId);">Buy Now ⚡</button>
+                <button class="btn btn-outline" style="flex: 1; min-width: 170px;"
+                    onclick="quickAddToCart(window._previewProductId); closeModal('accountPreviewModal');">Add to Cart 🛒</button>
                 <button class="btn btn-secondary" style="flex: 0 0 auto; min-width: 85px;"
                     onclick="closeModal('accountPreviewModal')">Close</button>
             </div>

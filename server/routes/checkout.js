@@ -56,6 +56,23 @@ router.post('/', authenticate, async (req, res) => {
             });
         }
 
+        if (err.code === 'CHECKOUT_SPLIT_REQUIRED') {
+            return res.status(400).json({
+                success: false,
+                code: 'CHECKOUT_SPLIT_REQUIRED',
+                error: err.message
+            });
+        }
+
+        if (err.code === 'SUPPLIER_UNCERTAIN') {
+            return res.status(409).json({
+                success: false,
+                code: 'SUPPLIER_UNCERTAIN',
+                error: err.message,
+                supplierOrderId: err.sujanOrderId || null
+            });
+        }
+
         console.error('Checkout error:', err);
         return res.status(400).json({ success: false, error: err.message || 'Checkout failed' });
     }

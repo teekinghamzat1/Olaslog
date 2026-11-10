@@ -1,10 +1,33 @@
 const db = require('../db');
-const { getWalletBalance } = require('./wallet');
+const crypto = require('crypto');
+const { getWalletBalance, getLedgerBalance } = require('./wallet');
 const { encrypt, decrypt } = require('./crypto');
 const sujanService = require('./sujan');
 const emailService = require('./email');
 const telegram = require('./telegram');
 const telegramBot = require('./telegramBot');
+
+function recordSupplierUncertainty(userId, item, error) {
+    try {
+        db.prepare(`
+            INSERT INTO audit_logs (admin_id, action, target_entity, target_id, details)
+            VALUES (NULL, 'SUPPLIER_ORDER_UNCERTAIN', 'CHECKOUT', ?, ?)
+        `).run(
+            String(userId),
+            JSON.stringify({
+                productId: item.product.id,
+                sujanProductId: item.product.sujan_product_id,
+                quantity: item.quantity,
+                supplierOrderId: error.sujanOrderId || null,
+                supplierStatus: error.sujanStatus || null,
+                message: error.message,
+                recordedAt: new Date().toISOString()
+            })
+        );
+    } catch (auditError) {
+        console.error('[Order] Could not record uncertain supplier checkout:', auditError.message);
+    }
+}
 
 /**
  * Performs atomic checkout for a cart with Sujan Logs Marketplace API integration
@@ -55,6 +78,23 @@ async function checkoutCart(userId, items) {
 
     totalCost = Math.round(totalCost * 100) / 100;
 
+    // Until supplier idempotency/reconciliation is available, allow at most one
+    // supplier-backed line per checkout. This prevents a later supplier failure
+    // from leaving earlier remote orders fulfilled but absent from our DB.
+    const supplierLineCount = validatedItems.filter(item =>
+        item.product.sujan_product_id !== null
+        && item.product.sujan_product_id !== undefined
+        && Number(item.product.sujan_product_id) > 0
+    ).length;
+
+    if (supplierLineCount > 0 && validatedItems.length > 1) {
+        const err = new Error(
+            'Please purchase supplier-fulfilled products one at a time for now. Local-stock products can still be checked out together.'
+        );
+        err.code = 'CHECKOUT_SPLIT_REQUIRED';
+        throw err;
+    }
+
     // Step 2: Check wallet balance
     const currentBalance = getWalletBalance(userId);
     if (currentBalance < totalCost) {
@@ -67,59 +107,180 @@ async function checkoutCart(userId, items) {
         throw err;
     }
 
-    // Step 3: Fulfill items via Sujan Logs Marketplace API (or local stock fallback)
+    // Reserve the customer's money durably before any supplier request.
+    // BEGIN IMMEDIATE serializes competing wallet reservations in SQLite.
+    const checkoutId = crypto.randomUUID();
+    const reserveFunds = db.transaction(() => {
+        const spendable = getWalletBalance(userId);
+        if (spendable < totalCost) {
+            const shortfall = Math.round((totalCost - spendable) * 100) / 100;
+            const err = new Error('Insufficient wallet balance');
+            err.code = 'INSUFFICIENT_FUNDS';
+            err.shortfall = shortfall;
+            err.required = totalCost;
+            err.currentBalance = spendable;
+            throw err;
+        }
+        db.prepare(`
+            INSERT INTO wallet_reservations (checkout_id, user_id, amount, status)
+            VALUES (?, ?, ?, 'active')
+        `).run(checkoutId, userId, totalCost);
+        db.prepare(`
+            INSERT INTO checkout_attempts (checkout_id, user_id, amount, status, request_json)
+            VALUES (?, ?, ?, 'reserved', ?)
+        `).run(checkoutId, userId, totalCost, JSON.stringify(validatedItems.map(v => ({
+            productId: v.product.id, quantity: v.quantity, inventoryItemIds: v.inventoryItemIds
+        }))));
+    }).immediate;
+    reserveFunds();
+
+    const updateAttempt = (status, extra = {}) => {
+        db.prepare(`
+            UPDATE checkout_attempts
+            SET status = ?, supplier_order_id = COALESCE(?, supplier_order_id),
+                error_message = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(status, extra.supplierOrderId || null, extra.error || null, checkoutId);
+    };
+    const releaseReservation = (reason) => {
+        const release = db.transaction(() => {
+            db.prepare(`
+                UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP
+                WHERE checkout_id = ? AND status = 'active'
+            `).run(checkoutId);
+            updateAttempt('failed', { error: reason || 'Checkout failed before supplier confirmation' });
+        });
+        release.immediate();
+    };
+
+    // Step 3: Fulfill items from the correct source.
+    // Supplier-backed products must never silently fall back to local stock:
+    // a timeout may mean the supplier accepted the order but its response was lost.
     const fulfillmentResults = [];
 
     for (const valItem of validatedItems) {
-        const targetSujanId = valItem.product.sujan_product_id || valItem.product.id;
+        const hasSujanProduct = valItem.product.sujan_product_id !== null
+            && valItem.product.sujan_product_id !== undefined
+            && Number(valItem.product.sujan_product_id) > 0;
 
-        try {
-            // Place order with Sujan Logs Marketplace API
-            const sujanRes = await sujanService.placeOrder({
-                productId: targetSujanId,
-                quantity: valItem.quantity,
-                inventoryItemIds: valItem.inventoryItemIds
-            });
+        if (hasSujanProduct) {
+            updateAttempt('supplier_pending');
+            try {
+                const sujanRes = await sujanService.placeOrder({
+                    productId: Number(valItem.product.sujan_product_id),
+                    quantity: valItem.quantity,
+                    inventoryItemIds: valItem.inventoryItemIds
+                });
 
-            const sujanOrderData = sujanRes.data || sujanRes;
-            const sujanItems = sujanOrderData.items || [];
-            const keys = sujanOrderData.keys || [];
+                const sujanOrderData = sujanRes.data || sujanRes;
+                const sujanItems = Array.isArray(sujanOrderData.items) ? sujanOrderData.items : [];
+                const keys = Array.isArray(sujanOrderData.keys) ? sujanOrderData.keys : [];
+                const sujanOrderId = String(sujanOrderData.id || sujanOrderData.order_id || '');
+                const deliveredCount = sujanItems.length || keys.length;
+                const credentialsAreComplete = sujanItems.length > 0
+                    ? sujanItems.every(entry => entry && typeof (entry.credential || entry.key) === 'string'
+                        && (entry.credential || entry.key).trim().length > 0)
+                    : keys.every(key => typeof key === 'string' && key.trim().length > 0);
 
-            fulfillmentResults.push({
-                item: valItem,
-                source: 'sujan',
-                sujanOrderId: String(sujanOrderData.id || sujanOrderData.order_id || ''),
-                productName: sujanOrderData.product || valItem.product.name,
-                items: sujanItems,
-                keys: keys
-            });
-        } catch (sujanErr) {
-            console.warn(`Sujan API order failed for product ${valItem.product.id}, attempting local stock fallback:`, sujanErr.message);
-            
-            // Check if local stock rows exist as fallback
-            const stockRows = db.prepare(`
+                // Without a supplier order ID, Olaslog cannot correlate a later
+                // webhook or investigate an uncertain fulfilment. Never mark it paid.
+                if (!sujanOrderId || deliveredCount !== valItem.quantity || !credentialsAreComplete) {
+                    const uncertainErr = new Error(
+                        `Supplier response for ${valItem.product.name} could not be safely verified (order ID present: ${Boolean(sujanOrderId)}, credentials received: ${deliveredCount}, expected: ${valItem.quantity}, credentials complete: ${credentialsAreComplete}). Do not retry until the supplier order is checked.`
+                    );
+                    uncertainErr.code = 'SUPPLIER_UNCERTAIN';
+                    uncertainErr.sujanOrderId = sujanOrderId;
+                    throw uncertainErr;
+                }
+
+                updateAttempt('supplier_confirmed', { supplierOrderId: sujanOrderId });
+                fulfillmentResults.push({
+                    item: valItem,
+                    source: 'sujan',
+                    sujanOrderId,
+                    productName: sujanOrderData.product || valItem.product.name,
+                    items: sujanItems,
+                    keys
+                });
+            } catch (sujanErr) {
+                if (sujanErr.code === 'SUPPLIER_UNCERTAIN') {
+                    updateAttempt('supplier_uncertain', { supplierOrderId: sujanErr.sujanOrderId, error: sujanErr.message });
+                    recordSupplierUncertainty(userId, valItem, sujanErr);
+                    throw sujanErr;
+                }
+
+                console.error(
+                    `Sujan API order failed for product ${valItem.product.id}; local fallback is disabled to prevent duplicate fulfilment:`,
+                    sujanErr.message
+                );
+                const supplierErr = new Error(
+                    `The supplier could not confirm this order. Do not retry yet; check the supplier order status first. Details: ${sujanErr.message}`
+                );
+                supplierErr.code = 'SUPPLIER_UNCERTAIN';
+                supplierErr.sujanStatus = sujanErr.status || null;
+                updateAttempt('supplier_uncertain', { error: supplierErr.message });
+                recordSupplierUncertainty(userId, valItem, supplierErr);
+                throw supplierErr;
+            }
+            continue;
+        }
+
+        // Products without a Sujan product ID are local-inventory products.
+        let stockRows;
+        if (Array.isArray(valItem.inventoryItemIds) && valItem.inventoryItemIds.length > 0) {
+            const selectedIds = [...new Set(valItem.inventoryItemIds)];
+            if (selectedIds.length !== valItem.quantity) {
+                const selectionErr = new Error('Selected inventory contains duplicate account IDs.');
+                selectionErr.code = 'OUT_OF_STOCK';
+                releaseReservation(selectionErr.message);
+                throw selectionErr;
+            }
+            const placeholders = selectedIds.map(() => '?').join(', ');
+            stockRows = db.prepare(`
+                SELECT id, product_id, encrypted_credential, iv, auth_tag
+                FROM stock_items
+                WHERE product_id = ?
+                  AND status = 'available'
+                  AND id IN (${placeholders})
+            `).all(valItem.product.id, ...selectedIds);
+        } else {
+            stockRows = db.prepare(`
                 SELECT id, product_id, encrypted_credential, iv, auth_tag
                 FROM stock_items
                 WHERE product_id = ? AND status = 'available'
+                ORDER BY id ASC
                 LIMIT ?
             `).all(valItem.product.id, valItem.quantity);
-
-            if (stockRows.length >= valItem.quantity) {
-                fulfillmentResults.push({
-                    item: valItem,
-                    source: 'local',
-                    stockRows
-                });
-            } else {
-                const stockErr = new Error(`Order could not be fulfilled: ${sujanErr.message || 'Out of stock'}`);
-                stockErr.code = 'OUT_OF_STOCK';
-                throw stockErr;
-            }
         }
+
+        if (stockRows.length !== valItem.quantity) {
+            const stockErr = new Error('The selected local accounts are no longer available. Refresh the product and try again.');
+            stockErr.code = 'OUT_OF_STOCK';
+            releaseReservation(stockErr.message);
+            throw stockErr;
+        }
+
+        fulfillmentResults.push({
+            item: valItem,
+            source: 'local',
+            stockRows
+        });
     }
 
     // Step 4: Run local DB updates in SQLite ACID transaction (atomic wallet debit + order save)
     const executeCheckoutTransaction = db.transaction(() => {
+        // Read the ledger balance again inside the same transaction as the debit.
+        const ledgerBalance = getLedgerBalance(userId);
+        const reservation = db.prepare(`
+            SELECT amount, status FROM wallet_reservations WHERE checkout_id = ? AND user_id = ?
+        `).get(checkoutId, userId);
+        if (!reservation || reservation.status !== 'active' || Math.abs(reservation.amount - totalCost) > 0.001) {
+            throw new Error('Checkout wallet reservation is missing or no longer active.');
+        }
+        if (ledgerBalance < totalCost) {
+            throw new Error('Reserved wallet funds are no longer available. Checkout was stopped.');
+        }
+
         // Generate unique internal order number and wallet reference
         const timestamp = Date.now();
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -127,6 +288,7 @@ async function checkoutCart(userId, items) {
         const walletRef = `PUR-${timestamp}-${randomSuffix}`;
 
         // Deduct wallet balance via immutable ledger entry
+        const currentBalance = ledgerBalance;
         const newBalance = Math.round((currentBalance - totalCost) * 100) / 100;
         db.prepare(`
             INSERT INTO wallet_transactions
@@ -234,11 +396,17 @@ async function checkoutCart(userId, items) {
                 }
             } else if (source === 'local') {
                 for (const stockRow of fulfillment.stockRows) {
-                    db.prepare(`
+                    const stockUpdate = db.prepare(`
                         UPDATE stock_items
                         SET status = 'sold', order_id = ?, sold_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
+                        WHERE id = ? AND status = 'available'
                     `).run(orderId, stockRow.id);
+
+                    if (stockUpdate.changes !== 1) {
+                        const stockErr = new Error('One or more selected accounts were purchased by another customer. Please refresh and try again.');
+                        stockErr.code = 'OUT_OF_STOCK';
+                        throw stockErr;
+                    }
 
                     db.prepare(`
                         INSERT INTO delivered_credentials
@@ -265,6 +433,15 @@ async function checkoutCart(userId, items) {
             }
         }
 
+        db.prepare(`
+            UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ? AND status = 'active'
+        `).run(checkoutId);
+        db.prepare(`
+            UPDATE checkout_attempts SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(checkoutId);
+
         return {
             orderId,
             orderNumber,
@@ -276,7 +453,20 @@ async function checkoutCart(userId, items) {
         };
     });
 
-    const result = executeCheckoutTransaction();
+    let result;
+    try {
+        result = executeCheckoutTransaction();
+    } catch (transactionError) {
+        // If a supplier order may already exist, keep the reservation for manual
+        // reconciliation. Local-only failures can safely release the hold.
+        const supplierWasContacted = validatedItems.some(v =>
+            v.product.sujan_product_id !== null && v.product.sujan_product_id !== undefined
+            && Number(v.product.sujan_product_id) > 0
+        );
+        if (!supplierWasContacted) releaseReservation(transactionError.message);
+        else updateAttempt('supplier_uncertain', { error: transactionError.message });
+        throw transactionError;
+    }
 
     // Send purchase confirmation email & Telegram delivery (non-blocking)
     try {
@@ -335,6 +525,112 @@ async function checkoutCart(userId, items) {
 }
 
 /**
+ * Finalizes a supplier checkout from a signed completion webhook when the
+ * original request received supplier confirmation but could not commit locally.
+ * It only acts on a durable active reservation and is safe to retry.
+ */
+function completeSupplierCheckoutFromWebhook(sujanOrderId, orderData) {
+    const existingOrder = db.prepare('SELECT id, order_number FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
+    if (existingOrder) return { alreadyCompleted: true, orderId: existingOrder.id };
+
+    const attempt = db.prepare(`
+        SELECT * FROM checkout_attempts
+        WHERE supplier_order_id = ? AND status IN ('supplier_confirmed', 'supplier_uncertain')
+        ORDER BY id DESC LIMIT 1
+    `).get(String(sujanOrderId));
+    if (!attempt) return null;
+
+    let requestedItems;
+    try { requestedItems = JSON.parse(attempt.request_json); }
+    catch (_) { throw new Error('Stored checkout request cannot be read'); }
+    if (!Array.isArray(requestedItems) || requestedItems.length !== 1) {
+        throw new Error('Supplier recovery only supports one stored supplier product line');
+    }
+
+    const eventItems = Array.isArray(orderData?.items) ? orderData.items : [];
+    const expectedQuantity = Number(requestedItems[0].quantity);
+    if (!eventItems.length || eventItems.length !== expectedQuantity) {
+        throw new Error('Supplier completion does not contain the expected number of credentials');
+    }
+    if (!eventItems.every(item => item && typeof (item.credential || item.key) === 'string'
+        && String(item.credential || item.key).trim().length > 0)) {
+        throw new Error('Supplier completion contains an empty credential');
+    }
+
+    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(Number(requestedItems[0].productId));
+    if (!product) throw new Error('The product for this supplier checkout no longer exists');
+
+    const finalize = db.transaction(() => {
+        const freshAttempt = db.prepare('SELECT * FROM checkout_attempts WHERE checkout_id = ?').get(attempt.checkout_id);
+        if (!freshAttempt || !['supplier_confirmed', 'supplier_uncertain'].includes(freshAttempt.status)) {
+            const completed = db.prepare('SELECT id FROM orders WHERE sujan_order_id = ?').get(String(sujanOrderId));
+            if (completed) return { alreadyCompleted: true, orderId: completed.id };
+            throw new Error('Supplier checkout is no longer awaiting reconciliation');
+        }
+
+        const reservation = db.prepare(`
+            SELECT * FROM wallet_reservations WHERE checkout_id = ? AND user_id = ? AND status = 'active'
+        `).get(attempt.checkout_id, attempt.user_id);
+        if (!reservation || Math.abs(reservation.amount - attempt.amount) > 0.001) {
+            throw new Error("The customer wallet reservation is missing");
+        }
+        const ledgerBalance = getLedgerBalance(attempt.user_id);
+        if (ledgerBalance < attempt.amount) throw new Error('Reserved funds are no longer available');
+
+        const timestamp = Date.now();
+        const orderNumber = `ORD-${timestamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newBalance = Math.round((ledgerBalance - attempt.amount) * 100) / 100;
+        const walletRef = `PUR-${timestamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        db.prepare(`
+            INSERT INTO wallet_transactions
+            (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
+            VALUES (?, 'purchase', ?, ?, ?, ?, 'successful', 'wallet', ?, ?)
+        `).run(attempt.user_id, attempt.amount, ledgerBalance, newBalance, walletRef,
+            `Recovered supplier purchase - ${orderNumber}`,
+            JSON.stringify({ orderNumber, totalCost: attempt.amount, supplierOrderId: String(sujanOrderId), recoveredFromWebhook: true }));
+
+        const orderResult = db.prepare(`
+            INSERT INTO orders (order_number, sujan_order_id, user_id, total_amount, status)
+            VALUES (?, ?, ?, ?, 'completed')
+        `).run(orderNumber, String(sujanOrderId), attempt.user_id, attempt.amount);
+        const orderId = orderResult.lastInsertRowid;
+        const qty = expectedQuantity;
+        const itemResult = db.prepare(`
+            INSERT INTO order_items (order_id, product_id, quantity, unit_price, subtotal)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(orderId, product.id, qty, product.price, attempt.amount);
+        const orderItemId = itemResult.lastInsertRowid;
+
+        for (let index = 0; index < eventItems.length; index++) {
+            const supplierItem = eventItems[index];
+            const credential = String(supplierItem.credential || supplierItem.key);
+            const encrypted = encrypt(credential);
+            db.prepare(`
+                INSERT INTO delivered_credentials
+                (order_id, order_item_id, product_id, stock_item_id, sujan_item_id, public_data, encrypted_credential, iv, auth_tag)
+                VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)
+            `).run(orderId, orderItemId, product.id,
+                supplierItem.id === undefined || supplierItem.id === null ? String(sujanOrderId) + '-' + (index + 1) : String(supplierItem.id),
+                supplierItem.public_data || ('Account #' + (supplierItem.id || 'AUTO')),
+                encrypted.encrypted, encrypted.iv, encrypted.authTag);
+        }
+
+        db.prepare(`
+            UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ? AND status = 'active'
+        `).run(attempt.checkout_id);
+        db.prepare(`
+            UPDATE checkout_attempts SET status = 'completed', error_message = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(attempt.checkout_id);
+
+        return { alreadyCompleted: false, orderId, orderNumber };
+    });
+    return finalize.immediate();
+}
+
+/**
  * Retrieves an order and all its delivered credentials (decrypted)
  * @param {number} orderId
  * @param {number} [userId]
@@ -387,6 +683,7 @@ function getOrderWithCredentials(orderId, userId = null) {
 
 module.exports = {
     checkoutCart,
+    completeSupplierCheckoutFromWebhook,
     getOrderWithCredentials
 };
 

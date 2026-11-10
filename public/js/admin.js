@@ -2145,8 +2145,78 @@ function renderAnalyticsPaymentBreakdown(pb) {
 async function loadAdminVerificationData() {
   await Promise.all([
     loadAdminVerificationSettings(),
-    loadAdminVerificationOrders()
+    loadAdminVerificationOrders(),
+    loadPhoneVerifyRecoveryQueue()
   ]);
+}
+
+async function loadPhoneVerifyRecoveryQueue() {
+  const tbody = document.getElementById('admVerifyRecoveryBody');
+  if (!tbody) return;
+  try {
+    const res = await fetch('/api/admin/verification/recovery');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Could not load recovery queue');
+    if (!Array.isArray(data.attempts) || data.attempts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-faint);">No unresolved provider requests. 🎉</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.attempts.map(a => {
+      const created = a.created_at ? new Date(a.created_at).toLocaleString() : '—';
+      const error = escapeAdminHtml(a.error_message || 'No error details recorded');
+      const note = escapeAdminHtml(a.resolution_note || '');
+      const state = a.recovery_status === 'investigating' ? 'Under investigation' : 'Needs review';
+      return `<tr>
+        <td><div class="mono" style="font-size:11px;">${escapeAdminHtml(a.attempt_id)}</div><div style="font-size:11px;color:var(--text-faint);">${created}</div></td>
+        <td><div>${escapeAdminHtml(a.user_name || 'User')}</div><div style="font-size:11px;color:var(--text-faint);">${escapeAdminHtml(a.user_email || '')}</div></td>
+        <td>${escapeAdminHtml(a.service_name)}</td>
+        <td class="mono">${escapeAdminHtml(a.provider_request_id || 'Not received')}</td>
+        <td style="font-weight:700;color:var(--gold);">₦${Number(a.held_amount || a.reserved_amount || 0).toLocaleString()}</td>
+        <td>${state}</td>
+        <td style="min-width:180px;font-size:11px;color:var(--text-dim);">${error}${note ? '<br>Note: '+note : ''}</td>
+        <td style="min-width:190px;">
+          <button class="btn btn-outline btn-sm" onclick="reviewPhoneVerifyAttempt('${escapeAdminHtml(a.attempt_id)}')">Add review note</button>
+          <button class="btn btn-danger btn-sm" style="margin-top:5px;" onclick="resolvePhoneVerifyNoIssue('${escapeAdminHtml(a.attempt_id)}')">Release hold: no number issued</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--danger);">Could not load recovery queue.</td></tr>';
+    console.error('Phone verification recovery queue error:', err);
+  }
+}
+
+async function reviewPhoneVerifyAttempt(attemptId) {
+  const note = prompt('What did you check or what did the provider tell you?');
+  if (note === null) return;
+  if (note.trim().length < 5) return showAdminToast('Please enter a note of at least 5 characters.', 'error');
+  try {
+    const res = await fetch('/api/admin/verification/recovery/' + encodeURIComponent(attemptId) + '/review', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: note.trim() })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Could not save review note');
+    showAdminToast(data.message, 'success');
+    await loadPhoneVerifyRecoveryQueue();
+  } catch (err) { showAdminToast(err.message || 'Network error', 'error'); }
+}
+
+async function resolvePhoneVerifyNoIssue(attemptId) {
+  const confirmed = confirm('Only continue if you contacted USPhoneVerify and they explicitly confirmed that NO number was issued for this request. This will release the customer wallet hold. Continue?');
+  if (!confirmed) return;
+  const note = prompt('Record the provider confirmation and evidence (at least 10 characters).');
+  if (note === null) return;
+  if (note.trim().length < 10) return showAdminToast('A detailed provider confirmation note is required.', 'error');
+  try {
+    const res = await fetch('/api/admin/verification/recovery/' + encodeURIComponent(attemptId) + '/resolve-no-issue', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ providerConfirmedNoNumber: true, note: note.trim() })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Could not resolve request');
+    showAdminToast(data.message, 'success');
+    await loadAdminVerificationData();
+  } catch (err) { showAdminToast(err.message || 'Network error', 'error'); }
 }
 
 async function loadAdminVerificationSettings() {

@@ -471,15 +471,15 @@ async function getOrder(orderId) {
 /**
  * Verify Webhook Signature (HMAC-SHA256)
  */
-function verifyWebhookSignature(payloadString, signatureHeader, secret = WEBHOOK_SECRET) {
-    if (!secret || !signatureHeader) return false;
+function verifyWebhookSignature(payload, signatureHeader, secret = WEBHOOK_SECRET) {
+    if (!secret || typeof signatureHeader !== 'string') return false;
+    if (!/^[a-f0-9]{64}$/i.test(signatureHeader)) return false;
     try {
-        const calculated = crypto
-            .createHmac('sha256', secret)
-            .update(payloadString)
-            .digest('hex');
-        return crypto.timingSafeEqual(Buffer.from(calculated), Buffer.from(signatureHeader));
-    } catch (e) {
+        const rawPayload = Buffer.isBuffer(payload) ? payload : Buffer.from(String(payload));
+        const calculated = crypto.createHmac('sha256', secret).update(rawPayload).digest();
+        const supplied = Buffer.from(signatureHeader, 'hex');
+        return supplied.length === calculated.length && crypto.timingSafeEqual(calculated, supplied);
+    } catch (_) {
         return false;
     }
 }

@@ -1,0 +1,44 @@
+name: Safe checkout tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/direct-buy-checkout]
+
+jobs:
+  offline-checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: test
+      OLASLOG_OFFLINE_TEST: '1'
+      SUJAN_API_KEY: mock_offline_test
+      TELEGRAM_BOT_TOKEN: ''
+      TELEGRAM_CHAT_ID: ''
+      SMTP_HOST: ''
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      OLASLOG_DB_PATH: /tmp/olaslog-offline-test.sqlite
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check JavaScript syntax
+        run: |
+          node --check public/js/app.js
+          node --check server/services/order.js
+          node --check server/routes/checkout.js
+          node --check server/routes/admin.js
+          node --check server/services/phoneVerify.js
+          node --check server/services/phoneVerifyRecovery.js
+          node --check public/js/admin.js
+          node --check test/test_checkout_offline.js
+      - name: Run isolated checkout tests
+        run: node test/test_checkout_offline.js
