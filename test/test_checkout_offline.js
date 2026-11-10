@@ -22,6 +22,7 @@ const emailService = require('../server/services/email');
 const telegram = require('../server/services/telegram');
 const telegramBot = require('../server/services/telegramBot');
 const { checkoutCart, completeSupplierCheckoutFromWebhook } = require('../server/services/order');
+const phoneVerify = require('../server/services/phoneVerify');
 
 // Hard-disable outbound notifications for this test process.
 emailService.sendPurchaseEmail = async () => ({ skipped: true });
@@ -44,6 +45,57 @@ async function run() {
 
     const customer = db.prepare("SELECT id FROM users WHERE email = 'customer@olaslog.com'").get();
     assert(customer, 'Seeded test customer must exist');
+
+    // US Phone Verify tests use a mocked fetch implementation only.
+    phoneVerify.updateSetting('api_user', 'offline-user');
+    phoneVerify.updateSetting('api_key', 'offline-key');
+    phoneVerify.updateSetting('usd_rate', '1000');
+    phoneVerify.updateSetting('margin_percent', '0');
+    phoneVerify.updateSetting('min_price_ngn', '100');
+    const originalFetch = global.fetch;
+    let phoneProviderMode = 'success';
+    global.fetch = async url => {
+        const command = new URL(url).searchParams.get('cmd');
+        if (command === 'list_services') {
+            return { ok: true, json: async () => ({ status: 'ok', message: [{ name: 'OfflineTest', price: '0.50', otp_available: '5' }] }) };
+        }
+        if (command === 'request' && phoneProviderMode === 'timeout') {
+            throw new Error('Simulated provider timeout');
+        }
+        if (command === 'request') {
+            return { ok: true, json: async () => ({ status: 'ok', message: [{ id: 'OFFLINE-PHONE-REQ-1', price: '0.50', mdn: '12125550123', till_expiration: '900' }] }) };
+        }
+        if (command === 'reject') {
+            return { ok: true, json: async () => ({ status: 'ok', message: 'rejected' }) };
+        }
+        throw new Error('Unexpected mocked USPhoneVerify command: ' + command);
+    };
+    try {
+        const phoneBalanceBefore = getWalletBalance(customer.id);
+        const phoneLedgerBefore = getLedgerBalance(customer.id);
+        const phonePurchase = await phoneVerify.requestNumber({ userId: customer.id, service: 'OfflineTest' });
+        assert.strictEqual(phonePurchase.requestId, 'OFFLINE-PHONE-REQ-1');
+        assert.strictEqual(getLedgerBalance(customer.id), phoneLedgerBefore - phonePurchase.costNgn);
+        assert.strictEqual(getReservedBalance(customer.id), 0, 'Successful phone verification must commit and release its reservation');
+        assert.strictEqual(getWalletBalance(customer.id), phoneBalanceBefore - phonePurchase.costNgn);
+        console.log('PASS: US Phone Verify reserves funds before provider request and commits one wallet debit');
+
+        phoneProviderMode = 'timeout';
+        const phoneLedgerBeforeTimeout = getLedgerBalance(customer.id);
+        const phoneReservedBeforeTimeout = getReservedBalance(customer.id);
+        await assert.rejects(
+            phoneVerify.requestNumber({ userId: customer.id, service: 'OfflineTest' }),
+            error => error.code === 'PHONE_VERIFY_UNCERTAIN'
+        );
+        assert.strictEqual(getLedgerBalance(customer.id), phoneLedgerBeforeTimeout, 'Ambiguous phone provider response must not debit the ledger');
+        assert.strictEqual(getReservedBalance(customer.id), phoneReservedBeforeTimeout + 600, 'Ambiguous phone provider response must keep estimated funds held');
+        const uncertainPhoneAttempt = db.prepare("SELECT status FROM phone_verification_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
+        assert.strictEqual(uncertainPhoneAttempt.status, 'provider_uncertain');
+        console.log('PASS: US Phone Verify timeout keeps funds reserved and records an uncertain attempt');
+    } finally {
+        global.fetch = originalFetch;
+        phoneVerify.stopVerificationPoller();
+    }
 
     let category = db.prepare("SELECT id FROM product_categories LIMIT 1").get();
     if (!category) {
