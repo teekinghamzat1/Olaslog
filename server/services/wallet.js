@@ -138,7 +138,7 @@ function completeFunding(reference, finalStatus = 'successful', extraMetadata = 
  * @param {string} reason
  */
 function recordRefund(userId, amount, orderId, disputeId, adminId, reason = '') {
-    const currentBalance = getWalletBalance(userId);
+    const currentBalance = getLedgerBalance(userId);
     const newBalance = currentBalance + amount;
     const reference = `REF-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
@@ -199,8 +199,10 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         throw new Error('User not found');
     }
 
-    const currentBalance = getWalletBalance(userId);
-    let targetBalance = currentBalance;
+    const spendableBalance = getWalletBalance(userId);
+    const ledgerBalance = getLedgerBalance(userId);
+    const reservedBalance = getReservedBalance(userId);
+    let targetBalance = ledgerBalance;
     let delta = 0;
     let txType = 'funding';
     let channel = 'admin_credit';
@@ -211,7 +213,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(delta) || delta <= 0) {
             throw new Error('Credit amount must be greater than ₦0');
         }
-        targetBalance = Math.round((currentBalance + delta) * 100) / 100;
+        targetBalance = Math.round((ledgerBalance + delta) * 100) / 100;
         txType = 'funding';
         channel = 'admin_credit';
         desc = reason ? `Admin Credit: ${reason}` : 'Admin manual balance credit';
@@ -220,10 +222,10 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(delta) || delta <= 0) {
             throw new Error('Debit amount must be greater than ₦0');
         }
-        if (delta > currentBalance) {
-            throw new Error(`Debit amount (₦${delta.toLocaleString()}) exceeds user's current balance (₦${currentBalance.toLocaleString()})`);
+        if (delta > spendableBalance) {
+            throw new Error(`Debit amount (₦${delta.toLocaleString()}) exceeds user's spendable balance (₦${spendableBalance.toLocaleString()})`);
         }
-        targetBalance = Math.round((currentBalance - delta) * 100) / 100;
+        targetBalance = Math.round((ledgerBalance - delta) * 100) / 100;
         txType = 'debit';
         channel = 'admin_debit';
         desc = reason ? `Admin Debit: ${reason}` : 'Admin manual balance debit';
@@ -232,11 +234,12 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         if (isNaN(target) || target < 0) {
             throw new Error('Target balance must be a non-negative number');
         }
-        const diff = Math.round((target - currentBalance) * 100) / 100;
+        const targetLedgerBalance = Math.round((target + reservedBalance) * 100) / 100;
+        const diff = Math.round((targetLedgerBalance - ledgerBalance) * 100) / 100;
         if (diff === 0) {
             throw new Error('Target balance is identical to the current balance');
         }
-        targetBalance = target;
+        targetBalance = targetLedgerBalance;
         if (diff > 0) {
             delta = diff;
             txType = 'funding';
@@ -285,7 +288,7 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
         return {
             id: result.lastInsertRowid,
             reference,
-            balanceBefore: currentBalance,
+            balanceBefore: ledgerBalance,
             balanceAfter: targetBalance,
             amount: delta,
             type: txType,
