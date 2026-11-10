@@ -692,7 +692,7 @@ async function syncCatalogFromSujan() {
             ? sp.image_url
             : resolveProductLogoUrl(sp.name, catName);
 
-        const existingProd = findProductBySujanIdStmt.get(sp.id, sp.id);
+        const existingProd = findProductBySujanIdStmt.get(sp.id);
 
         if (!existingProd) {
             const generatedSlug = `sujan-${sp.id}-${(sp.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`;
