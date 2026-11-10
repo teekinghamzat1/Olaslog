@@ -744,7 +744,12 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
         const newBalance = Math.round((currentBalance + refundAmount) * 100) / 100;
         const refundRef = `REF-EXP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-        db.transaction(() => {
+        const refunded = db.transaction(() => {
+            const current = db.prepare('SELECT status FROM phone_verifications WHERE id = ?').get(row.id);
+            if (!current || ['completed', 'refunded', 'timed_out'].includes(current.status)) return false;
+
+            const latestLedger = getLedgerBalance(row.user_id);
+            const latestNewBalance = Math.round((latestLedger + refundAmount) * 100) / 100;
             db.prepare(`
                 INSERT INTO wallet_transactions
                 (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
@@ -752,19 +757,22 @@ async function autoRefundVerification(row, reason = 'Verification timed out with
             `).run(
                 row.user_id,
                 refundAmount,
-                currentBalance,
-                newBalance,
+                latestLedger,
+                latestNewBalance,
                 refundRef,
                 `Auto-Refund: ${row.service_name} (${reason})`,
                 JSON.stringify({ verificationId: row.id, requestId: row.request_id, reason })
             );
 
-            db.prepare(`
+            const update = db.prepare(`
                 UPDATE phone_verifications
                 SET status = 'timed_out', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = ? AND status IN ('reserved', 'awaiting_mdn')
             `).run(row.id);
-        })();
+            if (update.changes !== 1) throw new Error('Verification was already resolved; refund was not repeated');
+            return true;
+        }).immediate();
+        if (!refunded) return;
 
         console.log(`[PhoneVerify] Auto-refunded ₦${refundAmount} to user #${row.user_id} for timed out verification #${row.id}`);
 
