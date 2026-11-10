@@ -248,3 +248,37 @@ CREATE TABLE IF NOT EXISTS verification_settings (
     value TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Durable checkout attempts and wallet reservations.
+-- Active reservations reduce spendable balance until the checkout is resolved.
+CREATE TABLE IF NOT EXISTS wallet_reservations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK(amount > 0),
+    status TEXT NOT NULL CHECK(status IN ('active', 'committed', 'released')) DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_reservations_user_status
+    ON wallet_reservations(user_id, status);
+
+CREATE TABLE IF NOT EXISTS checkout_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout_id TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL CHECK(amount > 0),
+    status TEXT NOT NULL CHECK(status IN ('reserved', 'supplier_pending', 'supplier_uncertain', 'supplier_confirmed', 'completed', 'failed')) DEFAULT 'reserved',
+    supplier_order_id TEXT,
+    request_json TEXT NOT NULL,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_checkout_attempts_supplier_order
+    ON checkout_attempts(supplier_order_id);
+CREATE INDEX IF NOT EXISTS idx_checkout_attempts_user_status
+    ON checkout_attempts(user_id, status);
