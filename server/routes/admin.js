@@ -1480,6 +1480,89 @@ router.get('/verification/orders', (req, res) => {
     }
 });
 
+// Durable recovery queue for provider requests whose outcome was not confirmed.
+router.get('/verification/recovery', (req, res) => {
+    try {
+        const attempts = db.prepare(`
+            SELECT a.*, u.email AS user_email, u.full_name AS user_name,
+                   r.amount AS held_amount, r.status AS reservation_status
+            FROM phone_verification_attempts a
+            JOIN users u ON u.id = a.user_id
+            LEFT JOIN wallet_reservations r ON r.checkout_id = a.attempt_id
+            WHERE a.status IN ('provider_pending', 'provider_uncertain', 'provider_confirmed')
+              AND a.recovery_status IN ('open', 'investigating')
+            ORDER BY a.created_at ASC
+            LIMIT 200
+        `).all();
+        return res.json({ success: true, attempts });
+    } catch (err) {
+        console.error('[Admin] Recovery queue error:', err);
+        return res.status(500).json({ success: false, error: 'Could not load recovery queue' });
+    }
+});
+
+// Mark an unresolved attempt as under investigation. This does not contact the provider.
+router.post('/verification/recovery/:attemptId/review', (req, res) => {
+    try {
+        const note = String(req.body.note || '').trim();
+        if (note.length < 5) return res.status(400).json({ success: false, error: 'Add a short investigation note (at least 5 characters).' });
+        const result = db.prepare(`
+            UPDATE phone_verification_attempts
+            SET recovery_status = 'investigating', resolution_note = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE attempt_id = ? AND status IN ('provider_pending', 'provider_uncertain', 'provider_confirmed')
+              AND recovery_status IN ('open', 'investigating')
+        `).run(note, req.params.attemptId);
+        if (result.changes !== 1) return res.status(409).json({ success: false, error: 'This attempt is no longer available for review.' });
+        logAudit(req.user.id, 'REVIEW_PHONE_VERIFY_ATTEMPT', 'phone_verification_attempts', req.params.attemptId, note);
+        return res.json({ success: true, message: 'Attempt marked as under investigation.' });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Release a hold only after an administrator confirms with the provider that no number was issued.
+router.post('/verification/recovery/:attemptId/resolve-no-issue', (req, res) => {
+    try {
+        const note = String(req.body.note || '').trim();
+        if (req.body.providerConfirmedNoNumber !== true || note.length < 10) {
+            return res.status(400).json({ success: false, error: 'Confirm that the provider issued no number and add evidence in the note (at least 10 characters).' });
+        }
+        const resolve = db.transaction(() => {
+            const attempt = db.prepare(`
+                SELECT * FROM phone_verification_attempts
+                WHERE attempt_id = ? AND status IN ('provider_pending', 'provider_uncertain', 'provider_confirmed')
+                  AND recovery_status IN ('open', 'investigating')
+            `).get(req.params.attemptId);
+            if (!attempt) throw new Error('This attempt is already resolved or does not exist.');
+
+            const reservation = db.prepare(`
+                SELECT * FROM wallet_reservations WHERE checkout_id = ? AND user_id = ?
+            `).get(attempt.attempt_id, attempt.user_id);
+            if (!reservation || reservation.status !== 'active') throw new Error('No active wallet hold exists for this attempt.');
+
+            db.prepare(`
+                UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP
+                WHERE checkout_id = ? AND status = 'active'
+            `).run(attempt.attempt_id);
+            db.prepare(`
+                UPDATE phone_verification_attempts
+                SET status = 'rejected', recovery_status = 'resolved_no_issue',
+                    resolution_note = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP,
+                    error_message = 'Administrator confirmed provider issued no number',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE attempt_id = ?
+            `).run(note, req.user.id, attempt.attempt_id);
+            return { userId: attempt.user_id, amount: reservation.amount };
+        }).immediate();
+
+        logAudit(req.user.id, 'RESOLVE_PHONE_VERIFY_NO_ISSUE', 'phone_verification_attempts',
+            req.params.attemptId, JSON.stringify({ ...resolve, note }));
+        return res.json({ success: true, message: 'Provider-confirmed failed request resolved. The wallet hold has been released.' });
+    } catch (err) {
+        return res.status(409).json({ success: false, error: err.message });
+    }
+});
+
 // Admin force refund a verification
 router.post('/verification/orders/:id/refund', async (req, res) => {
     try {
