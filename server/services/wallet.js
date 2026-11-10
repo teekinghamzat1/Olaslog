@@ -9,22 +9,33 @@ const MIN_FUNDING = parseInt(process.env.MIN_FUNDING_AMOUNT || '100', 10);
  * @param {number} userId
  * @returns {number}
  */
-function getWalletBalance(userId) {
+function getLedgerBalance(userId) {
     const row = db.prepare(`
-        SELECT 
-            COALESCE(SUM(CASE 
-                WHEN type IN ('funding', 'refund', 'credit') AND status = 'successful' THEN amount 
+        SELECT
+            COALESCE(SUM(CASE
+                WHEN type IN ('funding', 'refund', 'credit') AND status = 'successful' THEN amount
                 WHEN type = 'adjustment' AND status = 'successful' AND amount >= 0 THEN amount
                 ELSE 0 END), 0) -
-            COALESCE(SUM(CASE 
-                WHEN type IN ('purchase', 'debit') AND status = 'successful' THEN amount 
+            COALESCE(SUM(CASE
+                WHEN type IN ('purchase', 'debit') AND status = 'successful' THEN amount
                 WHEN type = 'adjustment' AND status = 'successful' AND amount < 0 THEN ABS(amount)
-                ELSE 0 END), 0) as balance
-        FROM wallet_transactions
-        WHERE user_id = ?
+                ELSE 0 END), 0) AS balance
+        FROM wallet_transactions WHERE user_id = ?
     `).get(userId);
-    
     return row ? Math.round(row.balance * 100) / 100 : 0;
+}
+
+function getReservedBalance(userId) {
+    const row = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) AS amount
+        FROM wallet_reservations WHERE user_id = ? AND status = 'active'
+    `).get(userId);
+    return row ? Math.round(row.amount * 100) / 100 : 0;
+}
+
+// Spendable balance excludes money already held for unresolved checkouts.
+function getWalletBalance(userId) {
+    return Math.round((getLedgerBalance(userId) - getReservedBalance(userId)) * 100) / 100;
 }
 
 /**
@@ -37,7 +48,7 @@ function getWalletBalance(userId) {
  * @param {object} [metadata]
  */
 function recordFunding(userId, amount, reference, paymentChannel = 'virtual_bank_account', status = 'pending', metadata = {}) {
-    const currentBalance = getWalletBalance(userId);
+    const currentBalance = getLedgerBalance(userId);
     const newBalance = status === 'successful' ? currentBalance + amount : currentBalance;
 
     const stmt = db.prepare(`
@@ -87,7 +98,7 @@ function completeFunding(reference, finalStatus = 'successful', extraMetadata = 
         };
     }
 
-    const currentBalance = getWalletBalance(existing.user_id);
+    const currentBalance = getLedgerBalance(existing.user_id);
     const newBalance = finalStatus === 'successful' ? currentBalance + existing.amount : currentBalance;
 
     let mergedMetadata = {};
@@ -289,6 +300,8 @@ function adjustUserBalance(userId, adminId, { action, amount, newBalance, reason
 
 module.exports = {
     getWalletBalance,
+    getLedgerBalance,
+    getReservedBalance,
     recordFunding,
     completeFunding,
     recordRefund,
