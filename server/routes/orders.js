@@ -5,7 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
-const { getOrderWithCredentials } = require('../services/order');
+const { getOrderWithCredentials, completeSupplierCheckoutFromWebhook } = require('../services/order');
 const { encrypt } = require('../services/crypto');
 const sujanService = require('../services/sujan');
 const telegram = require('../services/telegram');
@@ -221,10 +221,23 @@ router.post('/webhook', (req, res) => {
 
         const localOrder = db.prepare('SELECT id, status FROM orders WHERE sujan_order_id = ?').get(sujanOrderId);
         if (!localOrder) {
-            console.error('[Sujan Webhook] No local order found for supplier order:', sujanOrderId);
+            // The supplier may have confirmed an order while the local commit
+            // was interrupted. Recover only when a matching durable attempt
+            // and active wallet reservation exist.
+            const recovered = completeSupplierCheckoutFromWebhook(sujanOrderId, orderData);
+            if (recovered) {
+                return res.status(200).json({
+                    success: true,
+                    message: recovered.alreadyCompleted
+                        ? 'Supplier checkout was already reconciled'
+                        : 'Supplier checkout recovered and wallet debit committed',
+                    orderId: recovered.orderId
+                });
+            }
+            console.error('[Sujan Webhook] No local order or recoverable checkout attempt for supplier order:', sujanOrderId);
             return res.status(409).json({
                 success: false,
-                error: 'Local order is not ready for this supplier event',
+                error: 'No recoverable local checkout attempt exists for this supplier order',
                 supplierOrderId: sujanOrderId
             });
         }
