@@ -68,6 +68,14 @@ router.post('/request', authenticate, async (req, res) => {
             verification: result
         });
     } catch (err) {
+        if (err.code === 'PHONE_VERIFY_UNCERTAIN') {
+            return res.status(409).json({
+                success: false,
+                code: 'PHONE_VERIFY_UNCERTAIN',
+                error: err.message
+            });
+        }
+
         if (err.code === 'INSUFFICIENT_FUNDS') {
             return res.status(402).json({
                 success: false,
