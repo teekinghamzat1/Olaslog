@@ -666,14 +666,22 @@ async function cancelAndRefund(id, userId) {
         };
     }
 
-    // Call provider reject command (best-effort)
+    // Do not refund unless the provider confirms the number was rejected.
+    let rejectResult;
     try {
-        await callApi('reject', { id: row.request_id });
+        rejectResult = await callApi('reject', { id: row.request_id });
     } catch (e) {
-        console.warn(`[PhoneVerify] Provider reject warning for ${row.request_id}:`, e.message);
+        const err = new Error('The provider cancellation could not be confirmed. No refund has been issued yet; please try again or contact support.');
+        err.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw err;
+    }
+    if (!rejectResult || rejectResult.status !== 'ok') {
+        const err = new Error('The provider has not confirmed cancellation. No refund has been issued.');
+        err.code = 'PHONE_VERIFY_UNCERTAIN';
+        throw err;
     }
 
-    // Perform atomic refund in user's wallet
+    // Perform atomic, one-time refund in user's wallet
     const targetUserId = row.user_id;
     const currentBalance = getWalletBalance(targetUserId);
     const refundAmount = row.cost_ngn;
@@ -681,6 +689,10 @@ async function cancelAndRefund(id, userId) {
     const refundRef = `REF-VER-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const executeRefund = db.transaction(() => {
+        const current = db.prepare('SELECT status FROM phone_verifications WHERE id = ?').get(row.id);
+        if (!current || ['completed', 'rejected', 'refunded', 'timed_out'].includes(current.status)) {
+            return false;
+        }
         db.prepare(`
             INSERT INTO wallet_transactions
             (user_id, type, amount, balance_before, balance_after, reference, status, payment_channel, description, metadata)
@@ -695,14 +707,19 @@ async function cancelAndRefund(id, userId) {
             JSON.stringify({ verificationId: row.id, requestId: row.request_id, service: row.service_name })
         );
 
-        db.prepare(`
+        const update = db.prepare(`
             UPDATE phone_verifications
             SET status = 'refunded', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND status IN ('reserved', 'awaiting_mdn')
         `).run(row.id);
-    });
+        if (update.changes !== 1) throw new Error('Verification was already resolved; refund was not repeated');
+        return true;
+    }).immediate;
 
-    executeRefund();
+    if (!executeRefund()) {
+        const latest = db.prepare('SELECT * FROM phone_verifications WHERE id = ?').get(row.id);
+        return { success: true, alreadyRefunded: true, verification: formatVerificationRow(latest), balance: getWalletBalance(targetUserId) };
+    }
 
     const updatedRow = db.prepare(`SELECT * FROM phone_verifications WHERE id = ?`).get(row.id);
 
