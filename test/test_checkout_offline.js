@@ -88,7 +88,7 @@ async function run() {
             error => error.code === 'PHONE_VERIFY_UNCERTAIN'
         );
         assert.strictEqual(getLedgerBalance(customer.id), phoneLedgerBeforeTimeout, 'Ambiguous phone provider response must not debit the ledger');
-        assert.strictEqual(getReservedBalance(customer.id), phoneReservedBeforeTimeout + 600, 'Ambiguous phone provider response must keep estimated funds held');
+        assert.strictEqual(getReservedBalance(customer.id), phoneReservedBeforeTimeout + 500, 'Ambiguous phone provider response must keep estimated funds held');
         const uncertainPhoneAttempt = db.prepare("SELECT status FROM phone_verification_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
         assert.strictEqual(uncertainPhoneAttempt.status, 'provider_uncertain');
         console.log('PASS: US Phone Verify timeout keeps funds reserved and records an uncertain attempt');
