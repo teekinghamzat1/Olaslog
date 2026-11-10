@@ -572,7 +572,7 @@ function completeSupplierCheckoutFromWebhook(sujanOrderId, orderData) {
             SELECT * FROM wallet_reservations WHERE checkout_id = ? AND user_id = ? AND status = 'active'
         `).get(attempt.checkout_id, attempt.user_id);
         if (!reservation || Math.abs(reservation.amount - attempt.amount) > 0.001) {
-            throw new Error('The customer's wallet reservation is missing');
+            throw new Error("The customer wallet reservation is missing");
         }
         const ledgerBalance = getLedgerBalance(attempt.user_id);
         if (ledgerBalance < attempt.amount) throw new Error('Reserved funds are no longer available');
