@@ -1,5 +1,6 @@
 const db = require('../db');
-const { getWalletBalance } = require('./wallet');
+const crypto = require('crypto');
+const { getWalletBalance, getLedgerBalance } = require('./wallet');
 const { encrypt, decrypt } = require('./crypto');
 const sujanService = require('./sujan');
 const emailService = require('./email');
@@ -106,6 +107,52 @@ async function checkoutCart(userId, items) {
         throw err;
     }
 
+    // Reserve the customer's money durably before any supplier request.
+    // BEGIN IMMEDIATE serializes competing wallet reservations in SQLite.
+    const checkoutId = crypto.randomUUID();
+    const reserveFunds = db.transaction(() => {
+        const spendable = getWalletBalance(userId);
+        if (spendable < totalCost) {
+            const shortfall = Math.round((totalCost - spendable) * 100) / 100;
+            const err = new Error('Insufficient wallet balance');
+            err.code = 'INSUFFICIENT_FUNDS';
+            err.shortfall = shortfall;
+            err.required = totalCost;
+            err.currentBalance = spendable;
+            throw err;
+        }
+        db.prepare(`
+            INSERT INTO wallet_reservations (checkout_id, user_id, amount, status)
+            VALUES (?, ?, ?, 'active')
+        `).run(checkoutId, userId, totalCost);
+        db.prepare(`
+            INSERT INTO checkout_attempts (checkout_id, user_id, amount, status, request_json)
+            VALUES (?, ?, ?, 'reserved', ?)
+        `).run(checkoutId, userId, totalCost, JSON.stringify(validatedItems.map(v => ({
+            productId: v.product.id, quantity: v.quantity, inventoryItemIds: v.inventoryItemIds
+        }))));
+    }).immediate;
+    reserveFunds();
+
+    const updateAttempt = (status, extra = {}) => {
+        db.prepare(`
+            UPDATE checkout_attempts
+            SET status = ?, supplier_order_id = COALESCE(?, supplier_order_id),
+                error_message = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(status, extra.supplierOrderId || null, extra.error || null, checkoutId);
+    };
+    const releaseReservation = (reason) => {
+        const release = db.transaction(() => {
+            db.prepare(`
+                UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP
+                WHERE checkout_id = ? AND status = 'active'
+            `).run(checkoutId);
+            updateAttempt('failed', { error: reason || 'Checkout failed before supplier confirmation' });
+        });
+        release.immediate();
+    };
+
     // Step 3: Fulfill items from the correct source.
     // Supplier-backed products must never silently fall back to local stock:
     // a timeout may mean the supplier accepted the order but its response was lost.
@@ -117,6 +164,7 @@ async function checkoutCart(userId, items) {
             && Number(valItem.product.sujan_product_id) > 0;
 
         if (hasSujanProduct) {
+            updateAttempt('supplier_pending');
             try {
                 const sujanRes = await sujanService.placeOrder({
                     productId: Number(valItem.product.sujan_product_id),
@@ -145,6 +193,7 @@ async function checkoutCart(userId, items) {
                     throw uncertainErr;
                 }
 
+                updateAttempt('supplier_confirmed', { supplierOrderId: sujanOrderId });
                 fulfillmentResults.push({
                     item: valItem,
                     source: 'sujan',
@@ -155,6 +204,7 @@ async function checkoutCart(userId, items) {
                 });
             } catch (sujanErr) {
                 if (sujanErr.code === 'SUPPLIER_UNCERTAIN') {
+                    updateAttempt('supplier_uncertain', { supplierOrderId: sujanErr.sujanOrderId, error: sujanErr.message });
                     recordSupplierUncertainty(userId, valItem, sujanErr);
                     throw sujanErr;
                 }
@@ -168,6 +218,7 @@ async function checkoutCart(userId, items) {
                 );
                 supplierErr.code = 'SUPPLIER_UNCERTAIN';
                 supplierErr.sujanStatus = sujanErr.status || null;
+                updateAttempt('supplier_uncertain', { error: supplierErr.message });
                 recordSupplierUncertainty(userId, valItem, supplierErr);
                 throw supplierErr;
             }
@@ -181,6 +232,7 @@ async function checkoutCart(userId, items) {
             if (selectedIds.length !== valItem.quantity) {
                 const selectionErr = new Error('Selected inventory contains duplicate account IDs.');
                 selectionErr.code = 'OUT_OF_STOCK';
+                releaseReservation(selectionErr.message);
                 throw selectionErr;
             }
             const placeholders = selectedIds.map(() => '?').join(', ');
@@ -204,6 +256,7 @@ async function checkoutCart(userId, items) {
         if (stockRows.length !== valItem.quantity) {
             const stockErr = new Error('The selected local accounts are no longer available. Refresh the product and try again.');
             stockErr.code = 'OUT_OF_STOCK';
+            releaseReservation(stockErr.message);
             throw stockErr;
         }
 
@@ -216,6 +269,18 @@ async function checkoutCart(userId, items) {
 
     // Step 4: Run local DB updates in SQLite ACID transaction (atomic wallet debit + order save)
     const executeCheckoutTransaction = db.transaction(() => {
+        // Read the ledger balance again inside the same transaction as the debit.
+        const ledgerBalance = getLedgerBalance(userId);
+        const reservation = db.prepare(`
+            SELECT amount, status FROM wallet_reservations WHERE checkout_id = ? AND user_id = ?
+        `).get(checkoutId, userId);
+        if (!reservation || reservation.status !== 'active' || Math.abs(reservation.amount - totalCost) > 0.001) {
+            throw new Error('Checkout wallet reservation is missing or no longer active.');
+        }
+        if (ledgerBalance < totalCost) {
+            throw new Error('Reserved wallet funds are no longer available. Checkout was stopped.');
+        }
+
         // Generate unique internal order number and wallet reference
         const timestamp = Date.now();
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -223,6 +288,7 @@ async function checkoutCart(userId, items) {
         const walletRef = `PUR-${timestamp}-${randomSuffix}`;
 
         // Deduct wallet balance via immutable ledger entry
+        const currentBalance = ledgerBalance;
         const newBalance = Math.round((currentBalance - totalCost) * 100) / 100;
         db.prepare(`
             INSERT INTO wallet_transactions
@@ -367,6 +433,15 @@ async function checkoutCart(userId, items) {
             }
         }
 
+        db.prepare(`
+            UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ? AND status = 'active'
+        `).run(checkoutId);
+        db.prepare(`
+            UPDATE checkout_attempts SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+            WHERE checkout_id = ?
+        `).run(checkoutId);
+
         return {
             orderId,
             orderNumber,
@@ -378,7 +453,20 @@ async function checkoutCart(userId, items) {
         };
     });
 
-    const result = executeCheckoutTransaction();
+    let result;
+    try {
+        result = executeCheckoutTransaction();
+    } catch (transactionError) {
+        // If a supplier order may already exist, keep the reservation for manual
+        // reconciliation. Local-only failures can safely release the hold.
+        const supplierWasContacted = validatedItems.some(v =>
+            v.product.sujan_product_id !== null && v.product.sujan_product_id !== undefined
+            && Number(v.product.sujan_product_id) > 0
+        );
+        if (!supplierWasContacted) releaseReservation(transactionError.message);
+        else updateAttempt('supplier_uncertain', { error: transactionError.message });
+        throw transactionError;
+    }
 
     // Send purchase confirmation email & Telegram delivery (non-blocking)
     try {
