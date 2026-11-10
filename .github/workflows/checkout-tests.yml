@@ -35,6 +35,10 @@ jobs:
           node --check public/js/app.js
           node --check server/services/order.js
           node --check server/routes/checkout.js
+          node --check server/routes/admin.js
+          node --check server/services/phoneVerify.js
+          node --check server/services/phoneVerifyRecovery.js
+          node --check public/js/admin.js
           node --check test/test_checkout_offline.js
       - name: Run isolated checkout tests
         run: node test/test_checkout_offline.js
