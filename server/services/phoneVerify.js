@@ -303,7 +303,7 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
     `).run(status, values.requestId || null, values.amount ?? null, values.error || null, attemptId);
 
     const releaseReservation = () => db.prepare(`
-        UPDATE wallet_reservations SET status = 'released', updated_at = CURRENT_TIMESTAMP
+        UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP
         WHERE checkout_id = ? AND status = 'active'
     `).run(attemptId);
 
@@ -357,7 +357,7 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
         const spendableBeforeThisHold = Math.round((ledger - heldByOthers - reservedAmount) * 100) / 100;
         if (finalNgnPrice > reservedAmount && spendableBeforeThisHold < finalNgnPrice) return false;
         db.prepare(`
-            UPDATE wallet_reservations SET amount = ?, updated_at = CURRENT_TIMESTAMP
+            UPDATE wallet_reservations SET amount = ?
             WHERE checkout_id = ? AND status = 'active'
         `).run(finalNgnPrice, attemptId);
         reservedAmount = finalNgnPrice;
@@ -422,7 +422,7 @@ async function requestNumber({ userId, service, areacode, state, markup, mdn }) 
             );
             localId = result.lastInsertRowid;
             db.prepare(`
-                UPDATE wallet_reservations SET status = 'committed', updated_at = CURRENT_TIMESTAMP
+                UPDATE wallet_reservations SET status = 'committed', resolved_at = CURRENT_TIMESTAMP
                 WHERE checkout_id = ? AND status = 'active'
             `).run(attemptId);
             db.prepare(`
