@@ -23,6 +23,7 @@ const telegram = require('../server/services/telegram');
 const telegramBot = require('../server/services/telegramBot');
 const { checkoutCart, completeSupplierCheckoutFromWebhook } = require('../server/services/order');
 const phoneVerify = require('../server/services/phoneVerify');
+const phoneVerifyRecovery = require('../server/services/phoneVerifyRecovery');
 
 // Hard-disable outbound notifications for this test process.
 emailService.sendPurchaseEmail = async () => ({ skipped: true });
@@ -89,13 +90,57 @@ async function run() {
         );
         assert.strictEqual(getLedgerBalance(customer.id), phoneLedgerBeforeTimeout, 'Ambiguous phone provider response must not debit the ledger');
         assert.strictEqual(getReservedBalance(customer.id), phoneReservedBeforeTimeout + 500, 'Ambiguous phone provider response must keep estimated funds held');
-        const uncertainPhoneAttempt = db.prepare("SELECT status FROM phone_verification_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
+        const uncertainPhoneAttempt = db.prepare("SELECT * FROM phone_verification_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
         assert.strictEqual(uncertainPhoneAttempt.status, 'provider_uncertain');
-        // This is a disposable test database. Release the simulated unresolved hold
-        // after proving it was retained, so the other checkout tests start clean.
-        const uncertainPhone = db.prepare("SELECT attempt_id FROM phone_verification_attempts WHERE user_id = ? AND status = 'provider_uncertain' ORDER BY id DESC LIMIT 1").get(customer.id);
-        db.prepare("UPDATE wallet_reservations SET status = 'released', resolved_at = CURRENT_TIMESTAMP WHERE checkout_id = ? AND status = 'active'").run(uncertainPhone.attempt_id);
-        console.log('PASS: US Phone Verify timeout keeps funds reserved and records an uncertain attempt');
+        const uncertainPhone = uncertainPhoneAttempt.attempt_id;
+        const reservedBeforeRecovery = getReservedBalance(customer.id);
+        const ledgerBeforeRecovery = getLedgerBalance(customer.id);
+
+        const recoveryQueue = phoneVerifyRecovery.listUnresolvedAttempts();
+        assert(recoveryQueue.some(row => row.attempt_id === uncertainPhone), 'Uncertain request must appear in admin recovery queue');
+        assert.strictEqual(phoneVerifyRecovery.listUnresolvedAttempts(1).length <= 1, true, 'Recovery queue limit must be bounded');
+        assert.throws(
+            () => phoneVerifyRecovery.resolveNoIssue(uncertainPhone, customer.id, false, 'No provider confirmation'),
+            /Confirm that the provider issued no number/
+        );
+        assert.strictEqual(getReservedBalance(customer.id), reservedBeforeRecovery, 'Missing provider confirmation must not release funds');
+        assert.throws(
+            () => phoneVerifyRecovery.resolveNoIssue(uncertainPhone, customer.id, true, 'short'),
+            /at least 10 characters/
+        );
+        assert.strictEqual(getReservedBalance(customer.id), reservedBeforeRecovery, 'Insufficient evidence must not release funds');
+
+        assert.throws(
+            () => phoneVerifyRecovery.markInvestigating(uncertainPhone, 'no'),
+            /at least 5 characters/
+        );
+        phoneVerifyRecovery.markInvestigating(uncertainPhone, 'Contacted provider support; awaiting confirmation.');
+        const investigating = db.prepare('SELECT recovery_status, resolution_note FROM phone_verification_attempts WHERE attempt_id = ?').get(uncertainPhone);
+        assert.strictEqual(investigating.recovery_status, 'investigating');
+        assert.match(investigating.resolution_note, /Contacted provider support/);
+
+        const resolution = phoneVerifyRecovery.resolveNoIssue(
+            uncertainPhone, customer.id, true,
+            'Provider support confirmed no number was issued; case reference OFFLINE-CASE-1.'
+        );
+        assert.strictEqual(resolution.amount, 500);
+        assert.strictEqual(getLedgerBalance(customer.id), ledgerBeforeRecovery, 'Releasing a hold must not create a wallet credit or debit');
+        assert.strictEqual(getReservedBalance(customer.id), reservedBeforeRecovery - 500, 'Confirmed no-issue resolution must release only this attempt hold');
+        const resolvedAttempt = db.prepare('SELECT status, recovery_status, resolved_by, resolution_note, resolved_at FROM phone_verification_attempts WHERE attempt_id = ?').get(uncertainPhone);
+        const resolvedReservation = db.prepare('SELECT status FROM wallet_reservations WHERE checkout_id = ?').get(uncertainPhone);
+        assert.strictEqual(resolvedAttempt.status, 'rejected');
+        assert.strictEqual(resolvedAttempt.recovery_status, 'resolved_no_issue');
+        assert.strictEqual(resolvedAttempt.resolved_by, customer.id);
+        assert(resolvedAttempt.resolved_at, 'Resolution timestamp must be saved');
+        assert.strictEqual(resolvedReservation.status, 'released');
+        assert.throws(
+            () => phoneVerifyRecovery.resolveNoIssue(uncertainPhone, customer.id, true, 'Provider again confirmed no number was issued.'),
+            /already resolved or does not exist/
+        );
+        assert.strictEqual(getReservedBalance(customer.id), reservedBeforeRecovery - 500, 'Duplicate resolution must not release another reservation');
+        assert.strictEqual(getLedgerBalance(customer.id), ledgerBeforeRecovery, 'Duplicate resolution must not change wallet ledger');
+        assert.strictEqual(phoneVerifyRecovery.listUnresolvedAttempts().some(row => row.attempt_id === uncertainPhone), false);
+        console.log('PASS: phone verification recovery queue, review notes, evidence gate, one-time hold release, and duplicate protection');
     } finally {
         global.fetch = originalFetch;
         phoneVerify.stopVerificationPoller();
