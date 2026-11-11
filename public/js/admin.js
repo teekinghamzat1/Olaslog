@@ -1625,25 +1625,6 @@ async function resetCurrentTemplate() {
   }
 }
 
-function openTestEmailModal(defaultKey = null) {
-  const key = defaultKey || adminState.currentEmailTemplateKey || 'welcome';
-  const select = document.getElementById('admTestTemplateSelect');
-  if (select) select.value = key;
-
-  const emailInput = document.getElementById('admTestRecipientEmail');
-  if (emailInput && !emailInput.value) {
-    emailInput.value = adminState.user?.email || '';
-  }
-
-  const resultBox = document.getElementById('admTestEmailResult');
-  if (resultBox) {
-    resultBox.style.display = 'none';
-    resultBox.innerHTML = '';
-  }
-
-  openAdminModal('admTestEmailModal');
-}
-
 async function executeSendTestEmail() {
   const select = document.getElementById('admTestTemplateSelect');
   const emailInput = document.getElementById('admTestRecipientEmail');
