@@ -243,7 +243,9 @@ router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
                                 reference,
                                 channel: 'virtual_bank_account'
                             }
-                        ).catch(() => {});
+                        ).catch(err => {
+                            console.error('[BillStack Webhook] Failed to send wallet funded email:', err.message);
+                        });
 
                         // Telegram admin alert (non-blocking)
                         telegram.notifyWalletFunded({
