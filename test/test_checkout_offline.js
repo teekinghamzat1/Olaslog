@@ -44,6 +44,37 @@ async function run() {
     // This runs only in a fresh, disposable CI database.
     seedDatabase();
 
+    // Email template rendering checks: no SMTP transport or outbound email is used.
+    const emailSamples = {
+        welcome: emailService.buildWelcomeEmail({ email: 'customer@olaslog.com', fullName: 'Offline Customer' }),
+        wallet_funded: emailService.buildWalletFundedEmail(
+            { email: 'customer@olaslog.com', fullName: 'Offline Customer' },
+            { amount: 5000, newBalance: 15000, reference: 'OFFLINE-PAYMENT-1', channel: 'virtual_bank_account' }
+        ),
+        purchase: emailService.buildPurchaseEmail(
+            { email: 'customer@olaslog.com', fullName: 'Offline Customer' },
+            {
+                orderNumber: 'OFFLINE-ORDER-1',
+                totalAmount: 3500,
+                remainingBalance: 11500,
+                items: [{ productName: 'Offline Product', credentialText: 'offline-user|offline-pass', publicData: 'Offline account' }]
+            }
+        ),
+        password_reset: emailService.buildPasswordResetEmail(
+            { email: 'customer@olaslog.com', fullName: 'Offline Customer' },
+            { resetUrl: 'https://olaslog.com/#reset-password?token=offline-reset-token' }
+        )
+    };
+    for (const [key, rendered] of Object.entries(emailSamples)) {
+        assert(rendered.subject && rendered.html, key + ' email must render a subject and HTML body');
+        assert(rendered.html.includes('Offline Customer'), key + ' email must include the customer name');
+    }
+    assert(emailSamples.wallet_funded.html.includes('OFFLINE-PAYMENT-1'), 'Wallet email must include the payment reference');
+    assert(emailSamples.purchase.html.includes('OFFLINE-ORDER-1'), 'Purchase email must include the order number');
+    assert(emailSamples.purchase.html.includes('offline-user|offline-pass'), 'Purchase email must include delivered credentials');
+    assert(emailSamples.password_reset.html.includes('offline-reset-token'), 'Password reset email must include its reset link');
+    console.log('PASS: all four transactional email templates render expected customer and transaction details without sending email');
+
     const customer = db.prepare("SELECT id FROM users WHERE email = 'customer@olaslog.com'").get();
     assert(customer, 'Seeded test customer must exist');
 
