@@ -44,7 +44,9 @@ router.post('/register', (req, res) => {
         res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
         // Fire welcome email (non-blocking)
-        emailService.sendWelcomeEmail({ email: newUser.email, fullName: newUser.full_name }).catch(() => {});
+        emailService.sendWelcomeEmail({ email: newUser.email, fullName: newUser.full_name }).catch(err => {
+            console.error('[Auth] Failed to send welcome email:', err.message);
+        });
 
         // Fire Telegram notification (non-blocking)
         telegram.notifyNewRegistration({ fullName: newUser.full_name, email: newUser.email, id: newUser.id }).catch(() => {});

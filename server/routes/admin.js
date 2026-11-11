@@ -1181,7 +1181,7 @@ router.post('/email/test', async (req, res) => {
         const { templateKey, recipientEmail } = req.body;
 
         if (!templateKey) {
-            return res.status(400).json({ success: false, error: 'Template key is required (welcome, wallet_funded, or purchase)' });
+            return res.status(400).json({ success: false, error: 'Template key is required (welcome, wallet_funded, purchase, or password_reset)' });
         }
         if (!recipientEmail || !recipientEmail.includes('@')) {
             return res.status(400).json({ success: false, error: 'A valid recipient email address is required' });

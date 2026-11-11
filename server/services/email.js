@@ -599,6 +599,7 @@ async function sendWelcomeEmail(user) {
         return await sendMail({ to: user.email, subject, html });
     } catch (err) {
         console.error('[Email] sendWelcomeEmail error:', err.message);
+        throw err;
     }
 }
 
@@ -608,6 +609,7 @@ async function sendWalletFundedEmail(user, details) {
         return await sendMail({ to: user.email, subject, html });
     } catch (err) {
         console.error('[Email] sendWalletFundedEmail error:', err.message);
+        throw err;
     }
 }
 
@@ -617,6 +619,7 @@ async function sendPurchaseEmail(user, details) {
         return await sendMail({ to: user.email, subject, html });
     } catch (err) {
         console.error('[Email] sendPurchaseEmail error:', err.message);
+        throw err;
     }
 }
 
