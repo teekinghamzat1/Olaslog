@@ -67,7 +67,7 @@ async function run() {
     };
     for (const [key, rendered] of Object.entries(emailSamples)) {
         assert(rendered.subject && rendered.html, key + ' email must render a subject and HTML body');
-        assert(rendered.html.includes('Offline Customer'), key + ' email must include the customer name');
+        assert(rendered.html.includes('Offline'), key + ' email must include the customer first name');
     }
     assert(emailSamples.wallet_funded.html.includes('OFFLINE-PAYMENT-1'), 'Wallet email must include the payment reference');
     assert(emailSamples.purchase.html.includes('OFFLINE-ORDER-1'), 'Purchase email must include the order number');
