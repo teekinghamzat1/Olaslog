@@ -212,7 +212,7 @@ router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
     const signature = req.headers['x-wiaxy-signature-256'];
     const timestamp  = req.headers['x-wiaxy-timestamp'];
 
-    if (signature && !billstackService.verifyWebhookSignature(rawBody, signature, timestamp)) {
+    if (!billstackService.verifyWebhookSignature(rawBody, signature, timestamp)) {
         console.warn('[BillStack Webhook] Invalid signature — request rejected.');
         return res.status(400).json({ status: false, message: 'Invalid signature' });
     }
