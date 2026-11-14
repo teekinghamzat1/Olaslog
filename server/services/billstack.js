@@ -275,22 +275,25 @@ async function createOrGetVirtualAccount(userOrId, options = {}) {
  */
 function verifyWebhookSignature(rawBody, signature, timestamp) {
     if (!signature || !timestamp) return false;
-    if (isMock) return true; // Accept all simulated webhooks in dev mode
+    if (isMock()) return process.env.NODE_ENV !== 'production';
+
+    const secret = getSecretKey();
+    if (!secret) return false;
 
     try {
-        // Reject events older than 5 minutes (replay protection)
-        if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
-            console.warn('[BillStack Webhook] Stale event rejected. Timestamp:', timestamp);
-            return false;
-        }
+        const timestampSeconds = Number(timestamp);
+        if (!Number.isFinite(timestampSeconds) || timestampSeconds <= 0) return false;
 
-        const signingString = `${timestamp}.${rawBody}`;
-        const expected = crypto
-            .createHmac('sha256', BILLSTACK_SECRET_KEY)
-            .update(signingString)
-            .digest('hex');
+        // Reject events older than 5 minutes to reduce replay risk.
+        if (Math.abs(Date.now() / 1000 - timestampSeconds) > 300) return false;
 
-        return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+        const signingString = `${timestamp}.${Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody)}`;
+        const expected = crypto.createHmac('sha256', secret).update(signingString).digest();
+        const suppliedHex = String(signature).trim().replace(/^sha256=/i, '');
+        if (!/^[a-f0-9]{64}$/i.test(suppliedHex)) return false;
+        const supplied = Buffer.from(suppliedHex, 'hex');
+
+        return supplied.length === expected.length && crypto.timingSafeEqual(expected, supplied);
     } catch (e) {
         console.error('[BillStack Webhook] Signature verification error:', e.message);
         return false;
