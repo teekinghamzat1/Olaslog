@@ -5,8 +5,6 @@ const { authenticate } = require('../middleware/auth');
 const { getWalletBalance, getTransactions } = require('../services/wallet');
 
 const billstackService = require('../services/billstack');
-const emailService = require('../services/email');
-const telegram = require('../services/telegram');
 const billstackWebhookQueue = require('../services/billstackWebhookQueue');
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
@@ -182,9 +180,10 @@ router.get('/webhook', (req, res) => {
 /**
  * POST /api/wallet/webhook
  *
- * BillStack sends PAYMENT_NOTIFICATION events when funds arrive in a virtual account.
- *
- * Webhook MUST respond with 200 + { status: true, messagerouter.post('/webhook', express.raw({ type: '*/*' }), (req, res) => {
+ * Verify and persist each BillStack event before acknowledging it. The durable
+ * queue processes events in the background and retries failures after restart.
+ */
+router.post('/webhook', express.raw({ type: '*/*' }), (req, res) => {
     let rawBody;
     let event;
 
@@ -198,7 +197,6 @@ router.get('/webhook', (req, res) => {
         } else {
             rawBody = JSON.stringify(req.body || {});
         }
-
         event = JSON.parse(rawBody);
     } catch (parseErr) {
         console.error('[BillStack Webhook] Failed to parse body:', parseErr.message);
@@ -213,9 +211,8 @@ router.get('/webhook', (req, res) => {
         return res.status(400).json({ status: false, message: 'Invalid signature' });
     }
 
-    // Persist the verified event before acknowledging it. If persistence fails,
-    // return a failure so BillStack can retry instead of losing the notification.
     try {
+        // A 200 is sent only after the verified event is safely stored in SQLite.
         const queued = billstackWebhookQueue.enqueueWebhook(event, rawBody);
         res.status(200).json({ status: true, message: 'successful' });
 
@@ -226,10 +223,6 @@ router.get('/webhook', (req, res) => {
         console.error('[BillStack Webhook] Could not persist event:', err.message);
         return res.status(500).json({ status: false, message: 'Could not persist webhook event' });
     }
-});
-[BillStack Webhook] Processing error:', err.message);
-        }
-    });
 });
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
