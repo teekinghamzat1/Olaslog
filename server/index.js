@@ -9,6 +9,7 @@ require('./db');
 
 const syncScheduler = require('./services/syncScheduler');
 const telegramBot = require('./services/telegramBot');
+const billstackWebhookQueue = require('./services/billstackWebhookQueue');
 
 const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
@@ -89,6 +90,9 @@ const server = app.listen(PORT, () => {
     const job = syncScheduler.startSyncJob();
     console.log(`📦 Catalog sync scheduler started — running every ${job.intervalMinutes} min. Next: ${job.nextSyncAt}`);
 
+    // Start durable BillStack webhook recovery worker
+    billstackWebhookQueue.startWebhookWorker();
+
     // Start Telegram Interactive Bot service
     telegramBot.startBot();
 
@@ -101,6 +105,7 @@ const server = app.listen(PORT, () => {
 process.on('SIGTERM', () => {
     syncScheduler.stopSyncJob();
     telegramBot.stopBot();
+    billstackWebhookQueue.stopWebhookWorker();
     require('./services/phoneVerify').stopVerificationPoller();
     server.close(() => {
         console.log('[Server] Gracefully shut down.');
