@@ -116,6 +116,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
     syncScheduler.stopSyncJob();
     telegramBot.stopBot();
+    billstackWebhookQueue.stopWebhookWorker();
     require('./services/phoneVerify').stopVerificationPoller();
     server.close(() => {
         console.log('[Server] Gracefully shut down (SIGINT).');
