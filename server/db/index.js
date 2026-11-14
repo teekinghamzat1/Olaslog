@@ -312,6 +312,14 @@ try {
     if (!phoneAttemptCols.includes('resolved_at')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolved_at DATETIME;');
     db.exec("CREATE INDEX IF NOT EXISTS idx_phone_verify_recovery ON phone_verification_attempts(status, recovery_status, created_at);");
 
+
+} catch (migErr) {
+    if (process.env.NODE_ENV === 'production' && migErr.message.startsWith('No administrator account exists.')) {
+        throw migErr;
+    }
+    console.warn('DB Migration notice:', migErr.message);
+}
+
     // Durable BillStack webhook inbox. Events are stored before the HTTP 200 response
     // so a process crash cannot silently discard a payment notification.
     db.exec(`
@@ -333,8 +341,5 @@ try {
         CREATE INDEX IF NOT EXISTS idx_billstack_webhook_queue
             ON billstack_webhook_events(status, next_attempt_at, id);
     `);
-} catch (migErr) {
-    console.warn('DB Migration notice:', migErr.message);
-}
 
 module.exports = db;
