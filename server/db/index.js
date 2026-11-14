@@ -152,16 +152,19 @@ try {
         console.log('🔄 Migrated wallet_transactions table to support adjustment and debit ledger types');
     }
 
-    // Auto-bootstrap default admin if none exists
+    // Production must never create a predictable administrator credential.
     const adminCheck = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
-    if (!adminCheck) {
+    if (!adminCheck && process.env.NODE_ENV === 'production') {
+        throw new Error('No administrator account exists. Create one through a controlled one-time bootstrap before starting production.');
+    }
+    if (!adminCheck && process.env.NODE_ENV !== 'production') {
         const bcrypt = require('bcryptjs');
         const adminPasswordHash = bcrypt.hashSync('Admin@12345', 10);
         db.prepare(`
             INSERT INTO users (email, password_hash, full_name, phone, role, is_verified)
             VALUES ('admin@olaslog.com', ?, 'System Administrator', '+2348011223344', 'admin', 1)
         `).run(adminPasswordHash);
-        console.log('🛡️ Auto-initialized default admin account (admin@olaslog.com)');
+        console.warn('Development admin created. Never use this development credential in production.');
     }
 
     // Initialize email_settings & email_templates tables
@@ -308,8 +311,35 @@ try {
     if (!phoneAttemptCols.includes('resolved_by')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL;');
     if (!phoneAttemptCols.includes('resolved_at')) db.exec('ALTER TABLE phone_verification_attempts ADD COLUMN resolved_at DATETIME;');
     db.exec("CREATE INDEX IF NOT EXISTS idx_phone_verify_recovery ON phone_verification_attempts(status, recovery_status, created_at);");
+
+
 } catch (migErr) {
+    if (process.env.NODE_ENV === 'production' && migErr.message.startsWith('No administrator account exists.')) {
+        throw migErr;
+    }
     console.warn('DB Migration notice:', migErr.message);
 }
+
+    // Durable BillStack webhook inbox. Events are stored before the HTTP 200 response
+    // so a process crash cannot silently discard a payment notification.
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS billstack_webhook_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_key TEXT NOT NULL UNIQUE,
+            event_type TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'processing', 'processed')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processing_started_at DATETIME,
+            received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processed_at DATETIME,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_billstack_webhook_queue
+            ON billstack_webhook_events(status, next_attempt_at, id);
+    `);
 
 module.exports = db;

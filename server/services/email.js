@@ -223,7 +223,6 @@ function createTransport() {
             user: cfg.user,
             pass: cfg.pass
         },
-        tls: { rejectUnauthorized: false }
     });
 }
 

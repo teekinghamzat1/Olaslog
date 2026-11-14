@@ -2,7 +2,16 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'olaslog_jwt_secret_key_prod_super_secure_2026';
+const crypto = require('crypto');
+const JWT_SECRET = process.env.JWT_SECRET || (
+    ['development', 'test'].includes(process.env.NODE_ENV)
+        ? crypto.randomBytes(32).toString('hex')
+        : null
+);
+
+if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET must be configured before starting Olaslog in production.');
+}
 
 function authenticate(req, res, next) {
     let token = null;

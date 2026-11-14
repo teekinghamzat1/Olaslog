@@ -84,48 +84,53 @@ function recordFunding(userId, amount, reference, paymentChannel = 'virtual_bank
  * @param {object} [extraMetadata]
  */
 function completeFunding(reference, finalStatus = 'successful', extraMetadata = {}) {
-    const existing = db.prepare(`SELECT * FROM wallet_transactions WHERE reference = ?`).get(reference);
-    if (!existing) {
-        throw new Error(`Transaction reference ${reference} not found`);
+    if (!['successful', 'failed'].includes(finalStatus)) {
+        throw new Error('Invalid funding final status');
     }
 
-    if (existing.status === 'successful') {
-        // Idempotency check: Already completed, do not credit twice
-        return {
-            alreadyProcessed: true,
-            balance: getWalletBalance(existing.user_id),
-            transaction: existing
-        };
-    }
-
-    const currentBalance = getLedgerBalance(existing.user_id);
-    const newBalance = finalStatus === 'successful' ? currentBalance + existing.amount : currentBalance;
-
-    let mergedMetadata = {};
-    try {
-        mergedMetadata = JSON.parse(existing.metadata || '{}');
-    } catch (_) {}
-    mergedMetadata = { ...mergedMetadata, ...extraMetadata, verifiedAt: new Date().toISOString() };
-
-    db.prepare(`
-        UPDATE wallet_transactions
-        SET status = ?,
-            balance_before = ?,
-            balance_after = ?,
-            metadata = ?
-        WHERE id = ?
-    `).run(finalStatus, currentBalance, newBalance, JSON.stringify(mergedMetadata), existing.id);
-
-    return {
-        alreadyProcessed: false,
-        balance: newBalance,
-        transaction: {
-            ...existing,
-            status: finalStatus,
-            balance_before: currentBalance,
-            balance_after: newBalance
+    // Serialize read-check-update so concurrent webhook retries cannot credit twice.
+    const completeTx = db.transaction(() => {
+        const existing = db.prepare('SELECT * FROM wallet_transactions WHERE reference = ?').get(reference);
+        if (!existing) {
+            throw new Error(`Transaction reference ${reference} not found`);
         }
-    };
+
+        if (existing.status === 'successful') {
+            return {
+                alreadyProcessed: true,
+                balance: getWalletBalance(existing.user_id),
+                transaction: existing
+            };
+        }
+
+        if (existing.status !== 'pending') {
+            throw new Error(`Cannot complete funding transaction in status: ${existing.status}`);
+        }
+
+        const currentBalance = getLedgerBalance(existing.user_id);
+        const newBalance = finalStatus === 'successful' ? currentBalance + existing.amount : currentBalance;
+
+        let mergedMetadata = {};
+        try {
+            mergedMetadata = JSON.parse(existing.metadata || '{}');
+        } catch (_) {}
+        mergedMetadata = { ...mergedMetadata, ...extraMetadata, verifiedAt: new Date().toISOString() };
+
+        db.prepare(`
+            UPDATE wallet_transactions
+            SET status = ?, balance_before = ?, balance_after = ?, metadata = ?
+            WHERE id = ? AND status = 'pending'
+        `).run(finalStatus, currentBalance, newBalance, JSON.stringify(mergedMetadata), existing.id);
+
+        const updated = db.prepare('SELECT * FROM wallet_transactions WHERE id = ?').get(existing.id);
+        return {
+            alreadyProcessed: false,
+            balance: getWalletBalance(existing.user_id),
+            transaction: updated
+        };
+    });
+
+    return completeTx.immediate();
 }
 
 /**
