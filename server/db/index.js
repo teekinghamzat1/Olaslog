@@ -152,16 +152,19 @@ try {
         console.log('🔄 Migrated wallet_transactions table to support adjustment and debit ledger types');
     }
 
-    // Auto-bootstrap default admin if none exists
+    // Production must never create a predictable administrator credential.
     const adminCheck = db.prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1").get();
-    if (!adminCheck) {
+    if (!adminCheck && process.env.NODE_ENV === 'production') {
+        throw new Error('No administrator account exists. Create one through a controlled one-time bootstrap before starting production.');
+    }
+    if (!adminCheck && process.env.NODE_ENV !== 'production') {
         const bcrypt = require('bcryptjs');
         const adminPasswordHash = bcrypt.hashSync('Admin@12345', 10);
         db.prepare(`
             INSERT INTO users (email, password_hash, full_name, phone, role, is_verified)
             VALUES ('admin@olaslog.com', ?, 'System Administrator', '+2348011223344', 'admin', 1)
         `).run(adminPasswordHash);
-        console.log('🛡️ Auto-initialized default admin account (admin@olaslog.com)');
+        console.warn('Development admin created. Never use this development credential in production.');
     }
 
     // Initialize email_settings & email_templates tables
