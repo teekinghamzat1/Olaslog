@@ -5,8 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { getWalletBalance, getTransactions } = require('../services/wallet');
 
 const billstackService = require('../services/billstack');
-const emailService = require('../services/email');
-const telegram = require('../services/telegram');
+const billstackWebhookQueue = require('../services/billstackWebhookQueue');
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
@@ -181,12 +180,10 @@ router.get('/webhook', (req, res) => {
 /**
  * POST /api/wallet/webhook
  *
- * BillStack sends PAYMENT_NOTIFICATION events when funds arrive in a virtual account.
- *
- * Webhook MUST respond with 200 + { status: true, message: "successful" } quickly;
- * BillStack retries on any non-200 response.
+ * Verify and persist each BillStack event before acknowledging it. The durable
+ * queue processes events in the background and retries failures after restart.
  */
-router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+router.post('/webhook', express.raw({ type: '*/*' }), (req, res) => {
     let rawBody;
     let event;
 
@@ -200,69 +197,32 @@ router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
         } else {
             rawBody = JSON.stringify(req.body || {});
         }
-
-        // Parse the event — we need this to decide what action to take
         event = JSON.parse(rawBody);
     } catch (parseErr) {
         console.error('[BillStack Webhook] Failed to parse body:', parseErr.message);
         return res.status(400).json({ status: false, message: 'Invalid JSON body' });
     }
 
-    // Verify signature before any processing
     const signature = req.headers['x-wiaxy-signature-256'];
-    const timestamp  = req.headers['x-wiaxy-timestamp'];
+    const timestamp = req.headers['x-wiaxy-timestamp'];
 
-    if (signature && !billstackService.verifyWebhookSignature(rawBody, signature, timestamp)) {
+    if (!billstackService.verifyWebhookSignature(rawBody, signature, timestamp)) {
         console.warn('[BillStack Webhook] Invalid signature — request rejected.');
         return res.status(400).json({ status: false, message: 'Invalid signature' });
     }
 
-    // Acknowledge immediately (BillStack retries on non-200)
-    res.status(200).json({ status: true, message: 'successful' });
+    try {
+        // A 200 is sent only after the verified event is safely stored in SQLite.
+        const queued = billstackWebhookQueue.enqueueWebhook(event, rawBody);
+        res.status(200).json({ status: true, message: 'successful' });
 
-    // Process asynchronously after responding
-    setImmediate(async () => {
-        try {
-            if (event?.event === 'PAYMENT_NOTIFICATION' && event?.data) {
-                const result = await billstackService.processIncomingPayment(event.data);
-                console.log('[BillStack Webhook] Payment processed:', result.message,
-                    '| User:', result.user?.id, '| Balance:', result.balance);
-
-                // Send wallet funded email (non-blocking)
-                if (!result.alreadyProcessed && result.user?.id) {
-                    const userRow = db.prepare(`SELECT email, full_name FROM users WHERE id = ?`).get(result.user.id);
-                    if (userRow) {
-                        const amount = parseFloat(event.data.amount) || 0;
-                        const reference = event.data.wiaxy_ref || event.data.transaction_ref || event.data.reference;
-
-                        emailService.sendWalletFundedEmail(
-                            { email: userRow.email, fullName: userRow.full_name },
-                            {
-                                amount,
-                                newBalance: result.balance,
-                                reference,
-                                channel: 'virtual_bank_account'
-                            }
-                        ).catch(() => {});
-
-                        // Telegram admin alert (non-blocking)
-                        telegram.notifyWalletFunded({
-                            fullName: userRow.full_name,
-                            email:    userRow.email,
-                            userId:   result.user.id,
-                            amount,
-                            newBalance: result.balance,
-                            reference
-                        }).catch(() => {});
-                    }
-                }
-            } else {
-                console.log('[BillStack Webhook] Unhandled event type:', event?.event);
-            }
-        } catch (err) {
-            console.error('[BillStack Webhook] Processing error:', err.message);
+        if (queued.inserted) {
+            setImmediate(() => billstackWebhookQueue.processPendingWebhooks());
         }
-    });
+    } catch (err) {
+        console.error('[BillStack Webhook] Could not persist event:', err.message);
+        return res.status(500).json({ status: false, message: 'Could not persist webhook event' });
+    }
 });
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

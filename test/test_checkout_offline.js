@@ -41,8 +41,17 @@ async function run() {
     assert.strictEqual(sujanService.verifyWebhookSignature(webhookPayload, webhookSignature, ''), false);
     console.log('PASS: Sujan webhook HMAC verification accepts valid raw bodies and rejects invalid signatures');
 
-    // This runs only in a fresh, disposable CI database.
-    seedDatabase();
+    // This test has already required CI=true, OLASLOG_OFFLINE_TEST=1,
+    // and uses the dedicated disposable /tmp database. Temporarily opt into
+    // the development-only destructive seed guard, then restore test mode.
+    process.env.NODE_ENV = 'development';
+    process.env.ALLOW_DESTRUCTIVE_SEED = 'true';
+    try {
+        seedDatabase();
+    } finally {
+        delete process.env.ALLOW_DESTRUCTIVE_SEED;
+        process.env.NODE_ENV = 'test';
+    }
 
     const customer = db.prepare("SELECT id FROM users WHERE email = 'customer@olaslog.com'").get();
     assert(customer, 'Seeded test customer must exist');
