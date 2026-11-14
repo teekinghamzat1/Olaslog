@@ -325,7 +325,7 @@ function verifyWebhookSignature(rawBody, signature, timestamp) {
  */
 async function processIncomingPayment(data) {
     // Use wiaxy_ref / transaction_ref as the unique transaction reference
-    const txRef = data.wiaxy_ref || data.transaction_ref || data.merchant_reference || data.reference;
+    const txRef = data.wiaxy_ref || data.transaction_ref || data.merchant_reference;
     const accountRef = data.reference || data.merchant_reference;
     const amount = parseFloat(data.amount);
 
