@@ -4,7 +4,9 @@ require('dotenv').config();
 
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || (
-    process.env.NODE_ENV === 'production' ? null : crypto.randomBytes(32).toString('hex')
+    ['development', 'test'].includes(process.env.NODE_ENV)
+        ? crypto.randomBytes(32).toString('hex')
+        : null
 );
 
 if (!JWT_SECRET) {
