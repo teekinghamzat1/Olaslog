@@ -34,3 +34,5 @@ This change set is intended for review before deployment. Do not merge or deploy
 ## Validation status
 
 These changes have been made on a review branch only. They have not been deployed, and no live BillStack signature or deposit test has been performed. Run the automated test suite and the staging scenarios above before merging. Confirm BillStack's exact signature algorithm and headers with its current documentation or support before enabling strict verification in production.
+
+- Wallet credits now require a provider transaction reference (`wiaxy_ref`, `transaction_ref`, or `merchant_reference`); the virtual-account `reference` is not used as a transaction ID.
