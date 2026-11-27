@@ -193,6 +193,11 @@ async function sujanFetch(endpoint, options = {}) {
         error.status = response.status;
         error.code = data?.error_code || 'SUJAN_API_ERROR';
         error.details = data;
+        // Treat ordinary client-side rejections as final failures. Timeouts,
+        // rate limits, and conflict responses can still have ambiguous outcomes.
+        error.isDefinitiveRejection = response.status >= 400
+            && response.status < 500
+            && ![408, 409, 425, 429].includes(response.status);
         throw error;
     }
 
