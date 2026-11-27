@@ -229,6 +229,33 @@ async function run() {
     assert(malformedAttempt, 'Uncertain supplier checkout must be durably recorded');
     console.log('PASS: incomplete supplier response keeps funds reserved without charging the wallet');
 
+    const rejectedProduct = createProduct('Supplier Rejection Product', 'offline-supplier-rejection', 400, 910005);
+    const balanceBeforeRejection = getWalletBalance(customer.id);
+    const ledgerBeforeRejection = getLedgerBalance(customer.id);
+    let rejectionCalls = 0;
+    sujanService.placeOrder = async () => {
+        rejectionCalls++;
+        const error = new Error('Insufficient provider wallet funds');
+        error.status = 422;
+        error.code = 'SUJAN_INSUFFICIENT_FUNDS';
+        error.isDefinitiveRejection = true;
+        throw error;
+    };
+    await assert.rejects(
+        checkoutCart(customer.id, [{ productId: rejectedProduct.id, quantity: 1 }]),
+        error => error.code === 'SUPPLIER_REJECTED' && error.sujanStatus === 422
+    );
+    assert.strictEqual(rejectionCalls, 1, 'Supplier rejection must be attempted exactly once');
+    assert.strictEqual(getLedgerBalance(customer.id), ledgerBeforeRejection, 'Rejected supplier checkout must not debit the wallet ledger');
+    assert.strictEqual(getWalletBalance(customer.id), balanceBeforeRejection, 'Rejected supplier checkout must restore the full spendable balance');
+    assert.strictEqual(getReservedBalance(customer.id), malformedProviderProduct.price, 'Only the unrelated malformed-response reservation should remain held');
+    const rejectedAttempt = db.prepare("SELECT status, error_message FROM checkout_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(customer.id);
+    const rejectedReservation = db.prepare("SELECT status FROM wallet_reservations WHERE checkout_id = (SELECT checkout_id FROM checkout_attempts WHERE user_id = ? ORDER BY id DESC LIMIT 1)").get(customer.id);
+    assert.strictEqual(rejectedAttempt.status, 'failed', 'Definitive supplier rejection must mark the checkout attempt failed');
+    assert.match(rejectedAttempt.error_message, /HTTP 422/);
+    assert.strictEqual(rejectedReservation.status, 'released', 'Definitive supplier rejection must release its reservation');
+    console.log('PASS: definitive Sujan 4xx rejection releases the wallet hold and allows a retry without another deposit');
+
     const callsBeforeMixedCart = providerCalls;
     await assert.rejects(
         checkoutCart(customer.id, [
