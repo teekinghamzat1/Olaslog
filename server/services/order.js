@@ -203,6 +203,18 @@ async function checkoutCart(userId, items) {
                     keys
                 });
             } catch (sujanErr) {
+                // A definitive HTTP 4xx rejection means the supplier did not accept
+                // this order. Release the customer's hold immediately so they can retry.
+                if (sujanErr.isDefinitiveRejection === true) {
+                    const rejectionMessage = `Supplier rejected the order (HTTP ${sujanErr.status || '4xx'}): ${sujanErr.message}`;
+                    updateAttempt('failed', { error: rejectionMessage });
+                    releaseReservation(rejectionMessage);
+                    const rejectedErr = new Error(rejectionMessage);
+                    rejectedErr.code = 'SUPPLIER_REJECTED';
+                    rejectedErr.sujanStatus = sujanErr.status || null;
+                    throw rejectedErr;
+                }
+
                 if (sujanErr.code === 'SUPPLIER_UNCERTAIN') {
                     updateAttempt('supplier_uncertain', { supplierOrderId: sujanErr.sujanOrderId, error: sujanErr.message });
                     recordSupplierUncertainty(userId, valItem, sujanErr);
